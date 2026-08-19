@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { AppLayout } from '../layouts/AppLayout';
 import { DashboardPage } from '../pages/DashboardPage';
 import { PlaceholderPage } from '../pages/PlaceholderPage';
+import { ConsultationsPage } from '../features/consultations/ConsultationsPage';
 import { SchedulingPage } from '../features/scheduling/SchedulingPage';
 import { BillingPage } from '../features/billing/BillingPage';
 import { ApprovalPage } from '../features/approvals/ApprovalPage';
@@ -11,7 +12,7 @@ export function AppRoutes() {
   return <Routes>
     <Route element={<AppLayout />}>
       <Route path="/" element={<DashboardPage />} />
-      <Route path="/consultations" element={<PlaceholderPage title="Consultation Requests" />} />
+      <Route path="/consultations" element={<ConsultationsPage />} />
       <Route path="/treatment" element={<PlaceholderPage title="Diagnosis & Treatment" />} />
       <Route path="/inventory" element={<PlaceholderPage title="Medicine & Inventory" />} />
       <Route path="/scheduling" element={<SchedulingPage />} />

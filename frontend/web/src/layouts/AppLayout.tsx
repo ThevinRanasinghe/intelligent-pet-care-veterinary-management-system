@@ -5,7 +5,7 @@ import { Badge } from '../components/ui/Badge';
 
 const navigation = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard, scope: 'dashboard' },
-  { label: 'Consultation Requests', to: '/consultations', icon: PawPrint, scope: 'placeholder' },
+  { label: 'Consultation Requests', to: '/consultations', icon: PawPrint, scope: 'complete' },
   { label: 'Diagnosis & Treatment', to: '/treatment', icon: Stethoscope, scope: 'placeholder' },
   { label: 'Medicine & Inventory', to: '/inventory', icon: Package, scope: 'placeholder' },
   { label: 'Scheduling', to: '/scheduling', icon: CalendarDays, scope: 'complete' },

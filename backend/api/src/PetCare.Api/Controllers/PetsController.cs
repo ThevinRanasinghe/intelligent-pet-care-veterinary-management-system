@@ -55,6 +55,7 @@ public class PetsController : ControllerBase
     {
         var pets = await _context.Pets
             .Where(p => p.OwnerId == ownerId)
+            .OrderByDescending(p => p.CreatedAt)
             .Select(p => new PetResponseDto
             {
                 Id = p.Id,
@@ -69,5 +70,50 @@ public class PetsController : ControllerBase
             .ToListAsync();
 
         return Ok(pets);
+    }
+
+    // Endpoint 2b: Get all Pets (clinic-wide)
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<PetResponseDto>>> GetAllPets()
+    {
+        var pets = await _context.Pets
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(p => new PetResponseDto
+            {
+                Id = p.Id,
+                OwnerId = p.OwnerId,
+                Name = p.Name,
+                Species = p.Species,
+                Breed = p.Breed,
+                Age = p.Age,
+                MedicalHistorySummary = p.MedicalHistorySummary,
+                CreatedAt = p.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(pets);
+    }
+
+    // Endpoint 2c: Get a single Pet by ID
+    [HttpGet("{id}")]
+    public async Task<ActionResult<PetResponseDto>> GetPetById(Guid id)
+    {
+        var pet = await _context.Pets.FindAsync(id);
+        if (pet == null)
+        {
+            return NotFound(new { message = "Pet not found." });
+        }
+
+        return Ok(new PetResponseDto
+        {
+            Id = pet.Id,
+            OwnerId = pet.OwnerId,
+            Name = pet.Name,
+            Species = pet.Species,
+            Breed = pet.Breed,
+            Age = pet.Age,
+            MedicalHistorySummary = pet.MedicalHistorySummary,
+            CreatedAt = pet.CreatedAt
+        });
     }
 }

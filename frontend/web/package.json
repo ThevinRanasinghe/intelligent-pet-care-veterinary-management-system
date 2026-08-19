@@ -11,15 +11,18 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "axios": "^1.19.0",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest"
   },
   "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "jsdom": "latest",
     "typescript": "latest",
     "vite": "latest",
-    "vitest": "latest",
-    "jsdom": "latest"
+    "vitest": "latest"
   }
 }

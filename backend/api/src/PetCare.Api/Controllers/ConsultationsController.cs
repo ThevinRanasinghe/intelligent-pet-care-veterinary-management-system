@@ -72,4 +72,78 @@ public class ConsultationsController : ControllerBase
 
         return Ok(new { ConsultationId = request.Id, Status = request.Status, UpdatedAt = request.UpdatedAt });
     }
+
+    // Endpoint 4b: Get all Consultation Requests for a specific Owner
+    [HttpGet("owner/{ownerId}")]
+    public async Task<ActionResult<IEnumerable<ConsultationResponseDto>>> GetConsultationsByOwner(Guid ownerId)
+    {
+        var requests = await _context.ConsultationRequests
+            .Where(r => r.OwnerId == ownerId)
+            .OrderByDescending(r => r.CreatedAt)
+            .Select(r => new ConsultationResponseDto
+            {
+                Id = r.Id,
+                PetId = r.PetId,
+                OwnerId = r.OwnerId,
+                SymptomsDescription = r.SymptomsDescription,
+                PhotoUrl = r.PhotoUrl,
+                PreferredBranch = r.PreferredBranch,
+                PreferredDate = r.PreferredDate,
+                BudgetLimit = r.BudgetLimit,
+                Status = r.Status,
+                CreatedAt = r.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(requests);
+    }
+
+    // Endpoint 4c: Get all Consultation Requests (clinic-wide)
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<ConsultationResponseDto>>> GetAllConsultations()
+    {
+        var requests = await _context.ConsultationRequests
+            .OrderByDescending(r => r.CreatedAt)
+            .Select(r => new ConsultationResponseDto
+            {
+                Id = r.Id,
+                PetId = r.PetId,
+                OwnerId = r.OwnerId,
+                SymptomsDescription = r.SymptomsDescription,
+                PhotoUrl = r.PhotoUrl,
+                PreferredBranch = r.PreferredBranch,
+                PreferredDate = r.PreferredDate,
+                BudgetLimit = r.BudgetLimit,
+                Status = r.Status,
+                CreatedAt = r.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(requests);
+    }
+
+    // Endpoint 4d: Get single Consultation Request by ID
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ConsultationResponseDto>> GetConsultationById(Guid id)
+    {
+        var request = await _context.ConsultationRequests.FindAsync(id);
+        if (request == null)
+        {
+            return NotFound(new { message = "Consultation request not found." });
+        }
+
+        return Ok(new ConsultationResponseDto
+        {
+            Id = request.Id,
+            PetId = request.PetId,
+            OwnerId = request.OwnerId,
+            SymptomsDescription = request.SymptomsDescription,
+            PhotoUrl = request.PhotoUrl,
+            PreferredBranch = request.PreferredBranch,
+            PreferredDate = request.PreferredDate,
+            BudgetLimit = request.BudgetLimit,
+            Status = request.Status,
+            CreatedAt = request.CreatedAt
+        });
+    }
 }
