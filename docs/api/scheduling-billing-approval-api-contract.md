@@ -1,12 +1,12 @@
-# API contract draft
+# API contract
 
-This document is a UI-first contract. Routes can be finalized by the backend owner before merge.
+Final planned endpoints for the Scheduling, Billing and Approval modules. See `docs/database/scheduling-billing-approval-domain-model.md` for the underlying entities, statuses and business rules.
 
 ## Scheduling
 
 - `GET /api/scheduling/slots`
-- `POST /api/scheduling/slots`
 - `GET /api/scheduling/slots/{id}`
+- `POST /api/scheduling/slots`
 - `PATCH /api/scheduling/slots/{id}/status`
 - `GET /api/scheduling/slots/conflicts`
 
@@ -19,6 +19,7 @@ Business operation: reject overlapping veterinarian/date/time slots.
 - `POST /api/quotations`
 - `PUT /api/quotations/{id}`
 - `POST /api/quotations/{id}/submit`
+- `POST /api/quotations/{id}/calculate`
 
 Business operation: calculate complete quotation and compare against the owner's budget.
 
@@ -29,6 +30,7 @@ Business operation: calculate complete quotation and compare against the owner's
 - `POST /api/approvals/{id}/approve`
 - `POST /api/approvals/{id}/reject`
 - `POST /api/approvals/{id}/revision`
+- `GET /api/approvals/{id}/history`
 
 Business operation: high-impact execution stays blocked until an authorized Clinic Manager decision.
 
