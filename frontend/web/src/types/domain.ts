@@ -46,6 +46,9 @@ export interface Quotation {
   branch: string;
   budget: number;
   status: QuotationStatus;
+  subtotal?: number;
+  total?: number;
+  isWithinBudget?: boolean;
   items: QuoteLineItem[];
   createdAt: string;
   updatedAt: string;
