@@ -12,7 +12,8 @@ namespace PetCare.Api.Middleware;
 /// the appropriate HTTP status codes so every client (React, Flutter, ...)
 /// gets consistent error responses.
 /// NotFoundException -&gt; 404, SchedulingConflictException -&gt; 409,
-/// BillingConflictException -&gt; 409, FluentValidation.ValidationException -&gt; 400,
+/// BillingConflictException -&gt; 409, ApprovalConflictException -&gt; 409,
+/// FluentValidation.ValidationException -&gt; 400,
 /// database slot-unique constraint violations -&gt; 409, anything else -&gt; 500.
 /// </summary>
 public class ExceptionHandlingMiddleware
@@ -55,6 +56,11 @@ public class ExceptionHandlingMiddleware
             BillingConflictException billingConflict => (
                 HttpStatusCode.Conflict,
                 "The request conflicts with an existing billing business rule.",
+                null),
+
+            ApprovalConflictException approvalConflict => (
+                HttpStatusCode.Conflict,
+                "The request conflicts with an existing approval business rule.",
                 null),
 
             ValidationException validation => (

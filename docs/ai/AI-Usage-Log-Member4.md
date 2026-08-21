@@ -210,3 +210,34 @@ Flagged and worked around a domain-model inconsistency instead of guessing silen
 Ran `dotnet build backend/api/PetCare.sln` — build succeeded, 0 warnings, 0 errors. Ran `dotnet test backend/api/tests/PetCare.Application.Tests/PetCare.Application.Tests.csproj --logger "console;verbosity=normal"`.
 
 **Result:** 59 tests passed, 0 failed (10 pre-existing Scheduling tests + 32 pre-existing Billing tests + 17 new `ApprovalServiceTests`: approve/reject/request-revision success paths, `ApproveRequestValidator`/`RejectRequestValidator`/`RequestRevisionRequestValidator` reason rules, rejecting an already-decided approval ("approved/rejected items cannot be reviewed again"), rejecting a decision when `Quotation.Status` isn't `PendingApproval`, `ApprovalHistory` row creation with correct `PreviousStatus`/`NewStatus`/`ChangedBy`/`Reason`, not-found handling on approve/reject/history/get-by-id, and lazy pending-approval provisioning). Build result: **0 warnings, 0 errors**. Test result: **17/17 new Approval tests passed, 59/59 total tests passed**.
+
+## Entry 08 — Approval REST API + Swagger integration
+
+**Date:**
+21 August 2026
+
+**AI Tool / Model:**
+Devin IDE
+
+**Task / Section:**
+Expose the Entry 07 `IApprovalService` application layer as a REST API: create `ApprovalsController`, wire up any missing DI, return correct HTTP status codes, extend the exception middleware only for the new `ApprovalConflictException`, and add Swagger/XML docs — no business logic in the controller, no changes to Scheduling/Billing/schema/React/Flutter.
+
+**What the AI produced:**
+Inspected `AppointmentsController.cs` and `QuotationsController.cs` for the existing controller conventions (thin controllers delegating to an `I*Service`, `[ApiController]`/`[Route]`/`[Produces]`, `ProducesResponseType` attributes per status code, `Ok`/`NotFound` pattern for nullable Get-by-id results), `Program.cs` for the Swagger/middleware pipeline, and `ServiceCollectionExtensions.cs`, confirming `IApprovalService`/`IApprovalRepository` and the three approval validators were already registered from Entry 07 (no new DI needed). Created `Controllers/ApprovalsController.cs` with `GET /api/approvals/pending`, `GET /api/approvals/{id}`, `POST /api/approvals/{id}/approve`, `POST /api/approvals/{id}/reject`, `POST /api/approvals/{id}/revision`, `GET /api/approvals/{id}/history` — each an async one-line delegate to `IApprovalService`, matching the route shapes in `docs/api/scheduling-billing-approval-api-contract.md#approval`. Added `ApprovalConflictException -> 409` to `ExceptionHandlingMiddleware`'s exception-to-status `switch`, mirroring the existing `BillingConflictException`/`SchedulingConflictException` cases. Built the solution, started `PetCare.Api` on `http://localhost:5080` against the real Postgres `petcare` database, and ran the full API test workflow (A–G) plus a database-state check.
+
+**What I changed / rejected:**
+Rejected adding a `[FromBody]` reviewer-context wrapper or any new DTOs — reused `ApproveRequest`/`RejectRequest`/`RequestRevisionRequest`/`ApprovalResponse`/`ApprovalHistoryResponse` from Entry 07 as-is, since the task explicitly required reusing existing DTOs and not duplicating business logic in the controller. Rejected returning `201 Created` for approve/reject/revision (unlike `POST /api/quotations`) since these are decisions on an existing resource, not resource creation — used `Ok(...)` (`200`) instead, matching `QuotationsController.SubmitQuotation`/`FinalizeQuotation`'s pattern for status-transition endpoints. Rejected touching `Program.cs`'s Swagger setup — the existing `AddSwaggerGen`/`UseSwagger`/`UseSwaggerUI` calls auto-discover all controllers, including the new one, so no changes were needed there. Did not create any new DI registrations (all were already present from Entry 07). Did not modify `SchedulingService`, `BillingService`, `PetCareDbContext`/schema, React, Flutter, or Agentic AI code, per explicit scope.
+
+**How I verified it:**
+Ran `dotnet build backend/api/PetCare.sln` — 0 warnings, 0 errors. Started the API against the live Postgres database and fetched `swagger.json`, confirming all 6 `/api/approvals/*` paths were listed alongside the existing Scheduling/Billing paths. Drove 3 real quotations into `PendingApproval` via the existing Billing endpoints, then exercised the full workflow directly against the running API and Postgres-backed data (temporary curl payload `.json` files were created and deleted afterward; nothing was committed):
+- **A.** `GET /api/approvals/pending` → `200`, returned all 3 pending approvals (confirming the Entry 07 lazy-provisioning logic works against real data).
+- **B.** `GET /api/approvals/{id}` → `200` for a real id, `404` for `00000000-0000-0000-0000-000000000000`.
+- **C.** `POST .../approve` on a Pending approval → `200`, `status: "Approved"`; linked `Quotation.Status` also became `Approved`.
+- **D.** `POST .../reject` with `"reason": ""` → `400` with `{"errors":{"Reason":["Reason is required when rejecting a quotation."]}}`; retried with a real reason → `200`, `status: "Rejected"`.
+- **E.** `POST .../revision` with `"reason": ""` → `400` with a `Reason`-required error; retried with a real reason → `200`, `status: "RevisionRequested"`.
+- **F.** Re-`POST .../approve` on the now-`Approved` approval → `409`, `{"title":"The request conflicts with an existing approval business rule.","detail":"Only Pending approvals can be reviewed. Current status: 'Approved'."}`.
+- **G.** `GET .../history` for all three approvals → `200`, one `ApprovalHistory` row each with the correct `PreviousStatus`/`NewStatus`/`ChangedBy`/`Reason`/`ChangedAt`.
+
+**Database verification:** `psql`/Docker CLI were not available in this environment, so I verified persistence by re-querying the live API (which reads Postgres via EF Core on every call, with no caching layer): re-fetching `GET /api/quotations` after the decisions confirmed the three `Quotation.Status` values were durably `Rejected`/`RevisionRequested`/`Approved`, and re-fetching each approval's `/history` endpoint confirmed the `ApprovalHistory` rows were persisted (not just held in memory) with the correct decision data.
+
+**Result:** Build: **0 warnings, 0 errors**. Swagger: all 6 approval endpoints listed correctly. API tests: **7/7 workflow steps (A–G) passed** with the expected status codes (`200`/`404`/`400`/`409`). PostgreSQL verification: **status transitions and ApprovalHistory rows confirmed persisted** via live re-reads.
