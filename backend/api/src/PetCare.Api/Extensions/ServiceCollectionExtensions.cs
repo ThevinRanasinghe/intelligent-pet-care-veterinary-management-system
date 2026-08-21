@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using PetCare.Application.DTOs.Approval;
 using PetCare.Application.DTOs.Billing;
 using PetCare.Application.DTOs.Scheduling;
 using PetCare.Application.Interfaces;
@@ -42,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAppointmentSlotRepository, AppointmentSlotRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IQuotationRepository, QuotationRepository>();
+        services.AddScoped<IApprovalRepository, ApprovalRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;
@@ -51,11 +53,15 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<IApprovalService, ApprovalService>();
 
         services.AddScoped<IValidator<CreateAppointmentRequest>, CreateAppointmentRequestValidator>();
         services.AddScoped<IValidator<UpdateAppointmentRequest>, UpdateAppointmentRequestValidator>();
         services.AddScoped<IValidator<CreateQuotationRequest>, CreateQuotationRequestValidator>();
         services.AddScoped<IValidator<UpdateQuotationRequest>, UpdateQuotationRequestValidator>();
+        services.AddScoped<IValidator<ApproveRequest>, ApproveRequestValidator>();
+        services.AddScoped<IValidator<RejectRequest>, RejectRequestValidator>();
+        services.AddScoped<IValidator<RequestRevisionRequest>, RequestRevisionRequestValidator>();
 
         return services;
     }
