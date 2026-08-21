@@ -12,8 +12,8 @@ namespace PetCare.Api.Middleware;
 /// the appropriate HTTP status codes so every client (React, Flutter, ...)
 /// gets consistent error responses.
 /// NotFoundException -&gt; 404, SchedulingConflictException -&gt; 409,
-/// FluentValidation.ValidationException -&gt; 400, database slot-unique
-/// constraint violations -&gt; 409, anything else -&gt; 500.
+/// BillingConflictException -&gt; 409, FluentValidation.ValidationException -&gt; 400,
+/// database slot-unique constraint violations -&gt; 409, anything else -&gt; 500.
 /// </summary>
 public class ExceptionHandlingMiddleware
 {
@@ -50,6 +50,11 @@ public class ExceptionHandlingMiddleware
             SchedulingConflictException conflict => (
                 HttpStatusCode.Conflict,
                 "The request conflicts with an existing scheduling business rule.",
+                null),
+
+            BillingConflictException billingConflict => (
+                HttpStatusCode.Conflict,
+                "The request conflicts with an existing billing business rule.",
                 null),
 
             ValidationException validation => (
@@ -100,6 +105,9 @@ public class ExceptionHandlingMiddleware
                 Instance = context.Request.Path
             };
 
-        await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails));
+        // Serialize using the runtime type (not the compile-time ProblemDetails
+        // type the ternary above collapses to), so ValidationProblemDetails.Errors
+        // is actually included in the response for ValidationException.
+        await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails, problemDetails.GetType()));
     }
 }

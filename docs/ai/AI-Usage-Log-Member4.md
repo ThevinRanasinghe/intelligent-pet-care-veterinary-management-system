@@ -152,3 +152,39 @@ Did not add a `TotalPrice`/`Subtotal`/`Total` field to any request DTO — `Line
 Ran `dotnet build backend/api/PetCare.sln` — build succeeded, 0 warnings, 0 errors. Ran `dotnet test backend/api/tests/PetCare.Application.Tests/PetCare.Application.Tests.csproj`.
 
 **Result:** 42 tests passed, 0 failed (10 pre-existing Scheduling tests + 32 new Billing tests: 14 `BillingServiceTests` covering subtotal/total calculation, budget comparison, and status-transition rules; 18 `QuotationValidatorTests` covering item/budget/category/appointment-existence/duplicate-quotation validation).
+
+## Entry 06 — Billing API Controller + Exception Middleware Fix
+
+**Date:**
+21 August 2026
+
+**AI Tool / Model:**
+Devin IDE
+
+**Task / Section:**
+Two related sessions on the Scheduling, Billing & Approval component's API layer: (1) expose the Entry 05 `IBillingService` application layer through ASP.NET Core, and (2) fix a validation-response serialization bug discovered while verifying (1).
+
+**What the AI produced (session 1 — QuotationsController):**
+Created `PetCare.Api/Controllers/QuotationsController.cs` injecting `IBillingService` and implementing `GET /api/quotations`, `GET /api/quotations/{id}`, `POST /api/quotations` (using `CreatedAtAction(nameof(GetQuotationById), ...)`), `PUT /api/quotations/{id}`, `POST /api/quotations/{id}/calculate`, `POST /api/quotations/{id}/submit`, and `POST /api/quotations/{id}/finalize`, all async and using the existing Billing DTOs with XML doc comments and `[ProducesResponseType]` attributes matching the Scheduling controller's style. Added a `BillingConflictException` case to `ExceptionHandlingMiddleware` mapping it to 409, alongside the existing `SchedulingConflictException` mapping.
+
+**What I changed / rejected (session 1):**
+Did not touch `ServiceCollectionExtensions.cs` since `IBillingService`/`BillingService` were already registered in Entry 05. Did not create a second API project, second exception middleware, or duplicate any `BillingService` logic — the controller is a thin HTTP wrapper only. Did not implement Approval endpoints, and did not modify `SchedulingService`, the database schema, React, or Flutter, per explicit scope.
+
+**How I verified it (session 1):**
+Ran `dotnet build backend/api/PetCare.sln` (0 warnings/errors). Started the API with `dotnet run` on `http://localhost:5080` and confirmed `swagger/v1/swagger.json` listed all 5 quotation route templates. Live-tested against PostgreSQL: `POST /api/quotations` created a quotation; a duplicate `POST` for the same appointment was correctly rejected (400, "quotation already exists"); `POST /api/quotations/{id}/finalize` on a `Draft` quotation correctly returned 409 via the new `BillingConflictException` mapping; `POST /api/quotations/{id}/calculate` and `POST /api/quotations/{id}/submit` both returned 200 with the quotation moving to `PendingApproval`.
+
+**Issue encountered (challenge/learning — session 2):**
+While verifying session 1, `POST /api/quotations` with an intentionally invalid body (negative budget, empty item fields, unknown category) returned `400 Bad Request` as expected, but the JSON body was just `{"title":"One or more validation errors occurred.","status":400,"instance":"/api/quotations"}` — **the field-level `errors` dictionary was silently missing**, even though `FluentValidation.ValidationException.Errors` clearly contained multiple entries (confirmed via the server console log). This made the 400 responses effectively useless to a frontend consumer, since no field could be highlighted as invalid. Root-caused it to `ExceptionHandlingMiddleware.HandleExceptionAsync`: `problemDetails` is assigned via a ternary between `new ProblemDetails{...}` and `new ValidationProblemDetails(errors){...}`; in C# the ternary's static type collapses to the common base type `ProblemDetails`, so `JsonSerializer.Serialize(problemDetails)` — which uses the compile-time generic type argument for its reflection metadata — serialized the object as a plain `ProblemDetails` and silently dropped the derived `Errors` property. This is a subtle C#/`System.Text.Json` gotcha (base-type erasure through a ternary) rather than a logic bug in the validators themselves, and it affected both Scheduling's and Billing's validation responses equally since it predated this session.
+
+**How the issue was resolved:**
+Changed the single serialization call to pass the object's runtime type explicitly: `JsonSerializer.Serialize(problemDetails, problemDetails.GetType())`. This forces `System.Text.Json` to reflect over the actual `ValidationProblemDetails` instance when that's what was constructed, restoring the `errors` property, while leaving every other line — including all exception-to-status-code mappings — untouched.
+
+**What I changed / rejected (session 2):**
+Rejected restructuring the `switch` expression or introducing a new response DTO, since the bug was purely in how the already-correct `problemDetails` object was serialized — a one-line fix was sufficient and lower-risk than refactoring the exception mapping logic. Did not modify `SchedulingService`, `BillingService`, the database schema, controllers' business logic, React, Flutter, or Agentic AI, per explicit scope for this session.
+
+**Verification result (session 2):**
+`dotnet build backend/api/PetCare.sln` → 0 warnings, 0 errors. Re-sent the same invalid `POST /api/quotations` request and confirmed the response now includes the full field-level errors:
+```json
+{"title":"One or more validation errors occurred.","status":400,"instance":"/api/quotations","errors":{"AppointmentId":["'Appointment Id' must not be empty.","Appointment does not exist."],"Budget":["Budget must be greater than or equal to 0."],"Items[0].Description":["Description is required."],"Items[0].Quantity":["Quantity must be greater than 0."],"Items[0].UnitPrice":["UnitPrice must be greater than or equal to 0."],"Items[0].Category":["Category must be one of: Consultation, Examination, Treatment, Medicine, Other."]}}
+```
+Re-confirmed the other mappings were undisturbed: `POST /api/quotations/{unknownId}/finalize` still returned 404 (`NotFoundException`), and the earlier `BillingConflictException → 409` case from session 1 was unaffected since no mapping logic changed, only the final serialization line.
