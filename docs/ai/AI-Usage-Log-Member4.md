@@ -90,3 +90,65 @@ Ran `dotnet build` on `PetCare.Domain`, `PetCare.Application`, and `PetCare.Infr
 **Result:** 10 tests passed, 0 failed.
 
 *Add a new `## Entry NN` block for each additional AI-assisted session.*
+
+## Entry 04 — ASP.NET Core Scheduling API
+
+
+**Date:**
+21 August 2026
+
+
+**AI Tool / Model:**
+Devin IDE
+
+
+**Task / Section:**
+Implementation of the ASP.NET Core REST API for the Scheduling component.
+
+
+**What the AI produced:**
+Created the `PetCare.Api` ASP.NET Core 8 Web API project and wired the Scheduling module end-to-end. Added `Extensions/ServiceCollectionExtensions.cs` to register the application and infrastructure layers (repositories, `SchedulingService`, FluentValidation validators, `PetCareDbContext`). Configured `Program.cs` with `WebApplicationBuilder`, the CORS policy for `http://localhost:5173`, Swagger/OpenAPI with XML documentation comments, and a global `ExceptionHandlingMiddleware` that maps `NotFoundException` to 404, `SchedulingConflictException` to 409, `ValidationException` to 400, and unhandled errors to 500 using RFC7807 ProblemDetails. Implemented `Controllers/AppointmentsController.cs` with async endpoints for `GET /api/appointments`, `GET /api/appointments/{id}`, `POST /api/appointments`, `PUT /api/appointments/{id}`, `DELETE /api/appointments/{id}`, `GET /api/appointments/slots/available`, and `POST /api/appointments/conflicts`, all using `ISchedulingService` and returning the agreed status codes.
+
+**What I changed / rejected:**
+Kept the controller thin, delegating all business logic to `ISchedulingService` so the API layer only handles HTTP concerns. Confirmed the CORS allowed origin stays at `http://localhost:5173` to match the Vite React dev server. Did not add Billing or Approval controllers in this session because the assignment separates those into their own tasks. Kept Swagger enabled in Development only, which is the default generated setup.
+
+**How I verified it:**
+Ran `dotnet build backend/api/PetCare.sln` and confirmed all projects compiled with 0 warnings and 0 errors. Started the API with `dotnet run` and opened the Swagger UI at `http://localhost:5080/swagger` (the URL used in this session). Exercised the endpoints against the seeded PostgreSQL database.
+
+**Issues encountered:**
+`password authentication failed for user "postgres"` at runtime because `AddPetCareInfrastructure` had a hardcoded fallback connection string `Host=localhost;Port=5432;Database=petcare;Username=postgres;Password=postgres` that masked a missing real credential.
+
+**How the issue was resolved:**
+Removed the hardcoded PostgreSQL password fallback in `ServiceCollectionExtensions.cs` and made the connection-string resolution explicit: it now reads `ConnectionStrings:PetCareDb` from config (user secrets / appsettings), then `PETCARE_DB_CONNECTION` environment variable, and throws a clear `InvalidOperationException` if neither is set. Updated the comment in `appsettings.Development.json` to explain how to set the secret without committing it. Also fixed the empty-string handling so an empty `ConnectionStrings:PetCareDb` in `appsettings.Development.json` falls back to the environment variable instead of being treated as a valid connection string.
+
+**Verification result:**
+- `GET /api/appointments → 200 OK` returned the seeded appointments.
+- `GET /api/appointments/slots/available?start=...&end=... → 200 OK` returned available slots.
+- `POST /api/appointments → 201 Created` successfully created an appointment.
+- `GET /api/appointments/{id} → 200 OK` returned the appointment by id.
+- `PUT /api/appointments/{id} → 204 NoContent` updated the appointment.
+- `DELETE /api/appointments/{id} → 204 NoContent` cancelled the appointment.
+- `POST /api/appointments/conflicts → 200 OK` correctly reported a conflict for overlapping slots and no conflict for valid ranges.
+- Build: 0 warnings, 0 errors.
+
+## Entry 05 — Billing / Quotation Management (Application layer)
+
+**Date:**
+21 August 2026
+
+**AI Tool / Model:**
+Devin IDE
+
+**Task / Section:**
+Implement the Billing / Quotation Management use cases (Application + Infrastructure layers only; no controllers) for the Scheduling, Billing & Approval component: `IBillingService`/`BillingService`, Billing DTOs, `QuotationValidator`, `IQuotationRepository`/`QuotationRepository`, and xUnit tests for quotation calculation and validation.
+
+**What the AI produced:**
+Added `DTOs/Billing/*` (`CreateQuotationRequest`, `UpdateQuotationRequest`, `QuotationItemRequest`, `QuotationItemResponse`, `QuotationResponse` — the last including a computed `IsWithinBudget` flag). Added `Exceptions/BillingConflictException.cs` mirroring `SchedulingConflictException` for future 409 mapping. Added `Interfaces/IQuotationRepository.cs` and its EF Core implementation `Infrastructure/Repositories/QuotationRepository.cs` (loads `Quotation` with `Items` included, plus `ExistsForAppointmentAsync` to enforce the 1:1 Appointment↔Quotation rule). Added `Validators/QuotationValidator.cs` with `CreateQuotationRequestValidator`, `UpdateQuotationRequestValidator`, and a shared `QuotationItemRequestValidator` (Quantity > 0, UnitPrice >= 0, Budget >= 0, Description required, Category restricted to the same 5 values as the DB `CHECK` constraint, appointment-exists check, and the 1:1 quotation-per-appointment check). Added `Services/BillingService.cs` implementing: get all, get by id, create, update (full item-set replace), calculate (server-side recompute from persisted items), submit for approval (Draft/RevisionRequested → PendingApproval, blocked if Total > Budget), and finalize (Approved → Finalised). Registered everything in `ServiceCollectionExtensions.cs`. Added `tests/PetCare.Application.Tests/Services/BillingServiceTests.cs` (14 tests) and `tests/PetCare.Application.Tests/Validators/QuotationValidatorTests.cs` (18 tests).
+
+**What I changed / rejected:**
+Did not add a `TotalPrice`/`Subtotal`/`Total` field to any request DTO — `LineTotal`/`Subtotal`/`Total` are always recomputed server-side from `Quantity * UnitPrice`, so a malicious or buggy client can never override the calculated amount. Rejected letting `UpdateQuotationAsync` accept `AppointmentId` (immutable after creation) or apply to `Approved`/`Finalised` quotations — added an `EnsureEditable` guard that throws `BillingConflictException` for those statuses, matching the domain model's "approved quotations cannot be casually edited" rule. Rejected a soft/overridable budget check on submission; `SubmitQuotationForApprovalAsync` hard-blocks with `BillingConflictException` when `Total > Budget` since no override mechanism was specified. Did not create `QuotationsController` or touch `ExceptionHandlingMiddleware`, Scheduling code, the database schema, React, Flutter, or Agentic AI code, per the explicit scope for this session (existing `Quotation`/`QuotationItem` entities and EF configurations already supported everything needed).
+
+**How I verified it:**
+Ran `dotnet build backend/api/PetCare.sln` — build succeeded, 0 warnings, 0 errors. Ran `dotnet test backend/api/tests/PetCare.Application.Tests/PetCare.Application.Tests.csproj`.
+
+**Result:** 42 tests passed, 0 failed (10 pre-existing Scheduling tests + 32 new Billing tests: 14 `BillingServiceTests` covering subtotal/total calculation, budget comparison, and status-transition rules; 18 `QuotationValidatorTests` covering item/budget/category/appointment-existence/duplicate-quotation validation).
