@@ -7,6 +7,7 @@ import { Modal } from '../../components/ui/Modal';
 import { approve, getApprovalHistory, getApprovalProposals, reject, requestRevision } from '../../services/approvalService';
 import type { ApprovalHistoryResponse } from '../../services/approvalService';
 import type { ApprovalProposal } from '../../types/domain';
+import { messageFrom } from '../../utils/errors';
 import { formatDate, formatLkr } from '../../utils/format';
 
 const tone: Record<ApprovalProposal['status'], 'warning' | 'success' | 'danger' | 'info'> = { Pending: 'warning', Approved: 'success', Rejected: 'danger', RevisionRequested: 'info' };
@@ -38,7 +39,7 @@ export function ApprovalPage() {
           setSelected(data[0] ?? null);
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load approvals');
+        if (!cancelled) setError(messageFrom(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -60,7 +61,7 @@ export function ApprovalPage() {
       setHistory(data);
       setShowHistory(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load history');
+      setError(messageFrom(err));
     }
   };
 
@@ -85,7 +86,7 @@ export function ApprovalPage() {
       setNote('');
       setSuccess(`Decision recorded: ${updated.status}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Decision failed');
+      setError(messageFrom(err));
     } finally {
       setSaving(false);
     }

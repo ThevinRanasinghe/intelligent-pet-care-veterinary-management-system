@@ -111,3 +111,20 @@ export async function finalizeQuotation(id: string): Promise<Quotation> {
 export function calculateQuoteTotal(items: QuoteLineItem[]): number {
   return items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 }
+
+export interface QuotationValidationInput {
+  budget: number;
+  items: Array<Pick<QuoteLineItem, 'category' | 'description' | 'quantity' | 'unitPrice'>>;
+}
+
+export function validateQuotationInput(input: QuotationValidationInput): string | null {
+  if (!Number.isFinite(input.budget) || input.budget < 0) return 'Budget cannot be negative';
+  if (!input.items || input.items.length === 0) return 'At least one line item is required';
+  for (const item of input.items) {
+    if (!item.category || !item.category.trim()) return 'Item category is required';
+    if (!item.description || !item.description.trim()) return 'Item description is required';
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0) return 'Quantity must be greater than zero';
+    if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) return 'Unit price cannot be negative';
+  }
+  return null;
+}

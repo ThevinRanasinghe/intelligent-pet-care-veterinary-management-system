@@ -1,65 +1,94 @@
-﻿import { useEffect, useMemo, useState } from 'react';
-import { CalendarPlus, Clock3, Filter, Loader2, Search, ShieldCheck, UserRound } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { CalendarPlus, Check, Clock3, Eye, Filter, Loader2, Pencil, Search, UserRound, X } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-import { checkVetConflict, createAppointment, getAppointmentSlots } from '../../services/schedulingService';
-import type { AppointmentSlot } from '../../types/domain';
+import { cancelAppointment, createAppointment, getAppointmentSlots, getAppointments, updateAppointment } from '../../services/schedulingService';
+import type { AppointmentSlot, AppointmentStatus } from '../../types/domain';
+import { messageFrom } from '../../utils/errors';
 import { formatDate } from '../../utils/format';
 
-const toneForStatus: Record<AppointmentSlot['status'], 'success' | 'warning' | 'neutral' | 'danger' | 'info'> = {
+type StatusFilter = 'All' | 'Available' | 'Reserved' | 'Confirmed' | 'Cancelled';
+
+interface SchedulingRow {
+  id: string;
+  slotId?: string;
+  appointmentId?: string;
+  veterinarianId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  branch: string;
+  petId?: string;
+  status: AppointmentStatus;
+}
+
+const toneForStatus: Record<AppointmentStatus, 'success' | 'warning' | 'neutral' | 'danger' | 'info'> = {
   Available: 'success', Reserved: 'warning', Confirmed: 'info', Completed: 'neutral', Cancelled: 'danger'
 };
 
+function extractDate(iso: string): string { return iso.slice(0, 10); }
+function extractTime(iso: string): string { return iso.slice(11, 19); }
+
 export function SchedulingPage() {
-  const [slots, setSlots] = useState<AppointmentSlot[]>([]);
+  const [rows, setRows] = useState<SchedulingRow[]>([]);
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<'All' | AppointmentSlot['status']>('All');
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ veterinarianId: '', branch: 'Colombo', date: '2026-08-22', startTime: '10:00', endTime: '10:30', petId: '' });
-  const [formError, setFormError] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('All');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const filtered = useMemo(() => slots.filter((slot) => {
-    const matchesQuery = `${slot.veterinarianName} ${slot.petName ?? ''} ${slot.ownerName ?? ''}`.toLowerCase().includes(query.toLowerCase());
-    return matchesQuery && (status === 'All' || slot.status === status);
-  }), [slots, query, status]);
 
-  const vets = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; branch: string }>();
-    slots.forEach((slot) => {
-      if (!map.has(slot.veterinarianId)) {
-        map.set(slot.veterinarianId, { id: slot.veterinarianId, name: slot.veterinarianName, branch: slot.branch });
-      }
-    });
-    return Array.from(map.values());
-  }, [slots]);
+  const [bookingSlot, setBookingSlot] = useState<SchedulingRow | null>(null);
+  const [viewing, setViewing] = useState<SchedulingRow | null>(null);
+  const [editing, setEditing] = useState<SchedulingRow | null>(null);
+  const [cancelling, setCancelling] = useState<SchedulingRow | null>(null);
 
-  useEffect(() => {
-    if (vets.length && !form.veterinarianId) {
-      setForm((f) => ({ ...f, veterinarianId: vets[0].id, branch: vets[0].branch }));
+  const [petId, setPetId] = useState('');
+  const [notes, setNotes] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
+  const [formError, setFormError] = useState('');
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [slots, appointments] = await Promise.all([getAppointmentSlots(), getAppointments()]);
+      const slotRows: SchedulingRow[] = slots.map((slot: AppointmentSlot) => ({
+        id: `slot-${slot.id}`,
+        slotId: slot.id,
+        veterinarianId: slot.veterinarianId,
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        branch: slot.branch,
+        status: 'Available',
+      }));
+      const apptRows: SchedulingRow[] = appointments.map((appt) => ({
+        id: `appt-${appt.id}`,
+        slotId: appt.appointmentSlotId,
+        appointmentId: appt.id,
+        veterinarianId: appt.veterinarianId,
+        date: extractDate(appt.scheduledStart),
+        startTime: extractTime(appt.scheduledStart),
+        endTime: extractTime(appt.scheduledEnd),
+        branch: '—',
+        petId: appt.petId,
+        status: appt.status as AppointmentStatus,
+      }));
+      const all = [...slotRows, ...apptRows];
+      all.sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+      setRows(all);
+    } catch (err) {
+      setError(messageFrom(err));
+    } finally {
+      setLoading(false);
     }
-  }, [vets]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const data = await getAppointmentSlots();
-        if (!cancelled) setSlots(data);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load slots');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, []);
+  };
 
   useEffect(() => {
     if (!success) return;
@@ -67,53 +96,296 @@ export function SchedulingPage() {
     return () => clearTimeout(t);
   }, [success]);
 
-  const toIso = (date: string, time: string) => `${date}T${time}:00`;
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    return rows.filter((row) => {
+      const haystack = `${row.veterinarianId} ${row.petId ?? ''} ${row.branch}`.toLowerCase();
+      const matchesQuery = !q || haystack.includes(q);
+      const matchesStatus = status === 'All' || row.status === status;
+      return matchesQuery && matchesStatus;
+    });
+  }, [rows, query, status]);
 
-  const handleCreate = async () => {
+  const openBook = (row: SchedulingRow) => {
+    setBookingSlot(row);
+    setPetId('');
+    setNotes('');
     setFormError('');
-    if (form.endTime <= form.startTime) { setFormError('End time must be after start time.'); return; }
-    const scheduledStart = toIso(form.date, form.startTime);
-    const scheduledEnd = toIso(form.date, form.endTime);
-    try {
-      const conflict = await checkVetConflict({ veterinarianId: form.veterinarianId, scheduledStart, scheduledEnd });
-      if (conflict) { setFormError('This veterinarian already has an overlapping appointment. Choose another time.'); return; }
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Conflict check failed');
+  };
+
+  const openEdit = (row: SchedulingRow) => {
+    setEditing(row);
+    setEditDate(row.date);
+    setEditStart(row.startTime.slice(0, 5));
+    setEditEnd(row.endTime.slice(0, 5));
+    setNotes('');
+    setFormError('');
+  };
+
+  const handleBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bookingSlot) return;
+    if (!petId.trim()) { setFormError('Pet ID is required'); return; }
+    if (!bookingSlot.veterinarianId || !bookingSlot.slotId) {
+      setFormError('This slot is missing veterinarian or slot information and cannot be booked');
       return;
     }
-    const matchingSlot = slots.find((slot) =>
-      slot.veterinarianId === form.veterinarianId &&
-      slot.date === form.date &&
-      slot.startTime <= form.startTime &&
-      slot.endTime >= form.endTime &&
-      slot.status === 'Available'
-    );
-    if (!matchingSlot) { setFormError('No matching open slot was found. Choose a time that fits inside an available slot.'); return; }
-    if (!form.petId.trim()) { setFormError('Pet ID is required to create an appointment.'); return; }
     try {
+      setFormError('');
       await createAppointment({
-        petId: form.petId.trim(),
-        veterinarianId: form.veterinarianId,
-        appointmentSlotId: matchingSlot.id,
-        scheduledStart,
-        scheduledEnd,
+        petId: petId.trim(),
+        veterinarianId: bookingSlot.veterinarianId,
+        appointmentSlotId: bookingSlot.slotId!,
+        scheduledStart: `${bookingSlot.date}T${bookingSlot.startTime}`,
+        scheduledEnd: `${bookingSlot.date}T${bookingSlot.endTime}`,
+        notes: notes.trim() || undefined,
       });
-      const data = await getAppointmentSlots();
-      setSlots(data);
-      setSuccess('Appointment created');
-      setShowModal(false);
+      setBookingSlot(null);
+      setPetId('');
+      setNotes('');
+      setSuccess('Appointment booked');
+      await load();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Create failed');
+      setFormError(messageFrom(err));
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+    if (editEnd <= editStart) { setFormError('End time must be after start time'); return; }
+    try {
+      setFormError('');
+      await updateAppointment(editing.appointmentId!, {
+        scheduledStart: `${editDate}T${editStart}:00`,
+        scheduledEnd: `${editDate}T${editEnd}:00`,
+        notes: notes.trim() || undefined,
+      });
+      setEditing(null);
+      setNotes('');
+      setSuccess('Appointment updated');
+      await load();
+    } catch (err) {
+      setFormError(messageFrom(err));
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!cancelling?.appointmentId) return;
+    try {
+      await cancelAppointment(cancelling.appointmentId);
+      setCancelling(null);
+      setSuccess('Appointment cancelled');
+      await load();
+    } catch (err) {
+      setError(messageFrom(err));
+      setCancelling(null);
     }
   };
 
   return <div className='page-wrap'>
     {error && <div className='error-banner'>{error}</div>}
     {success && <div className='success-banner'>{success}</div>}
-    <div className='page-heading'><div><div className='eyebrow'>Component · Scheduling</div><h2>Veterinarian scheduling</h2><p>Manage conflict-free appointment slots across clinic branches.</p></div><Button icon={<CalendarPlus size={17}/>} onClick={() => setShowModal(true)}>Create appointment</Button></div>
-    <div className='filter-bar'><div className='search-input'><Search size={17}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder='Search vet, pet or owner' /></div><div className='select-input'><Filter size={15}/><select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}><option>All</option><option>Available</option><option>Reserved</option><option>Confirmed</option><option>Completed</option><option>Cancelled</option></select></div><div className='filter-summary'>{filtered.length} slot{filtered.length === 1 ? '' : 's'}</div></div>
-    <Card><div className='table-wrap'><table><thead><tr><th>Date</th><th>Time</th><th>Veterinarian</th><th>Branch</th><th>Pet / Owner</th><th>Status</th></tr></thead><tbody>{loading ? <tr><td colSpan={6} className='empty-state'><Loader2 className='spinner' size={24}/> Loading slots...</td></tr> : (filtered.length === 0 ? <tr><td colSpan={6} className='empty-state'>No slots found</td></tr> : filtered.map((slot) => <tr key={slot.id}><td><strong>{formatDate(slot.date)}</strong></td><td><span className='time-cell'><Clock3 size={14}/>{slot.startTime}–{slot.endTime}</span></td><td><span className='person-cell'><span className='person-avatar'><UserRound size={14}/></span>{slot.veterinarianName}</span></td><td>{slot.branch}</td><td>{slot.petName ? <><strong>{slot.petName}</strong><span className='muted-line'>{slot.ownerName}</span></> : <span className='muted'>Open slot</span>}</td><td><Badge tone={toneForStatus[slot.status]}>{slot.status}</Badge></td></tr>))}</tbody></table></div></Card>
-    <div className='info-strip'><ShieldCheck size={18}/><div><strong>Backend rule ready</strong><span>Appointments are validated against veterinarian/date/time overlaps via the ASP.NET Core API.</span></div></div>
-    {showModal && <Modal title='Create appointment' onClose={() => setShowModal(false)}><div className='form-grid'><label>Veterinarian<select value={form.veterinarianId} onChange={(e) => { const v = vets.find((x) => x.id === e.target.value); setForm({...form, veterinarianId: e.target.value, branch: v?.branch ?? form.branch}); }}>{vets.map((vet) => <option key={vet.id} value={vet.id}>{vet.name} · {vet.branch}</option>)}</select></label><label>Branch<select value={form.branch} onChange={(e) => setForm({...form, branch: e.target.value})}><option>Colombo</option><option>Kandy</option><option>Nugegoda</option></select></label><label>Date<input type='date' value={form.date} onChange={(e) => setForm({...form, date: e.target.value})}/></label><label>Start time<input type='time' value={form.startTime} onChange={(e) => setForm({...form, startTime: e.target.value})}/></label><label>End time<input type='time' value={form.endTime} onChange={(e) => setForm({...form, endTime: e.target.value})}/></label><label>Pet ID<input type='text' value={form.petId} onChange={(e) => setForm({...form, petId: e.target.value})} placeholder='Enter the pet GUID'/></label></div>{formError && <div className='form-error'>{formError}</div>}<div className='modal-actions'><Button variant='secondary' onClick={() => setShowModal(false)}>Cancel</Button><Button onClick={handleCreate}>Save appointment</Button></div></Modal>}
+    <div className='page-heading'>
+      <div>
+        <div className='eyebrow'>Component · Scheduling</div>
+        <h2>Veterinarian scheduling</h2>
+        <p>Manage conflict-free appointment slots across clinic branches.</p>
+      </div>
+    </div>
+    <div className='filter-bar'>
+      <div className='search-input' style={{ minWidth: '280px' }}>
+        <Search size={17} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder='Search vet, pet or owner' />
+      </div>
+      <div className='select-input'>
+        <Filter size={15} />
+        <select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
+          <option>All</option>
+          <option>Available</option>
+          <option>Reserved</option>
+          <option>Confirmed</option>
+          <option>Cancelled</option>
+        </select>
+      </div>
+      <div className='filter-summary'>{filtered.length} result{filtered.length === 1 ? '' : 's'}</div>
+    </div>
+    <Card>
+      <div className='table-wrap'>
+        <table style={{ minWidth: '760px' }}>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Veterinarian</th>
+              <th>Branch</th>
+              <th>Pet / Owner</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={7} className='empty-state'>
+                  <Loader2 className='spinner' size={24} /> Loading schedule...
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className='empty-state'>No slots found</td>
+              </tr>
+            ) : filtered.map((row) => (
+              <tr key={row.id}>
+                <td><strong>{formatDate(row.date)}</strong></td>
+                <td>
+                  <span className='time-cell'>
+                    <Clock3 size={14} /> {row.startTime.slice(0, 5)}–{row.endTime.slice(0, 5)}
+                  </span>
+                </td>
+                <td>
+                  <span className='person-cell'>
+                    <span className='person-avatar'><UserRound size={14} /></span>
+                    <span style={{ maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.veterinarianId}</span>
+                  </span>
+                </td>
+                <td>{row.branch}</td>
+                <td>
+                  {row.petId ? (
+                    <>
+                      <strong style={{ display: 'block', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>Pet: {row.petId}</strong>
+                      <span className='muted-line'>Owner: —</span>
+                    </>
+                  ) : (
+                    <span className='muted'>Open slot</span>
+                  )}
+                </td>
+                <td><Badge tone={toneForStatus[row.status]}>{row.status}</Badge></td>
+                <td>
+                  {row.status === 'Available' ? (
+                    <Button onClick={() => openBook(row)} icon={<CalendarPlus size={15} />}>Book</Button>
+                  ) : (
+                    <div className='scheduling-actions'>
+                      <Button variant='ghost' onClick={() => setViewing(row)} icon={<Eye size={15} />} aria-label='View' />
+                      <Button variant='ghost' onClick={() => openEdit(row)} icon={<Pencil size={15} />} aria-label='Edit' />
+                      <Button variant='ghost' onClick={() => setCancelling(row)} icon={<X size={15} />} aria-label='Cancel' />
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+
+    {bookingSlot && (
+      <Modal title='Book appointment' onClose={() => setBookingSlot(null)}>
+        <form onSubmit={handleBook} className='form-grid' style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className='detail-block' style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div><span>Date</span><strong>{formatDate(bookingSlot.date)}</strong></div>
+            <div><span>Time</span><strong>{bookingSlot.startTime.slice(0, 5)}–{bookingSlot.endTime.slice(0, 5)}</strong></div>
+            <div><span>Branch</span><strong>{bookingSlot.branch}</strong></div>
+            <div><span>Vet</span><strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{bookingSlot.veterinarianId}</strong></div>
+          </div>
+          <label>
+            Pet ID
+            <input type='text' value={petId} onChange={(e) => setPetId(e.target.value)} placeholder='Enter the pet GUID' />
+          </label>
+          <label>
+            Notes
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder='Optional notes' />
+          </label>
+          {formError && <div className='form-error'>{formError}</div>}
+          <div className='modal-actions'>
+            <Button type='button' variant='secondary' onClick={() => setBookingSlot(null)}>Cancel</Button>
+            <Button type='submit' icon={<Check size={16} />}>Book appointment</Button>
+          </div>
+        </form>
+      </Modal>
+    )}
+
+    {viewing && (
+      <Modal title='Appointment details' onClose={() => setViewing(null)}>
+        <div className='proposal-grid' style={{ marginTop: '6px', gridTemplateColumns: '1fr 1fr' }}>
+          <div className='detail-block'>
+            <span>Appointment ID</span>
+            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{viewing.appointmentId ?? 'Open slot'}</strong>
+          </div>
+          <div className='detail-block'>
+            <span>Slot ID</span>
+            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{viewing.slotId ?? '—'}</strong>
+          </div>
+          <div className='detail-block'><span>Date</span><strong>{formatDate(viewing.date)}</strong></div>
+          <div className='detail-block'><span>Time</span><strong>{viewing.startTime.slice(0, 5)}–{viewing.endTime.slice(0, 5)}</strong></div>
+          <div className='detail-block'>
+            <span>Veterinarian</span>
+            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{viewing.veterinarianId}</strong>
+          </div>
+          <div className='detail-block'><span>Branch</span><strong>{viewing.branch}</strong></div>
+          <div className='detail-block'>
+            <span>Pet ID</span>
+            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{viewing.petId ?? '—'}</strong>
+          </div>
+          <div className='detail-block'>
+            <span>Status</span>
+            <strong><Badge tone={toneForStatus[viewing.status]}>{viewing.status}</Badge></strong>
+          </div>
+        </div>
+        <div className='modal-actions'>
+          <Button variant='secondary' onClick={() => setViewing(null)}>Close</Button>
+        </div>
+      </Modal>
+    )}
+
+    {editing && (
+      <Modal title='Edit appointment' onClose={() => setEditing(null)}>
+        <form onSubmit={handleEdit} className='form-grid' style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className='detail-block' style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '6px' }}>
+            <div>
+              <span>Pet ID</span>
+              <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{editing.petId}</strong>
+            </div>
+            <div>
+              <span>Veterinarian</span>
+              <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{editing.veterinarianId}</strong>
+            </div>
+          </div>
+          <label>
+            Date
+            <input type='date' value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+          </label>
+          <div className='form-grid'>
+            <label>
+              Start time
+              <input type='time' value={editStart} onChange={(e) => setEditStart(e.target.value)} step={60} />
+            </label>
+            <label>
+              End time
+              <input type='time' value={editEnd} onChange={(e) => setEditEnd(e.target.value)} step={60} />
+            </label>
+          </div>
+          <label>
+            Notes
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder='Optional notes' />
+          </label>
+          {formError && <div className='form-error'>{formError}</div>}
+          <div className='modal-actions'>
+            <Button type='button' variant='secondary' onClick={() => setEditing(null)}>Cancel</Button>
+            <Button type='submit' icon={<Check size={16} />}>Save changes</Button>
+          </div>
+        </form>
+      </Modal>
+    )}
+
+    {cancelling && (
+      <Modal title='Cancel appointment' onClose={() => setCancelling(null)}>
+        <p className='modal-copy'>This will cancel the appointment and free the slot. Are you sure?</p>
+        <div className='modal-actions'>
+          <Button variant='secondary' onClick={() => setCancelling(null)}>Keep</Button>
+          <Button variant='danger' onClick={handleCancel} icon={<X size={16} />}>Cancel appointment</Button>
+        </div>
+      </Modal>
+    )}
   </div>;
 }

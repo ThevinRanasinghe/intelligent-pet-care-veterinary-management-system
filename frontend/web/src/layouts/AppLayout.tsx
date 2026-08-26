@@ -27,7 +27,7 @@ export function AppLayout() {
       </div>
       <div className="workspace-pill"><span className="status-dot" />Colombo Clinic<span className="workspace-arrow">⌄</span></div>
       <nav className="nav-list" aria-label="Main navigation">
-        {navigation.map(({ label, to, icon: Icon, scope }) => <NavLink key={to} to={to} onClick={close} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}><Icon size={18} /><span>{label}</span>{scope === 'complete' && <span className="nav-dot" />}{scope === 'ai-ui' && <Badge tone="info">UI</Badge>}</NavLink>)}
+        {navigation.map(({ label, to, icon: Icon, scope }) => <NavLink key={to} to={to} onClick={close} className={({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`}><Icon size={18} /><span>{label}</span>{scope === 'complete' && <span className="nav-dot" />}{scope === 'ai-ui' && <Badge tone="info">UI</Badge>}</NavLink>)}
       </nav>
       <div className="sidebar-footer"><div className="user-card"><div className="avatar">CM</div><div><strong>Clinic Manager</strong><span>miran@petcare.lk</span></div><Users size={16} /></div></div>
     </aside>

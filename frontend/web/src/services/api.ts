@@ -5,7 +5,7 @@
 
 export const API_BASE_URL =
   ((import.meta as unknown as { env: Record<string, string> }).env.VITE_API_BASE_URL) ??
-  'http://localhost:5000/api';
+  'http://localhost:5080/api';
 
 export class ApiError extends Error {
   status: number;

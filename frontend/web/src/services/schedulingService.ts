@@ -64,6 +64,10 @@ export async function getAppointmentSlots(): Promise<AppointmentSlot[]> {
   return data.map(toLocalSlot);
 }
 
+export async function getAppointments(): Promise<AppointmentResponse[]> {
+  return await apiRequest<AppointmentResponse[]>('/appointments');
+}
+
 export async function getAppointmentById(id: string): Promise<AppointmentResponse | null> {
   try {
     return await apiRequest<AppointmentResponse>(`/appointments/${id}`);
