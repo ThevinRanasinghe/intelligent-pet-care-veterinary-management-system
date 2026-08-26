@@ -6,10 +6,13 @@ import { SchedulingPage } from '../features/scheduling/SchedulingPage';
 import { BillingPage } from '../features/billing/BillingPage';
 import { ApprovalPage } from '../features/approvals/ApprovalPage';
 import { AIWorkflowsPage } from '../features/ai-workflows/AIWorkflowsPage';
+import { LoginPage } from '../features/auth/LoginPage';
+import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 
 export function AppRoutes() {
   return <Routes>
-    <Route element={<AppLayout />}>
+    <Route path="/login" element={<LoginPage />} />
+    <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
       <Route path="/" element={<DashboardPage />} />
       <Route path="/consultations" element={<PlaceholderPage title="Consultation Requests" />} />
       <Route path="/treatment" element={<PlaceholderPage title="Diagnosis & Treatment" />} />

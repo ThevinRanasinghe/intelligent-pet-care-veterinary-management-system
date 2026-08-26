@@ -1,5 +1,6 @@
 import type { ApprovalProposal, ValidationCheck } from '../types/domain';
 import { ApiError, apiRequest } from './api';
+import { getCurrentUser } from './authService';
 
 export interface ApprovalResponse {
   id: string;
@@ -37,7 +38,12 @@ export interface RequestRevisionRequest {
   reason: string;
 }
 
-const DEFAULT_MANAGER_ID = '00000000-0000-0000-0000-000000000001';
+const FALLBACK_MANAGER_ID = '00000000-0000-0000-0000-000000000001';
+
+/** The signed-in user's id, so ReviewedBy reflects who actually made the decision. */
+function currentReviewerId(): string {
+  return getCurrentUser()?.userId ?? FALLBACK_MANAGER_ID;
+}
 
 function toProposal(a: ApprovalResponse): ApprovalProposal {
   const budgetCheck: ValidationCheck = {
@@ -90,20 +96,20 @@ export async function getApprovalHistory(id: string): Promise<ApprovalHistoryRes
 export async function approve(id: string, comment?: string): Promise<ApprovalProposal> {
   return toProposal(await apiRequest<ApprovalResponse>(`/approvals/${id}/approve`, {
     method: 'POST',
-    body: JSON.stringify({ reviewedBy: DEFAULT_MANAGER_ID, comment } as ApproveRequest),
+    body: JSON.stringify({ reviewedBy: currentReviewerId(), comment } as ApproveRequest),
   }));
 }
 
 export async function reject(id: string, reason: string): Promise<ApprovalProposal> {
   return toProposal(await apiRequest<ApprovalResponse>(`/approvals/${id}/reject`, {
     method: 'POST',
-    body: JSON.stringify({ reviewedBy: DEFAULT_MANAGER_ID, reason } as RejectRequest),
+    body: JSON.stringify({ reviewedBy: currentReviewerId(), reason } as RejectRequest),
   }));
 }
 
 export async function requestRevision(id: string, reason: string): Promise<ApprovalProposal> {
   return toProposal(await apiRequest<ApprovalResponse>(`/approvals/${id}/revision`, {
     method: 'POST',
-    body: JSON.stringify({ reviewedBy: DEFAULT_MANAGER_ID, reason } as RequestRevisionRequest),
+    body: JSON.stringify({ reviewedBy: currentReviewerId(), reason } as RequestRevisionRequest),
   }));
 }

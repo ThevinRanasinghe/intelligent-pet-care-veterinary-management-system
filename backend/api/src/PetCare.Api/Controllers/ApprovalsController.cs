@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs.Approval;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 
 namespace PetCare.Api.Controllers;
 
@@ -11,9 +13,10 @@ namespace PetCare.Api.Controllers;
 /// <see cref="IApprovalService"/> in PetCare.Application; this controller
 /// only handles HTTP concerns (routing, status codes, model binding). See
 /// docs/api/scheduling-billing-approval-api-contract.md#approval.
-/// No JWT/role authorization is enforced here yet; the API security layer
-/// will add that later, so ReviewedBy is currently accepted as part of the
-/// request body.
+/// Approve/Reject/RequestRevision require the Clinic Manager role (see
+/// <see cref="Roles.ClinicManager"/>); ReviewedBy is still accepted as
+/// part of the request body (unchanged business logic) rather than derived
+/// from the token, to keep this change scoped to authorization only.
 /// </summary>
 [ApiController]
 [Route("api/approvals")]
@@ -53,9 +56,12 @@ public class ApprovalsController : ControllerBase
     /// appends an ApprovalHistory row. Rejected with 409 if the approval or
     /// its quotation is not currently reviewable.
     /// </summary>
+    [Authorize(Roles = Roles.ClinicManager)]
     [HttpPost("{id:guid}/approve")]
     [ProducesResponseType(typeof(ApprovalResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApprovalResponse>> Approve(
@@ -73,9 +79,12 @@ public class ApprovalsController : ControllerBase
     /// Rejected with 409 if the approval or its quotation is not currently
     /// reviewable.
     /// </summary>
+    [Authorize(Roles = Roles.ClinicManager)]
     [HttpPost("{id:guid}/reject")]
     [ProducesResponseType(typeof(ApprovalResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApprovalResponse>> Reject(
@@ -93,9 +102,12 @@ public class ApprovalsController : ControllerBase
     /// ApprovalHistory row. Rejected with 409 if the approval or its
     /// quotation is not currently reviewable.
     /// </summary>
+    [Authorize(Roles = Roles.ClinicManager)]
     [HttpPost("{id:guid}/revision")]
     [ProducesResponseType(typeof(ApprovalResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApprovalResponse>> RequestRevision(

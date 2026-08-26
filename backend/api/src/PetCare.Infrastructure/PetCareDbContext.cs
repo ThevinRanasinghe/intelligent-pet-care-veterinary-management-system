@@ -29,6 +29,8 @@ public class PetCareDbContext : DbContext
 
     public DbSet<ApprovalHistory> ApprovalHistories => Set<ApprovalHistory>();
 
+    public DbSet<User> Users => Set<User>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

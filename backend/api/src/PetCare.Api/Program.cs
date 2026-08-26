@@ -21,6 +21,7 @@ builder.Services.AddSwaggerGen(options =>
 // Reuses the existing PetCare.Application / PetCare.Infrastructure implementations.
 builder.Services.AddPetCareInfrastructure(builder.Configuration);
 builder.Services.AddPetCareApplication();
+builder.Services.AddPetCareAuthentication(builder.Configuration);
 
 const string CorsPolicyName = "PetCareFrontend";
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
@@ -53,8 +54,13 @@ app.UseHttpsRedirection();
 
 app.UseCors(CorsPolicyName);
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.Run();
+
+// Exposes the top-level Program for WebApplicationFactory<Program> in
+// integration tests (PetCare.Api.Tests).
+public partial class Program { }

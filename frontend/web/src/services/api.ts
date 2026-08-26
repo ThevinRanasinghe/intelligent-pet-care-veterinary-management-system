@@ -2,6 +2,7 @@
  * API boundary for the ASP.NET Core backend.
  * The base URL is configured through VITE_API_BASE_URL (see .env).
  */
+import { clearStoredAuth, getStoredAuth } from '../utils/authStorage';
 
 export const API_BASE_URL =
   ((import.meta as unknown as { env: Record<string, string> }).env.VITE_API_BASE_URL) ??
@@ -20,9 +21,15 @@ export class ApiError extends Error {
 }
 
 export async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getStoredAuth()?.token;
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers ?? {}),
+    },
   });
 
   if (!response.ok) {
@@ -33,6 +40,15 @@ export async function apiRequest<T>(path: string, options?: RequestInit): Promis
     } catch {
       body = text;
     }
+
+    // The session is no longer valid (expired/invalid token): clear it so
+    // the next protected-route check redirects to /login. 403 is left
+    // alone since it means "authenticated but not permitted", not "please
+    // log in again".
+    if (response.status === 401) {
+      clearStoredAuth();
+    }
+
     throw new ApiError(response.status, body, `API request failed: ${response.status}`);
   }
 

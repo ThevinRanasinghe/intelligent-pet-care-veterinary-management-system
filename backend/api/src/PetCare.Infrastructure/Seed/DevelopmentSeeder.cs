@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
 
@@ -15,8 +17,14 @@ namespace PetCare.Infrastructure.Seed;
 /// </summary>
 public static class DevelopmentSeeder
 {
-    public static async Task SeedAsync(PetCareDbContext context, CancellationToken cancellationToken = default)
+    /// <summary>Default dev Clinic Manager login. Change via user-secrets/env in real environments.</summary>
+    public const string DevClinicManagerEmail = "manager@petcare.lk";
+    public const string DevClinicManagerPassword = "ChangeMe123!";
+
+    public static async Task SeedAsync(PetCareDbContext context, IPasswordHasher passwordHasher, CancellationToken cancellationToken = default)
     {
+        await SeedUsersAsync(context, passwordHasher, cancellationToken);
+
         if (await context.Appointments.AnyAsync(a => a.Id == SeedIds.DevAppointmentConfirmed, cancellationToken))
         {
             // Already seeded.
@@ -105,6 +113,32 @@ public static class DevelopmentSeeder
         await context.Quotations.AddAsync(quotation, cancellationToken);
         await context.QuotationItems.AddRangeAsync(quotationItems, cancellationToken);
         await context.Approvals.AddAsync(pendingApproval, cancellationToken);
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Seeds one dev Clinic Manager account so /api/auth/login is
+    /// exercisable locally without a manual signup step. Uses the real
+    /// IPasswordHasher (not a fixed hash) since Rfc2898-based hashes are
+    /// salted per call and cannot be reproduced via static HasData.
+    /// </summary>
+    private static async Task SeedUsersAsync(PetCareDbContext context, IPasswordHasher passwordHasher, CancellationToken cancellationToken)
+    {
+        if (await context.Users.AnyAsync(u => u.Id == SeedIds.DevClinicManagerUser, cancellationToken))
+        {
+            return;
+        }
+
+        await context.Users.AddAsync(new User
+        {
+            Id = SeedIds.DevClinicManagerUser,
+            Email = DevClinicManagerEmail,
+            PasswordHash = passwordHasher.HashPassword(DevClinicManagerPassword),
+            Name = "Miran Perera",
+            Role = Roles.ClinicManager,
+            Active = true
+        }, cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);
     }

@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalPage } from '../../features/approvals/ApprovalPage';
+import { renderWithAuth } from '../testUtils';
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return {
@@ -52,7 +53,7 @@ describe('ApprovalPage decision actions', () => {
   it('calls the approve service when a manager approves a proposal', async () => {
     const user = userEvent.setup();
     const fetchMock = setupFetchMock(approvedApproval);
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     await waitFor(() => expect(screen.getAllByText(/Quotation quo-1/).length).toBeGreaterThan(0));
     await user.click(screen.getByRole('button', { name: /approve proposal/i }));
@@ -68,7 +69,7 @@ describe('ApprovalPage decision actions', () => {
   it('requires a reason before rejecting a proposal', async () => {
     const user = userEvent.setup();
     const fetchMock = setupFetchMock(rejectedApproval);
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     await waitFor(() => expect(screen.getAllByText(/Quotation quo-1/).length).toBeGreaterThan(0));
     await user.click(screen.getByRole('button', { name: /^reject$/i }));
@@ -90,7 +91,7 @@ describe('ApprovalPage decision actions', () => {
   it('requires a reason before requesting a revision', async () => {
     const user = userEvent.setup();
     setupFetchMock({ ...pendingApproval, status: 'RevisionRequested' });
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     await waitFor(() => expect(screen.getAllByText(/Quotation quo-1/).length).toBeGreaterThan(0));
     await user.click(screen.getByRole('button', { name: /request revision/i }));
@@ -108,7 +109,7 @@ describe('ApprovalPage decision actions', () => {
       return Promise.resolve(jsonResponse([pendingApproval]));
     });
     vi.stubGlobal('fetch', fetchMock);
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     await waitFor(() => expect(screen.getAllByText(/Quotation quo-1/).length).toBeGreaterThan(0));
     await user.click(screen.getByRole('button', { name: /approve proposal/i }));

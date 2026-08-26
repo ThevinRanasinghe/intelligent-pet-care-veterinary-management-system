@@ -63,6 +63,11 @@ public class ExceptionHandlingMiddleware
                 "The request conflicts with an existing approval business rule.",
                 null),
 
+            InvalidCredentialsException invalidCredentials => (
+                HttpStatusCode.Unauthorized,
+                "Invalid email or password.",
+                null),
+
             ValidationException validation => (
                 HttpStatusCode.BadRequest,
                 "One or more validation errors occurred.",

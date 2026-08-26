@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalPage } from '../../features/approvals/ApprovalPage';
+import { renderWithAuth } from '../testUtils';
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return {
@@ -43,7 +44,7 @@ describe('ApprovalPage component states', () => {
 
   it('renders pending approvals when the API returns data', async () => {
     (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(jsonResponse([pendingApproval]));
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     await waitFor(() => expect(screen.getAllByText(/Quotation quo-1/).length).toBeGreaterThan(0));
     expect(screen.getAllByText('Pending').length).toBeGreaterThan(0);
@@ -51,7 +52,7 @@ describe('ApprovalPage component states', () => {
 
   it('displays the empty state when there are no pending approvals', async () => {
     (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(jsonResponse([]));
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     await waitFor(() => expect(screen.getByText('No pending approvals')).toBeInTheDocument());
   });
@@ -61,7 +62,7 @@ describe('ApprovalPage component states', () => {
     (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       () => new Promise<Response>((resolve) => { resolveFn = resolve; }),
     );
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     expect(screen.getByText('Loading approvals...')).toBeInTheDocument();
     resolveFn(jsonResponse([]));
@@ -70,7 +71,7 @@ describe('ApprovalPage component states', () => {
 
   it('displays an API error state when the request fails', async () => {
     (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(jsonResponse({ detail: 'Approval service unavailable' }, false, 500));
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     await waitFor(() => expect(screen.getByText('Approval service unavailable')).toBeInTheDocument());
   });
@@ -82,7 +83,7 @@ describe('ApprovalPage component states', () => {
       if (url.includes('/history')) return Promise.resolve(jsonResponse([historyEntry]));
       return Promise.resolve(jsonResponse([pendingApproval]));
     });
-    render(<ApprovalPage />);
+    renderWithAuth(<ApprovalPage />);
 
     await waitFor(() => expect(screen.getAllByText(/Quotation quo-1/).length).toBeGreaterThan(0));
     await user.click(screen.getByRole('button', { name: /view history/i }));

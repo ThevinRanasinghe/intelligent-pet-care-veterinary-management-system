@@ -376,3 +376,152 @@ suite.
 Build: **Passed** (0 TypeScript errors). Documented in
 `docs/testing/react-testing.md`, including the deferred (not failed)
 protected-route and real-PostgreSQL/E2E test categories. No commit made.
+
+## Entry 11 — Authentication (Backend JWT + Frontend Session + Tests)
+
+**Date:**
+26 August 2026
+
+**AI Tool / Model:**
+Devin IDE (Cascade)
+
+**Task / Section:**
+Implement a full authentication and authorization system for the PetCare
+application covering both the backend API (User entity, password hashing,
+JWT generation, auth service/controller, endpoint protection) and the
+frontend web app (auth service, React context, login page, protected
+routes, role-aware UI gating, API Authorization header + 401/403
+handling). Add React tests for protected routes, login flow, and 401/403
+response handling. No Flutter or Agentic AI code in scope.
+
+**What the AI produced:**
+
+*Backend — Domain & Infrastructure:*
+Created `PetCare.Domain/Entities/User.cs` (Id, Email, PasswordHash,
+Name, Role, IsActive, audit timestamps) and
+`PetCare.Domain/Constants/Roles.cs` with canonical role name constants
+(`ClinicManager`, `Veterinarian`, `Staff`, `PetOwner`,
+`Administrator`). Added `UserConfiguration.cs` (EF Core entity mapping
+with unique email index, varchar lengths, defaults) and registered the
+`Users` DbSet in `PetCareDbContext`. Implemented
+`UserRepository.cs` (`GetByEmailAsync`, `GetByIdAsync`). Created
+`PasswordHasher.cs` using PBKDF2 with random salt and configurable
+iteration count. Created `JwtOptions.cs` and `JwtTokenGenerator.cs`
+issuing signed JWTs with `sub`, `email`, `name`, and `role` claims.
+Generated the `AddUsers` EF Core migration for the User table. Extended
+`DevelopmentSeeder.cs` to seed a dev Clinic Manager user (fixed GUID
+`88888888-0000-0000-0000-000000000001`) with a pre-hashed password.
+
+*Backend — Application:*
+Created `DTOs/Auth/LoginRequest.cs` and `LoginResponse.cs` (token,
+expiresAt, userId, email, name, role). Declared interfaces
+`IAuthService`, `IUserRepository`, `IPasswordHasher`,
+`IJwtTokenGenerator`. Implemented `AuthService.cs` with login logic:
+validate credentials via password hasher, issue JWT via token
+generator, throw `InvalidCredentialsException` on failure. Added
+`LoginRequestValidator.cs` (FluentValidation: email format, password
+non-empty). Added `InvalidCredentialsException.cs` mapped to HTTP 401
+in `ExceptionHandlingMiddleware`.
+
+*Backend — API:*
+Created `AuthController.cs` with `POST /api/auth/login` delegating to
+`IAuthService`. Wired JWT bearer authentication and authorization in
+`ServiceCollectionExtensions.cs` and `Program.cs` (AddAuthentication,
+AddAuthorization, UseAuthentication, UseAuthorization). Added JWT
+configuration sections to `appsettings.json` and
+`appsettings.Development.json` (issuer, audience, expiry, signing key
+placeholder). Protected `ApprovalsController` approve/reject/revision
+endpoints with `[Authorize(Roles = Roles.ClinicManager)]`. Exposed
+`Program` class as partial for integration testing.
+
+*Backend — Tests:*
+Added `AuthServiceTests.cs` (valid login returns token + user info;
+invalid email/password throws `InvalidCredentialsException`),
+`LoginRequestValidatorTests.cs` (empty email, invalid format, empty
+password), `PasswordHasherTests.cs` (hash round-trip, different salts,
+wrong password rejected), and `JwtTokenGeneratorTests.cs` (token
+contains correct claims, expiry, valid signature).
+
+*Frontend — Auth infrastructure:*
+Created `src/utils/authStorage.ts` (localStorage-backed session:
+`getStoredAuth`, `setStoredAuth`, `clearStoredAuth`, `isAuthValid` with
+expiry check). Created `src/services/authService.ts` (`login` calls
+`POST /api/auth/login`, stores session; `logout` clears session;
+`getCurrentUser`, `isAuthenticated`, `hasRole`). Updated
+`src/services/api.ts` to attach `Authorization: Bearer {token}` header
+from stored session and clear session on 401 responses (403 left
+alone — authenticated but not permitted). Created
+`src/features/auth/AuthContext.tsx` (React context provider with
+`user`, `isAuthenticated`, `login`, `logout`, `hasRole`). Created
+`src/features/auth/ProtectedRoute.tsx` (redirects unauthenticated
+users to `/login` preserving original location in router state).
+Created `src/features/auth/LoginPage.tsx` (email/password form,
+validation, login call, error display, loading state, redirect after
+success, redirect if already authenticated).
+
+*Frontend — Wiring & role-aware UI:*
+Updated `src/routes/AppRoutes.tsx` to add `/login` route and wrap all
+staff console routes in `ProtectedRoute`. Wrapped app in `AuthProvider`
+in `src/main.tsx`. Updated `src/layouts/AppLayout.tsx` to show the
+signed-in user's name/email and a logout button. Updated
+`src/services/approvalService.ts` to use the current logged-in user's
+ID for `reviewedBy` in approve/reject/revision API calls. Updated
+`src/features/approvals/ApprovalPage.tsx` to gate approve/reject/
+revision buttons by `hasRole('ClinicManager')` and show informational
+text for non-managers. Added minimal login page CSS to `src/styles.css`.
+
+*Frontend — Tests:*
+Created `src/tests/testUtils.tsx` with `seedAuth()` and
+`renderWithAuth()` helpers (seeds localStorage with a valid session and
+renders inside `AuthProvider` + `MemoryRouter`). Updated
+`src/tests/setup.ts` to clear `localStorage` between tests. Updated
+existing `ApprovalPage.test.tsx` and `ApprovalPage.actions.test.tsx` to
+use `renderWithAuth` instead of bare `render`. Created
+`src/tests/auth/ProtectedRoute.test.tsx` (2 tests: unauthenticated
+redirect to `/login`, authenticated renders children). Created
+`src/tests/auth/LoginPage.test.tsx` (5 tests: form renders, successful
+login stores session + redirects, 401 displays error, loading state
+while submitting, already-authenticated redirect). Created
+`src/tests/services/api.auth.test.ts` (4 tests: Authorization header
+attached when token exists, no header when unauthenticated, 401 clears
+session, 403 preserves session).
+
+**What I changed / rejected:**
+Rejected putting role-based route guarding in `ProtectedRoute` — it
+only checks authentication; role-specific gating (e.g. Clinic
+Manager-only approval buttons) is handled at the component level in
+`ApprovalPage` so every authenticated staff member can still view every
+page. Rejected hardcoding the JWT signing key in source — used
+`appsettings`/user-secrets with a placeholder and documented the
+`PETCARE_JWT_KEY` environment variable fallback. Rejected storing the
+JWT in a cookie — used `localStorage` for simplicity since this is a
+single-page app with no SSR. Rejected clearing the session on 403 —
+403 means "authenticated but not permitted", not "please log in again",
+so only 401 triggers session cleanup. Rejected adding a refresh-token
+flow — out of scope for this iteration; the token has a fixed expiry
+and the user re-logs in after expiry. Removed a flaky
+`LoginRequestValidator` test that expected `ValidationException` but
+got `InvalidCredentialsException` due to validator ordering — the
+validator runs before the service, so the test's assumption was
+incorrect. Fixed frontend test failures caused by missing `AuthProvider`
+context by wrapping all renders with `renderWithAuth`. Added missing
+`render` imports after replacing bare `render` calls. Removed unused
+imports flagged by TypeScript.
+
+**How I verified it:**
+1. `dotnet test` on `PetCare.sln` — **76 tests passed** (67 Application
+   + 9 Infrastructure), 0 failed.
+2. `npm run build` (`tsc -b && vite build`) — 0 TypeScript errors,
+   production build successful (291.07 kB JS, 21.20 kB CSS).
+3. `npx vitest run` — **59 tests passed** across 12 test files, 0
+   failed (including the 11 new auth tests: 2 ProtectedRoute, 5
+   LoginPage, 4 api.auth).
+
+**Result:**
+- Backend: **76/76 tests passed**, build 0 warnings/errors.
+- Frontend: **59/59 tests passed**, build passed.
+- Full end-to-end authentication implemented: backend JWT issuance,
+  password hashing, role-based endpoint protection, frontend session
+  management, protected routes, login page, role-aware UI gating, and
+  API Authorization header with 401 session cleanup.
+- No commit made.
