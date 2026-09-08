@@ -1,3 +1,6 @@
+# ===========================
+# .NET / ASP.NET Core
+# ===========================
 node_modules/
 dist/
 .vite/
@@ -9,6 +12,84 @@ bin/
 obj/
 *.user
 *.suo
+*.userprefs
+*.userosscache
+*.sln.docstates
+.vs/
+*.vspscc
+*.vssscc
+*.ncb
+*.sdf
+*.opensdf
+*.cachefile
+*.VC.db
+*.VC.opendb
+_ReSharper*/
+*.DotSettings.user
+*.dotCover
+TestResults/
+*.trx
+*.coverage
+
+# User Secrets (NEVER commit)
+secrets.json
+appsettings.*.local.json
+
+# EF Core Migrations auto-generated designer
+# (keep migration files but exclude snapshot conflicts)
+
+# Publish output
+publish/
+*.pubxml.user
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ===========================
+# Node / React
+# ===========================
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.tsbuildinfo
+
+# ===========================
+# macOS
+# ===========================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ===========================
+# IDE
+# ===========================
+.idea/
+*.iml
+.vscode/settings.json
+.vscode/*.code-workspace
+
+# ===========================
+# Misc
+# ===========================
+*.log
+*.tmp
+*.temp
+Thumbs.db
 .idea/
 .vscode/
 .DS_Store

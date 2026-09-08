@@ -1,0 +1,70 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{714B6D6E-1F55-4DC4-8097-1964D947F7E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetCare.Domain", "src\PetCare.Domain\PetCare.Domain.csproj", "{AB911F0C-16AF-48D6-825F-006131A15515}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetCare.Application", "src\PetCare.Application\PetCare.Application.csproj", "{14EDB2C7-987C-4D82-A1C8-A71F98327CB1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetCare.Infrastructure", "src\PetCare.Infrastructure\PetCare.Infrastructure.csproj", "{E8F87551-70F8-4234-8482-4C9C188411F1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetCare.Api", "src\PetCare.Api\PetCare.Api.csproj", "{45FA0DF8-1568-4888-A089-666E2C97A535}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{4B3E0D14-1A8B-4407-A4FC-B6D7304456A6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Unit", "Unit", "{0F731E2D-2967-4FE2-BC11-F426754C0DF1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetCare.UnitTests", "tests\Unit\PetCare.UnitTests\PetCare.UnitTests.csproj", "{C7BED738-FB28-4019-8E69-A53653BB6BCB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Integration", "Integration", "{77400534-023F-4CA9-BC21-2AD21AB8605D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PetCare.IntegrationTests", "tests\Integration\PetCare.IntegrationTests\PetCare.IntegrationTests.csproj", "{1B488F17-6F67-49E5-BD5C-93CB8167671C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AB911F0C-16AF-48D6-825F-006131A15515}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB911F0C-16AF-48D6-825F-006131A15515}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB911F0C-16AF-48D6-825F-006131A15515}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB911F0C-16AF-48D6-825F-006131A15515}.Release|Any CPU.Build.0 = Release|Any CPU
+		{14EDB2C7-987C-4D82-A1C8-A71F98327CB1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{14EDB2C7-987C-4D82-A1C8-A71F98327CB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{14EDB2C7-987C-4D82-A1C8-A71F98327CB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{14EDB2C7-987C-4D82-A1C8-A71F98327CB1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8F87551-70F8-4234-8482-4C9C188411F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8F87551-70F8-4234-8482-4C9C188411F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8F87551-70F8-4234-8482-4C9C188411F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8F87551-70F8-4234-8482-4C9C188411F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45FA0DF8-1568-4888-A089-666E2C97A535}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45FA0DF8-1568-4888-A089-666E2C97A535}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45FA0DF8-1568-4888-A089-666E2C97A535}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45FA0DF8-1568-4888-A089-666E2C97A535}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C7BED738-FB28-4019-8E69-A53653BB6BCB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7BED738-FB28-4019-8E69-A53653BB6BCB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7BED738-FB28-4019-8E69-A53653BB6BCB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7BED738-FB28-4019-8E69-A53653BB6BCB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1B488F17-6F67-49E5-BD5C-93CB8167671C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1B488F17-6F67-49E5-BD5C-93CB8167671C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1B488F17-6F67-49E5-BD5C-93CB8167671C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1B488F17-6F67-49E5-BD5C-93CB8167671C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{AB911F0C-16AF-48D6-825F-006131A15515} = {714B6D6E-1F55-4DC4-8097-1964D947F7E8}
+		{14EDB2C7-987C-4D82-A1C8-A71F98327CB1} = {714B6D6E-1F55-4DC4-8097-1964D947F7E8}
+		{E8F87551-70F8-4234-8482-4C9C188411F1} = {714B6D6E-1F55-4DC4-8097-1964D947F7E8}
+		{45FA0DF8-1568-4888-A089-666E2C97A535} = {714B6D6E-1F55-4DC4-8097-1964D947F7E8}
+		{0F731E2D-2967-4FE2-BC11-F426754C0DF1} = {4B3E0D14-1A8B-4407-A4FC-B6D7304456A6}
+		{C7BED738-FB28-4019-8E69-A53653BB6BCB} = {0F731E2D-2967-4FE2-BC11-F426754C0DF1}
+		{77400534-023F-4CA9-BC21-2AD21AB8605D} = {4B3E0D14-1A8B-4407-A4FC-B6D7304456A6}
+		{1B488F17-6F67-49E5-BD5C-93CB8167671C} = {77400534-023F-4CA9-BC21-2AD21AB8605D}
+	EndGlobalSection
+EndGlobal
