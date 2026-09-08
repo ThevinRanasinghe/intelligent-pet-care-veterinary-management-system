@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using PetCare.Application.DTOs;
-using PetCare.Domain.Entities;
-using PetCare.Infrastructure.Data;
+using PetCare.Application.Interfaces;
 
 namespace PetCare.Api.Controllers;
 
@@ -10,110 +8,95 @@ namespace PetCare.Api.Controllers;
 [Route("api/[controller]")]
 public class PetsController : ControllerBase
 {
-    private readonly PetCareDbContext _context;
+    private readonly IPetService _petService;
 
-    public PetsController(PetCareDbContext context)
+    public PetsController(IPetService petService)
     {
-        _context = context;
+        _petService = petService;
     }
 
-    // Endpoint 1: Register a new Pet
+    /// <summary>
+    /// UC-05: Add Pet (Name, Species, Breed, DOB/Age, Notes, OwnerId)
+    /// </summary>
     [HttpPost]
     public async Task<ActionResult<PetResponseDto>> RegisterPet([FromBody] CreatePetDto dto)
     {
-        var pet = new Pet
-        {
-            OwnerId = dto.OwnerId,
-            Name = dto.Name,
-            Species = dto.Species,
-            Breed = dto.Breed,
-            Age = dto.Age,
-            MedicalHistorySummary = dto.MedicalHistorySummary
-        };
-
-        _context.Pets.Add(pet);
-        await _context.SaveChangesAsync();
-
-        var response = new PetResponseDto
-        {
-            Id = pet.Id,
-            OwnerId = pet.OwnerId,
-            Name = pet.Name,
-            Species = pet.Species,
-            Breed = pet.Breed,
-            Age = pet.Age,
-            MedicalHistorySummary = pet.MedicalHistorySummary,
-            CreatedAt = pet.CreatedAt
-        };
-
-        return CreatedAtAction(nameof(GetPetsByOwner), new { ownerId = pet.OwnerId }, response);
+        var response = await _petService.RegisterPetAsync(dto);
+        return CreatedAtAction(nameof(GetPetById), new { id = response.Id }, response);
     }
 
-    // Endpoint 2: Get all Pets for a specific Owner
-    [HttpGet("owner/{ownerId}")]
-    public async Task<ActionResult<IEnumerable<PetResponseDto>>> GetPetsByOwner(Guid ownerId)
+    /// <summary>
+    /// UC-06: View Pet Profile by ID
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<ActionResult<PetResponseDto>> GetPetById(string id)
     {
-        var pets = await _context.Pets
-            .Where(p => p.OwnerId == ownerId)
-            .OrderByDescending(p => p.CreatedAt)
-            .Select(p => new PetResponseDto
-            {
-                Id = p.Id,
-                OwnerId = p.OwnerId,
-                Name = p.Name,
-                Species = p.Species,
-                Breed = p.Breed,
-                Age = p.Age,
-                MedicalHistorySummary = p.MedicalHistorySummary,
-                CreatedAt = p.CreatedAt
-            })
-            .ToListAsync();
+        var response = await _petService.GetPetByIdAsync(id);
+        return Ok(response);
+    }
 
+    /// <summary>
+    /// UC-06: View all Pets for a specific Owner
+    /// </summary>
+    [HttpGet("owner/{ownerId}")]
+    public async Task<ActionResult<IEnumerable<PetResponseDto>>> GetPetsByOwner(string ownerId)
+    {
+        var pets = await _petService.GetPetsByOwnerAsync(ownerId);
         return Ok(pets);
     }
 
-    // Endpoint 2b: Get all Pets (clinic-wide)
+    /// <summary>
+    /// UC-06: View all Pets (Clinic-wide)
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<PetResponseDto>>> GetAllPets()
     {
-        var pets = await _context.Pets
-            .OrderByDescending(p => p.CreatedAt)
-            .Select(p => new PetResponseDto
-            {
-                Id = p.Id,
-                OwnerId = p.OwnerId,
-                Name = p.Name,
-                Species = p.Species,
-                Breed = p.Breed,
-                Age = p.Age,
-                MedicalHistorySummary = p.MedicalHistorySummary,
-                CreatedAt = p.CreatedAt
-            })
-            .ToListAsync();
-
+        var pets = await _petService.GetAllPetsAsync();
         return Ok(pets);
     }
 
-    // Endpoint 2c: Get a single Pet by ID
-    [HttpGet("{id}")]
-    public async Task<ActionResult<PetResponseDto>> GetPetById(Guid id)
+    /// <summary>
+    /// UC-06 & UC-07: Update Pet Profile
+    /// Note: Clinical and medical records cannot be modified through this profile update endpoint.
+    /// Only non-clinical fields (Name, Species, Breed, DOB, Age, Notes, PhotoUrl) are editable by the owner.
+    /// </summary>
+    [HttpPut("{id}")]
+    public async Task<ActionResult<PetResponseDto>> UpdatePetProfile(
+        string id,
+        [FromBody] UpdatePetProfileDto dto,
+        [FromQuery] string? ownerId = null)
     {
-        var pet = await _context.Pets.FindAsync(id);
-        if (pet == null)
-        {
-            return NotFound(new { message = "Pet not found." });
-        }
+        var response = await _petService.UpdatePetProfileAsync(id, dto, ownerId);
+        return Ok(response);
+    }
 
-        return Ok(new PetResponseDto
-        {
-            Id = pet.Id,
-            OwnerId = pet.OwnerId,
-            Name = pet.Name,
-            Species = pet.Species,
-            Breed = pet.Breed,
-            Age = pet.Age,
-            MedicalHistorySummary = pet.MedicalHistorySummary,
-            CreatedAt = pet.CreatedAt
-        });
+    /// <summary>
+    /// UC-08: View Pet Medical & Vaccination History
+    /// </summary>
+    [HttpGet("{id}/medical-history")]
+    public async Task<ActionResult<PetMedicalHistoryDto>> GetPetMedicalHistory(string id)
+    {
+        var history = await _petService.GetPetMedicalHistoryAsync(id);
+        return Ok(history);
+    }
+
+    /// <summary>
+    /// Add clinical medical record (Restricted to authorized veterinary staff)
+    /// </summary>
+    [HttpPost("{id}/medical-records")]
+    public async Task<ActionResult<MedicalRecordDto>> AddMedicalRecord(string id, [FromBody] CreateMedicalRecordDto dto)
+    {
+        var record = await _petService.AddMedicalRecordAsync(id, dto);
+        return CreatedAtAction(nameof(GetPetMedicalHistory), new { id }, record);
+    }
+
+    /// <summary>
+    /// Add vaccination record (Restricted to authorized veterinary staff)
+    /// </summary>
+    [HttpPost("{id}/vaccinations")]
+    public async Task<ActionResult<VaccinationRecordDto>> AddVaccinationRecord(string id, [FromBody] CreateVaccinationRecordDto dto)
+    {
+        var record = await _petService.AddVaccinationRecordAsync(id, dto);
+        return CreatedAtAction(nameof(GetPetMedicalHistory), new { id }, record);
     }
 }

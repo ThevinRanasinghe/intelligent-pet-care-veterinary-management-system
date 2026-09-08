@@ -1,23 +1,32 @@
+using PetCare.Domain.Enums;
+
 namespace PetCare.Domain.Entities;
 
 public class ConsultationRequest
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid PetId { get; set; }
-    public Guid OwnerId { get; set; }
+    public string Id { get; set; } = string.Empty; // e.g., REQ-5001
+    public string PetId { get; set; } = string.Empty;
+    public string OwnerId { get; set; } = string.Empty;
     public string SymptomsDescription { get; set; } = string.Empty;
     public string? PhotoUrl { get; set; }
-    public string PreferredBranch { get; set; } = string.Empty;
     public DateTime PreferredDate { get; set; }
     public decimal BudgetLimit { get; set; }
     
+    // Geographic preference (Lat/Long coordinates)
+    public double? PreferredClinicLocationLat { get; set; }
+    public double? PreferredClinicLocationLong { get; set; }
+    public string? PreferredBranch { get; set; }
+    
     // Workflow Status
-    public string Status { get; set; } = "Pending"; // Pending, PendingManagerApproval, Approved, Rejected
+    public ConsultationStatus Status { get; set; } = ConsultationStatus.Submitted;
+    public string? StatusNotes { get; set; }
     
     // Audit fields
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation property
+    // Navigation properties
     public Pet? Pet { get; set; }
+    public PetOwner? Owner { get; set; }
+    public ICollection<ConsultationStatusHistory> StatusHistories { get; set; } = new List<ConsultationStatusHistory>();
 }

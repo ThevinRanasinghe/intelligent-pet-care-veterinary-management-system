@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using PetCare.Application.DTOs;
-using PetCare.Domain.Entities;
-using PetCare.Infrastructure.Data;
+using PetCare.Application.Interfaces;
+using PetCare.Domain.Enums;
 
 namespace PetCare.Api.Controllers;
 
@@ -10,140 +9,121 @@ namespace PetCare.Api.Controllers;
 [Route("api/[controller]")]
 public class ConsultationsController : ControllerBase
 {
-    private readonly PetCareDbContext _context;
+    private readonly IConsultationService _consultationService;
 
-    public ConsultationsController(PetCareDbContext context)
+    public ConsultationsController(IConsultationService consultationService)
     {
-        _context = context;
+        _consultationService = consultationService;
     }
 
-    // Endpoint 3: Create Consultation Request (Includes Business Logic: Ownership Validation)
+    /// <summary>
+    /// UC-09 to UC-13: Submit Consultation Request
+    /// (Includes UC-14 Security/Business Logic Check: Validates Pet belongs to requesting Owner)
+    /// </summary>
     [HttpPost]
     public async Task<ActionResult<ConsultationResponseDto>> CreateConsultation([FromBody] CreateConsultationRequestDto dto)
     {
-        // Business Operation: Validate Pet Ownership
-        var pet = await _context.Pets.FirstOrDefaultAsync(p => p.Id == dto.PetId && p.OwnerId == dto.OwnerId);
-        if (pet == null)
+        var response = await _consultationService.SubmitConsultationRequestAsync(dto);
+        return CreatedAtAction(nameof(GetConsultationById), new { id = response.Id }, response);
+    }
+
+    /// <summary>
+    /// UC-14: Validate Pet Ownership
+    /// Explicit verification check to ensure Pet belongs to requesting Owner.
+    /// </summary>
+    [HttpGet("validate-ownership")]
+    public async Task<ActionResult> ValidateOwnership([FromQuery] string petId, [FromQuery] string ownerId)
+    {
+        var isValid = await _consultationService.ValidatePetOwnershipAsync(petId, ownerId);
+        if (!isValid)
         {
-            return BadRequest(new { message = "Pet ownership validation failed. Pet does not belong to this owner." });
+            return BadRequest(new
+            {
+                isValid = false,
+                message = $"Pet ownership validation failed. Pet '{petId}' does not belong to owner '{ownerId}'."
+            });
         }
 
-        var request = new ConsultationRequest
+        return Ok(new
         {
-            PetId = dto.PetId,
-            OwnerId = dto.OwnerId,
-            SymptomsDescription = dto.SymptomsDescription,
-            PhotoUrl = dto.PhotoUrl,
-            PreferredBranch = dto.PreferredBranch,
-            PreferredDate = dto.PreferredDate,
-            BudgetLimit = dto.BudgetLimit,
-            Status = "Pending"
-        };
+            isValid = true,
+            petId,
+            ownerId,
+            message = "Pet ownership validated successfully."
+        });
+    }
 
-        _context.ConsultationRequests.Add(request);
-        await _context.SaveChangesAsync();
+    /// <summary>
+    /// UC-15: View all Consultation Requests (clinic-wide, with optional status filter)
+    /// </summary>
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<ConsultationResponseDto>>> GetAllConsultations([FromQuery] ConsultationStatus? status = null)
+    {
+        var requests = await _consultationService.GetAllConsultationsAsync(status);
+        return Ok(requests);
+    }
 
-        var response = new ConsultationResponseDto
-        {
-            Id = request.Id,
-            PetId = request.PetId,
-            OwnerId = request.OwnerId,
-            SymptomsDescription = request.SymptomsDescription,
-            PhotoUrl = request.PhotoUrl,
-            PreferredBranch = request.PreferredBranch,
-            PreferredDate = request.PreferredDate,
-            BudgetLimit = request.BudgetLimit,
-            Status = request.Status,
-            CreatedAt = request.CreatedAt
-        };
-
+    /// <summary>
+    /// UC-15: Get single Consultation Request by ID
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ConsultationResponseDto>> GetConsultationById(string id)
+    {
+        var response = await _consultationService.GetConsultationByIdAsync(id);
         return Ok(response);
     }
 
-    // Endpoint 4: Check Consultation Request Status
-    [HttpGet("{id}/status")]
-    public async Task<ActionResult> GetConsultationStatus(Guid id)
-    {
-        var request = await _context.ConsultationRequests.FindAsync(id);
-        if (request == null)
-        {
-            return NotFound(new { message = "Consultation request not found." });
-        }
-
-        return Ok(new { ConsultationId = request.Id, Status = request.Status, UpdatedAt = request.UpdatedAt });
-    }
-
-    // Endpoint 4b: Get all Consultation Requests for a specific Owner
+    /// <summary>
+    /// UC-15: Get all Consultation Requests for a specific Owner
+    /// </summary>
     [HttpGet("owner/{ownerId}")]
-    public async Task<ActionResult<IEnumerable<ConsultationResponseDto>>> GetConsultationsByOwner(Guid ownerId)
+    public async Task<ActionResult<IEnumerable<ConsultationResponseDto>>> GetConsultationsByOwner(string ownerId)
     {
-        var requests = await _context.ConsultationRequests
-            .Where(r => r.OwnerId == ownerId)
-            .OrderByDescending(r => r.CreatedAt)
-            .Select(r => new ConsultationResponseDto
-            {
-                Id = r.Id,
-                PetId = r.PetId,
-                OwnerId = r.OwnerId,
-                SymptomsDescription = r.SymptomsDescription,
-                PhotoUrl = r.PhotoUrl,
-                PreferredBranch = r.PreferredBranch,
-                PreferredDate = r.PreferredDate,
-                BudgetLimit = r.BudgetLimit,
-                Status = r.Status,
-                CreatedAt = r.CreatedAt
-            })
-            .ToListAsync();
-
+        var requests = await _consultationService.GetConsultationsByOwnerAsync(ownerId);
         return Ok(requests);
     }
 
-    // Endpoint 4c: Get all Consultation Requests (clinic-wide)
-    [HttpGet]
-    public async Task<ActionResult<IEnumerable<ConsultationResponseDto>>> GetAllConsultations()
+    /// <summary>
+    /// UC-15: Get all Consultation Requests for a specific Pet
+    /// </summary>
+    [HttpGet("pet/{petId}")]
+    public async Task<ActionResult<IEnumerable<ConsultationResponseDto>>> GetConsultationsByPet(string petId)
     {
-        var requests = await _context.ConsultationRequests
-            .OrderByDescending(r => r.CreatedAt)
-            .Select(r => new ConsultationResponseDto
-            {
-                Id = r.Id,
-                PetId = r.PetId,
-                OwnerId = r.OwnerId,
-                SymptomsDescription = r.SymptomsDescription,
-                PhotoUrl = r.PhotoUrl,
-                PreferredBranch = r.PreferredBranch,
-                PreferredDate = r.PreferredDate,
-                BudgetLimit = r.BudgetLimit,
-                Status = r.Status,
-                CreatedAt = r.CreatedAt
-            })
-            .ToListAsync();
-
+        var requests = await _consultationService.GetConsultationsByPetAsync(petId);
         return Ok(requests);
     }
 
-    // Endpoint 4d: Get single Consultation Request by ID
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ConsultationResponseDto>> GetConsultationById(Guid id)
+    /// <summary>
+    /// UC-16: Track Consultation Status
+    /// Returns current workflow status and transition history.
+    /// </summary>
+    [HttpGet("{id}/status")]
+    public async Task<ActionResult<ConsultationStatusTrackingDto>> GetConsultationStatus(string id)
     {
-        var request = await _context.ConsultationRequests.FindAsync(id);
-        if (request == null)
-        {
-            return NotFound(new { message = "Consultation request not found." });
-        }
+        var status = await _consultationService.GetConsultationStatusAsync(id);
+        return Ok(status);
+    }
 
-        return Ok(new ConsultationResponseDto
-        {
-            Id = request.Id,
-            PetId = request.PetId,
-            OwnerId = request.OwnerId,
-            SymptomsDescription = request.SymptomsDescription,
-            PhotoUrl = request.PhotoUrl,
-            PreferredBranch = request.PreferredBranch,
-            PreferredDate = request.PreferredDate,
-            BudgetLimit = request.BudgetLimit,
-            Status = request.Status,
-            CreatedAt = request.CreatedAt
-        });
+    /// <summary>
+    /// UC-16: Update Consultation Workflow Status
+    /// Supported values: Submitted, Processing, PendingApproval, Approved, Rejected, RevisionRequired, AppointmentConfirmed.
+    /// </summary>
+    [HttpPatch("{id}/status")]
+    public async Task<ActionResult<ConsultationResponseDto>> UpdateConsultationStatus(
+        string id,
+        [FromBody] UpdateConsultationStatusDto dto)
+    {
+        var updated = await _consultationService.UpdateConsultationStatusAsync(id, dto);
+        return Ok(updated);
+    }
+
+    /// <summary>
+    /// UC-17: View Consultation Request History / Audit Log
+    /// </summary>
+    [HttpGet("{id}/history")]
+    public async Task<ActionResult<IEnumerable<ConsultationHistoryItemDto>>> GetConsultationHistory(string id)
+    {
+        var history = await _consultationService.GetConsultationHistoryAsync(id);
+        return Ok(history);
     }
 }
