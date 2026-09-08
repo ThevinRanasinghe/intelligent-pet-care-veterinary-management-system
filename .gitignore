@@ -1,6 +1,13 @@
 # ===========================
 # .NET / ASP.NET Core
 # ===========================
+node_modules/
+dist/
+.vite/
+coverage/
+.env
+.env.*
+!.env.example
 bin/
 obj/
 *.user
@@ -83,3 +90,6 @@ yarn-error.log*
 *.tmp
 *.temp
 Thumbs.db
+.idea/
+.vscode/
+.DS_Store
