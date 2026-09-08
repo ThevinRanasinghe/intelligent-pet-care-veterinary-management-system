@@ -67,13 +67,13 @@ export const ConsultationStatusTracker: React.FC<ConsultationStatusTrackerProps>
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Quick lookup state (UC-16)
+  // Quick lookup state
   const [lookupId, setLookupId] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResult, setLookupResult] = useState<ConsultationStatusTrackingDto | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
 
-  // Audit history modal state (UC-17)
+  // Audit history modal state
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [activeRequestHistory, setActiveRequestHistory] = useState<ConsultationHistoryItemDto[]>([]);
   const [historyRequestId, setHistoryRequestId] = useState<string>("");
@@ -116,7 +116,7 @@ export const ConsultationStatusTracker: React.FC<ConsultationStatusTrackerProps>
     }
   };
 
-  // Quick lookup handler (UC-16)
+  // Quick lookup handler
   const handleLookupStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     setLookupError(null);
@@ -144,7 +144,7 @@ export const ConsultationStatusTracker: React.FC<ConsultationStatusTrackerProps>
     }
   };
 
-  // View Audit History (UC-17)
+  // View Audit History
   const handleViewAuditHistory = async (reqId: string) => {
     setHistoryRequestId(reqId);
     setHistoryModalOpen(true);
@@ -224,11 +224,11 @@ export const ConsultationStatusTracker: React.FC<ConsultationStatusTrackerProps>
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-      {/* Live Status Lookup Widget (UC-16) */}
+      {/* Live Status Lookup Widget */}
       <Card>
         <div className="card-header">
           <div>
-            <div className="eyebrow">UC-16 · GET /api/Consultations/&#123;id&#125;/status</div>
+            <div className="eyebrow">Quick Status Tracking</div>
             <h3>Quick Status Tracking & Workflow Inspection</h3>
           </div>
           <Activity size={18} style={{ color: "var(--primary)" }} />
@@ -361,11 +361,11 @@ export const ConsultationStatusTracker: React.FC<ConsultationStatusTrackerProps>
         )}
       </Card>
 
-      {/* Consultation Requests Queue (UC-15) */}
+      {/* Consultation Requests Queue */}
       <Card>
         <div className="card-header">
           <div>
-            <div className="eyebrow">Queue & Tracking · UC-15 to UC-17</div>
+            <div className="eyebrow">Consultation Requests</div>
             <h3>Consultation Requests ({consultations.length})</h3>
           </div>
           <div style={{ display: "flex", gap: "8px" }}>
@@ -591,7 +591,7 @@ export const ConsultationStatusTracker: React.FC<ConsultationStatusTrackerProps>
                           }}
                           style={{ fontSize: "10px", padding: "4px 8px" }}
                           icon={<Activity size={12} />}
-                          title="Track in live status stepper (UC-16)"
+                          title="Track in live status stepper"
                         >
                           Track
                         </Button>
@@ -600,7 +600,7 @@ export const ConsultationStatusTracker: React.FC<ConsultationStatusTrackerProps>
                           onClick={() => handleViewAuditHistory(req.id)}
                           style={{ fontSize: "10px", padding: "4px 8px" }}
                           icon={<History size={12} />}
-                          title="View audit history log (UC-17)"
+                          title="View audit history log"
                         >
                           Audit
                         </Button>
@@ -623,7 +623,7 @@ export const ConsultationStatusTracker: React.FC<ConsultationStatusTrackerProps>
         )}
       </Card>
 
-      {/* UC-17 Audit Trail Timeline Modal */}
+      {/* Audit Trail Timeline Modal */}
       {historyModalOpen && (
         <Modal
           title={`Audit Trail & History · ${historyRequestId}`}

@@ -242,7 +242,7 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
 
   return (
     <Modal
-      title={isEditMode ? `Edit Pet Profile (${petToEdit?.id})` : "Register New Pet (UC-05)"}
+      title={isEditMode ? `Edit Patient Profile · ${petToEdit?.name}` : "Register New Patient"}
       onClose={onClose}
     >
       <form onSubmit={handleSubmit}>
@@ -264,7 +264,7 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
           >
             <Lock size={15} style={{ flexShrink: 0, marginTop: "2px", color: "#1a56db" }} />
             <div>
-              <strong>Clinical Records Protected (UC-06 / UC-07)</strong>
+              <strong>Protected Clinical Record</strong>
               <p style={{ margin: "2px 0 0", lineHeight: 1.4, fontSize: "10px" }}>
                 Only general profile fields (Name, Species, Breed, Age/DOB, Notes, Photo) are editable.
                 Diagnostic records, medical charts, and vaccination logs remain strictly immutable here and can only be altered by authorized veterinary personnel.
@@ -308,11 +308,11 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
         )}
 
         <div className="form-grid">
-          {/* Owner ID (Short ID schema: OWN-2001) */}
+          {/* Owner ID (e.g. OWN-2001) */}
           <div style={{ gridColumn: "1 / -1" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
               <label htmlFor="pet-owner-id" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <User size={13} /> Owner Short ID (e.g. OWN-2001) *
+                <User size={13} /> Owner ID *
               </label>
               {!isEditMode && (
                 <button
@@ -347,14 +347,14 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
             />
             {formData.ownerId && !isValidOwnerId(formData.ownerId) && (
               <span style={{ color: "var(--danger)", fontSize: "10px", display: "block", marginTop: "2px" }}>
-                Invalid Owner ID format. Must follow Short ID schema (e.g. OWN-2001).
+                Invalid Owner ID format (e.g. OWN-2001).
               </span>
             )}
 
             {/* Quick Demo Owner Presets */}
             {!isEditMode && (
               <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "10px", color: "var(--muted)" }}>Quick owner presets:</span>
+                <span style={{ fontSize: "10px", color: "var(--muted)" }}>Client presets:</span>
                 {DEMO_OWNERS.map((owner) => (
                   <button
                     key={owner.id}

@@ -83,8 +83,8 @@ export const PetListCard: React.FC<PetListCardProps> = ({
     <Card>
       <div className="card-header">
         <div>
-          <div className="eyebrow">Registered Patients · UC-05 to UC-08</div>
-          <h3>Pet Profiles ({pets.length})</h3>
+          <div className="eyebrow">Patient Directory</div>
+          <h3>Registered Patients ({pets.length})</h3>
         </div>
         <Button
           icon={<Plus size={15} />}
@@ -100,7 +100,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
         <div className="search-input">
           <Search size={16} />
           <input
-            placeholder="Search by pet name, breed, or Short ID (e.g. PET-1001, OWN-2001)..."
+            placeholder="Search patient or owner..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -353,7 +353,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                     onClick={() => onViewHistory(pet)}
                     icon={<Stethoscope size={13} />}
                     style={{ fontSize: "10px", padding: "4px 8px", minHeight: "32px", justifyContent: "center" }}
-                    title="View medical & vaccination history (UC-08)"
+                    title="View medical diagnoses and vaccination history"
                   >
                     Clinical Log
                   </Button>
@@ -362,7 +362,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                     onClick={() => onEditPet(pet)}
                     icon={<Edit3 size={13} />}
                     style={{ fontSize: "10px", padding: "4px 8px", minHeight: "32px", justifyContent: "center" }}
-                    title="Edit non-clinical pet profile (UC-06/UC-07)"
+                    title="Edit patient profile details"
                   >
                     Edit Profile
                   </Button>
@@ -379,7 +379,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                     minHeight: "34px",
                   }}
                 >
-                  Request Consultation (UC-09)
+                  Request Consultation
                 </Button>
               </div>
             </div>

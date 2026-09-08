@@ -140,10 +140,10 @@ export function ConsultationsPage() {
       {/* Page Heading */}
       <div className="page-heading">
         <div>
-          <div className="eyebrow">Component 1 · Pet & Consultation Management (UC-05 to UC-17)</div>
-          <h2>Pet Profiles & Consultation Intake Center</h2>
+          <div className="eyebrow">Patient Care · Intake & Records</div>
+          <h2>Patient Intake & Consultation Center</h2>
           <p>
-            Manage patient pets with Short ID formats (<code>PET-1001</code>, <code>OWN-2001</code>), submit consultation requests with GPS nearest-clinic matching, and track workflow statuses in real time.
+            Overview of registered pets, active patient records, and consultation intake requests.
           </p>
         </div>
         <div className="heading-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -152,7 +152,7 @@ export function ConsultationsPage() {
             icon={<PawPrint size={16} />}
             onClick={handleOpenNewPetModal}
           >
-            Register Pet (UC-05)
+            Register Pet
           </Button>
           <Button
             variant="primary"
@@ -162,12 +162,12 @@ export function ConsultationsPage() {
               setIsConsultationModalOpen(true);
             }}
           >
-            New Consultation (UC-09)
+            New Consultation
           </Button>
         </div>
       </div>
 
-      {/* Backend Connectivity Status & Owner Filter Bar */}
+      {/* Connectivity Status & Owner Filter Bar */}
       <div
         style={{
           display: "flex",
@@ -185,8 +185,28 @@ export function ConsultationsPage() {
         {/* Owner Selector */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           <User size={16} style={{ color: "var(--muted)" }} />
-          <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)" }}>Active Owner Scope:</span>
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink)" }}>Filter by Owner:</span>
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setViewAllOwners(true)}
+              style={{
+                fontSize: "11px",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                background: viewAllOwners ? "var(--primary-soft)" : "#fff",
+                color: viewAllOwners ? "var(--primary-deep)" : "var(--ink)",
+                fontWeight: viewAllOwners ? 700 : 500,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Users size={12} /> All Patients
+            </button>
             {DEMO_OWNERS.map((owner) => (
               <button
                 key={owner.id}
@@ -197,7 +217,7 @@ export function ConsultationsPage() {
                 }}
                 style={{
                   fontSize: "11px",
-                  padding: "4px 10px",
+                  padding: "5px 12px",
                   borderRadius: "8px",
                   border: "1px solid var(--line)",
                   background:
@@ -210,30 +230,12 @@ export function ConsultationsPage() {
                       : "var(--ink)",
                   fontWeight: !viewAllOwners && selectedOwnerId.toUpperCase() === owner.id.toUpperCase() ? 700 : 500,
                   cursor: "pointer",
+                  transition: "all 0.15s ease",
                 }}
               >
-                {owner.fullName} ({owner.id})
+                {owner.fullName}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => setViewAllOwners(true)}
-              style={{
-                fontSize: "11px",
-                padding: "4px 10px",
-                borderRadius: "8px",
-                border: "1px solid var(--line)",
-                background: viewAllOwners ? "var(--primary-soft)" : "#fff",
-                color: viewAllOwners ? "var(--primary-deep)" : "var(--ink)",
-                fontWeight: viewAllOwners ? 700 : 500,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
-            >
-              <Users size={12} /> All Clinic Owners
-            </button>
           </div>
         </div>
 
@@ -241,14 +243,16 @@ export function ConsultationsPage() {
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {backendOnline === true ? (
             <Badge tone="success">
-              <Wifi size={12} style={{ marginRight: "4px" }} /> .NET API Connected ({API_BASE_URL})
+              <span style={{ width: "7px", height: "7px", borderRadius: "99px", background: "#45a978", display: "inline-block", marginRight: "6px" }} />
+              System Online
             </Badge>
           ) : backendOnline === false ? (
             <Badge tone="warning">
-              <WifiOff size={12} style={{ marginRight: "4px" }} /> .NET API Offline ({API_BASE_URL})
+              <span style={{ width: "7px", height: "7px", borderRadius: "99px", background: "#ea580c", display: "inline-block", marginRight: "6px" }} />
+              Offline Mode
             </Badge>
           ) : (
-            <Badge tone="neutral">Connecting to .NET API...</Badge>
+            <Badge tone="neutral">Connecting...</Badge>
           )}
           <Button
             variant="ghost"
@@ -276,9 +280,9 @@ export function ConsultationsPage() {
           <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
             <AlertCircle size={18} style={{ color: "#ea580c", flexShrink: 0, marginTop: "2px" }} />
             <div>
-              <strong>Backend Connection Notice</strong>
+              <strong>Backend Service Unavailable</strong>
               <p style={{ margin: "3px 0 0", fontSize: "11px", lineHeight: "1.4" }}>
-                Cannot reach the .NET backend at <code>{API_BASE_URL}</code>. Ensure the ASP.NET Core API server is running (e.g. <code>dotnet run --project backend/api/src/PetCare.Api</code>). You can still test client-side Short ID schemas and form validations.
+                The clinical service API is currently unreachable. Displaying cached records and local validation mode.
               </p>
             </div>
           </div>

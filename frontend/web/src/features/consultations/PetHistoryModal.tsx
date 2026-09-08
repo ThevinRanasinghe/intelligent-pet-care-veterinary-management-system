@@ -182,7 +182,7 @@ export const PetHistoryModal: React.FC<PetHistoryModalProps> = ({
 
   return (
     <Modal
-      title={`Medical & Vaccination History · ${pet.name} (${pet.id})`}
+      title={`Medical & Vaccination Records · ${pet.name}`}
       onClose={onClose}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -271,7 +271,7 @@ export const PetHistoryModal: React.FC<PetHistoryModalProps> = ({
             }}
           >
             <Stethoscope size={15} />
-            Medical Diagnoses ({history?.medicalRecords.length ?? 0})
+            Clinical Diagnoses ({history?.medicalRecords.length ?? 0})
           </button>
           <button
             type="button"
@@ -312,7 +312,7 @@ export const PetHistoryModal: React.FC<PetHistoryModalProps> = ({
             }}
           >
             <PlusCircle size={15} />
-            Add Staff Entry
+            Add Clinical Entry
           </button>
         </div>
 

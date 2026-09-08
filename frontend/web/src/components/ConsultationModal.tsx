@@ -88,8 +88,8 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>(TIME_SLOTS[0].id);
 
   const [preferredBranch, setPreferredBranch] = useState<string>(DEMO_BRANCHES[0]);
-  const [latitude, setLatitude] = useState<number>(37.7749);
-  const [longitude, setLongitude] = useState<number>(-122.4194);
+  const [latitude, setLatitude] = useState<number>(6.9044);
+  const [longitude, setLongitude] = useState<number>(79.8528);
   const [gpsDetecting, setGpsDetecting] = useState<boolean>(false);
   const [nearestClinicInfo, setNearestClinicInfo] = useState<(ClinicBranch & { distanceKm: number }) | null>(null);
 
@@ -123,15 +123,15 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
         setPetId("PET-1001");
       }
 
-      // Default GPS coords to Downtown
-      setLatitude(37.7749);
-      setLongitude(-122.4194);
-      const initialNearest = findNearestClinic(37.7749, -122.4194);
+      // Default GPS coords to Colombo 03 Central Clinic
+      setLatitude(6.9044);
+      setLongitude(79.8528);
+      const initialNearest = findNearestClinic(6.9044, 79.8528);
       setNearestClinicInfo(initialNearest);
     }
   }, [isOpen, initialOwnerId, initialPetId, availablePets]);
 
-  // Ownership verification check (UC-14)
+  // Ownership verification check
   const verifyOwnership = async (candidatePetId: string, candidateOwnerId: string) => {
     if (!isValidPetId(candidatePetId) || !isValidOwnerId(candidateOwnerId)) {
       setOwnershipVerified(null);
@@ -143,7 +143,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
       const res = await consultationService.validateOwnership(candidatePetId, candidateOwnerId);
       setOwnershipVerified(res.isValid);
       if (!res.isValid) {
-        setError(`UC-14 Check: Pet '${candidatePetId}' does not belong to owner '${candidateOwnerId}'.`);
+        setError(`Pet '${candidatePetId}' does not belong to owner '${candidateOwnerId}'.`);
       } else {
         setError(null);
       }
@@ -192,9 +192,9 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
           setGpsDetecting(false);
         },
         () => {
-          // Fallback location near clinic network
-          const simulatedLat = 37.7812;
-          const simulatedLng = -122.4111;
+          // Fallback location near clinic network (Colombo)
+          const simulatedLat = 6.9044;
+          const simulatedLng = 79.8528;
           setLatitude(simulatedLat);
           setLongitude(simulatedLng);
           const nearest = findNearestClinic(simulatedLat, simulatedLng);
@@ -338,16 +338,16 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
   };
 
   return (
-    <Modal title="New Consultation Request Wizard (UC-09 to UC-13)" onClose={onClose}>
+    <Modal title="New Consultation Request" onClose={onClose}>
       {/* Wizard Progress Bar */}
       <div style={{ marginBottom: "18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
           {[
-            { step: 1, label: "Pet Selection" },
+            { step: 1, label: "Select Patient" },
             { step: 2, label: "Symptoms" },
-            { step: 3, label: "Date & Time" },
-            { step: 4, label: "Location / GPS" },
-            { step: 5, label: "Confirmation" },
+            { step: 3, label: "Schedule" },
+            { step: 4, label: "Location" },
+            { step: 5, label: "Confirm" },
           ].map((item) => (
             <div
               key={item.step}
@@ -450,7 +450,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
       )}
 
       <form onSubmit={handleSubmit}>
-        {/* STEP 1: PET SELECTION & OWNERSHIP VERIFICATION (UC-09, UC-14) */}
+        {/* STEP 1: PATIENT SELECTION */}
         {currentStep === 1 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <div>
@@ -537,7 +537,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
               )}
             </div>
 
-            {/* UC-14 Ownership Pre-Validation Badge & Selected Pet Card */}
+            {/* Ownership Pre-Validation Badge & Selected Pet Card */}
             <div
               style={{
                 padding: "12px",
@@ -581,7 +581,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
                   <Badge tone="neutral">Validating ownership...</Badge>
                 ) : ownershipVerified ? (
                   <Badge tone="success">
-                    <ShieldCheck size={12} style={{ marginRight: "4px" }} /> UC-14 Verified
+                    <ShieldCheck size={12} style={{ marginRight: "4px" }} /> Verified Patient
                   </Badge>
                 ) : (
                   <Badge tone="warning">Ownership Check Pending</Badge>
@@ -591,7 +591,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
           </div>
         )}
 
-        {/* STEP 2: SYMPTOMS & PHOTO ATTACHMENT (UC-10) */}
+        {/* STEP 2: SYMPTOMS & PHOTO ATTACHMENT */}
         {currentStep === 2 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <div>
@@ -716,7 +716,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
           </div>
         )}
 
-        {/* STEP 3: PREFERRED DATE & TIME SLOT (UC-11) */}
+        {/* STEP 3: PREFERRED DATE & TIME SLOT */}
         {currentStep === 3 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <div>
@@ -771,7 +771,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
           </div>
         )}
 
-        {/* STEP 4: LOCATION & NEAREST CLINIC MATCHING (UC-12) */}
+        {/* STEP 4: LOCATION & NEAREST CLINIC MATCHING */}
         {currentStep === 4 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             {/* GPS Detection Bar */}
@@ -895,7 +895,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
           </div>
         )}
 
-        {/* STEP 5: BUDGET & CONFIRMATION (UC-13) */}
+        {/* STEP 5: BUDGET & CONFIRMATION */}
         {currentStep === 5 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             {/* Budget Input */}
