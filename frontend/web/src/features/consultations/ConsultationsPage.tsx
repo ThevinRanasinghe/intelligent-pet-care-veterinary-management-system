@@ -8,6 +8,7 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  Stethoscope,
   User,
   Users,
   Wifi,
@@ -18,6 +19,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { ConsultationModal } from "../../components/ConsultationModal";
 import { PetManagementModal } from "./PetManagementModal";
+import { PetHistoryModal } from "./PetHistoryModal";
 import { PetListCard } from "./PetListCard";
 import { ConsultationStatusTracker } from "./ConsultationStatusTracker";
 import {
@@ -44,6 +46,9 @@ export function ConsultationsPage() {
 
   // Modal triggers
   const [isPetModalOpen, setIsPetModalOpen] = useState<boolean>(false);
+  const [petToEdit, setPetToEdit] = useState<Pet | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+  const [selectedPetForHistory, setSelectedPetForHistory] = useState<Pet | null>(null);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState<boolean>(false);
   const [selectedPetForConsultation, setSelectedPetForConsultation] = useState<Pet | null>(null);
 
@@ -93,8 +98,16 @@ export function ConsultationsPage() {
     loadConsultations();
   }, [selectedOwnerId, viewAllOwners]);
 
-  const handlePetRegistered = (newPet: Pet) => {
-    setPets((prev) => [newPet, ...prev]);
+  const handlePetSaved = (savedPet: Pet) => {
+    setPets((prev) => {
+      const idx = prev.findIndex((p) => p.id === savedPet.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = savedPet;
+        return copy;
+      }
+      return [savedPet, ...prev];
+    });
   };
 
   const handleConsultationCreated = (newConsultation: ConsultationRequest) => {
@@ -107,28 +120,39 @@ export function ConsultationsPage() {
     setIsConsultationModalOpen(true);
   };
 
-  const activeOwner = DEMO_OWNERS.find(
-    (o) => o.id.toLowerCase() === selectedOwnerId.toLowerCase()
-  );
+  const handleViewHistoryForPet = (pet: Pet) => {
+    setSelectedPetForHistory(pet);
+    setIsHistoryModalOpen(true);
+  };
+
+  const handleEditPet = (pet: Pet) => {
+    setPetToEdit(pet);
+    setIsPetModalOpen(true);
+  };
+
+  const handleOpenNewPetModal = () => {
+    setPetToEdit(null);
+    setIsPetModalOpen(true);
+  };
 
   return (
     <div className="page-wrap">
       {/* Page Heading */}
       <div className="page-heading">
         <div>
-          <div className="eyebrow">Component 1 · Pet & Consultation Intake</div>
-          <h2>Pet & Consultation Management</h2>
+          <div className="eyebrow">Component 1 · Pet & Consultation Management (UC-05 to UC-17)</div>
+          <h2>Pet Profiles & Consultation Intake Center</h2>
           <p>
-            Register patient pets, submit consultation requests with GUID validation, and monitor live workflow status.
+            Manage patient pets with Short ID formats (<code>PET-1001</code>, <code>OWN-2001</code>), submit consultation requests with GPS nearest-clinic matching, and track workflow statuses in real time.
           </p>
         </div>
         <div className="heading-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <Button
             variant="secondary"
             icon={<PawPrint size={16} />}
-            onClick={() => setIsPetModalOpen(true)}
+            onClick={handleOpenNewPetModal}
           >
-            Register Pet
+            Register Pet (UC-05)
           </Button>
           <Button
             variant="primary"
@@ -138,7 +162,7 @@ export function ConsultationsPage() {
               setIsConsultationModalOpen(true);
             }}
           >
-            New Consultation
+            New Consultation (UC-09)
           </Button>
         </div>
       </div>
@@ -177,18 +201,18 @@ export function ConsultationsPage() {
                   borderRadius: "8px",
                   border: "1px solid var(--line)",
                   background:
-                    !viewAllOwners && selectedOwnerId.toLowerCase() === owner.id.toLowerCase()
+                    !viewAllOwners && selectedOwnerId.toUpperCase() === owner.id.toUpperCase()
                       ? "var(--primary-soft)"
                       : "#fff",
                   color:
-                    !viewAllOwners && selectedOwnerId.toLowerCase() === owner.id.toLowerCase()
+                    !viewAllOwners && selectedOwnerId.toUpperCase() === owner.id.toUpperCase()
                       ? "var(--primary-deep)"
                       : "var(--ink)",
-                  fontWeight: !viewAllOwners && selectedOwnerId.toLowerCase() === owner.id.toLowerCase() ? 700 : 500,
+                  fontWeight: !viewAllOwners && selectedOwnerId.toUpperCase() === owner.id.toUpperCase() ? 700 : 500,
                   cursor: "pointer",
                 }}
               >
-                {owner.name}
+                {owner.fullName} ({owner.id})
               </button>
             ))}
             <button
@@ -238,7 +262,7 @@ export function ConsultationsPage() {
         </div>
       </div>
 
-      {/* Backend Offline Warning Banner if applicable */}
+      {/* Backend Offline Banner */}
       {backendOnline === false && (
         <div
           className="form-error"
@@ -254,7 +278,7 @@ export function ConsultationsPage() {
             <div>
               <strong>Backend Connection Notice</strong>
               <p style={{ margin: "3px 0 0", fontSize: "11px", lineHeight: "1.4" }}>
-                Cannot reach the .NET backend at <code>{API_BASE_URL}</code>. Ensure the ASP.NET Core API server is running (e.g. <code>dotnet run --project backend/api/src/PetCare.Api</code>). You can still review form layouts and client-side GUID validation.
+                Cannot reach the .NET backend at <code>{API_BASE_URL}</code>. Ensure the ASP.NET Core API server is running (e.g. <code>dotnet run --project backend/api/src/PetCare.Api</code>). You can still test client-side Short ID schemas and form validations.
               </p>
             </div>
           </div>
@@ -317,8 +341,10 @@ export function ConsultationsPage() {
         <PetListCard
           pets={pets}
           loading={loadingPets}
-          onRegisterPet={() => setIsPetModalOpen(true)}
+          onRegisterPet={handleOpenNewPetModal}
           onRequestConsultation={handleRequestConsultationForPet}
+          onViewHistory={handleViewHistoryForPet}
+          onEditPet={handleEditPet}
           selectedOwnerId={viewAllOwners ? undefined : selectedOwnerId}
         />
       ) : (
@@ -336,9 +362,23 @@ export function ConsultationsPage() {
       {/* Modals */}
       <PetManagementModal
         isOpen={isPetModalOpen}
-        onClose={() => setIsPetModalOpen(false)}
-        onSuccess={handlePetRegistered}
+        onClose={() => {
+          setIsPetModalOpen(false);
+          setPetToEdit(null);
+        }}
+        onSuccess={handlePetSaved}
         initialOwnerId={viewAllOwners ? undefined : selectedOwnerId}
+        petToEdit={petToEdit}
+      />
+
+      <PetHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => {
+          setIsHistoryModalOpen(false);
+          setSelectedPetForHistory(null);
+        }}
+        pet={selectedPetForHistory}
+        onRecordAdded={loadPets}
       />
 
       <ConsultationModal

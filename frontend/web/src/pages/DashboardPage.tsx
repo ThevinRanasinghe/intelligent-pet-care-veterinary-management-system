@@ -176,7 +176,7 @@ export function DashboardPage() {
                 <strong style={{ fontSize: "13px" }}>Patient Registration</strong>
               </div>
               <p style={{ margin: 0, fontSize: "11px", color: "var(--muted)", lineHeight: 1.45 }}>
-                Register pets with species, breed, medical history, and Owner GUID verification.
+                Register pets with species, breed, age/DOB, and Owner Short ID verification (e.g. OWN-2001).
               </p>
             </div>
             <Button

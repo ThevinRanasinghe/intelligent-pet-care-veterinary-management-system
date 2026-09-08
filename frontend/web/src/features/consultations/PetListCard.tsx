@@ -3,26 +3,28 @@ import {
   Check,
   Clipboard,
   Copy,
-  Dog,
-  Cat,
-  Bird,
+  Edit3,
   HeartPulse,
   PawPrint,
   Plus,
   Search,
   Sparkles,
+  Stethoscope,
   User,
 } from "lucide-react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import type { Pet } from "../../services/api";
+import { formatDate } from "../../utils/format";
 
 interface PetListCardProps {
   pets: Pet[];
   loading?: boolean;
   onRegisterPet: () => void;
   onRequestConsultation: (pet: Pet) => void;
+  onViewHistory: (pet: Pet) => void;
+  onEditPet: (pet: Pet) => void;
   selectedOwnerId?: string;
 }
 
@@ -31,6 +33,8 @@ export const PetListCard: React.FC<PetListCardProps> = ({
   loading = false,
   onRegisterPet,
   onRequestConsultation,
+  onViewHistory,
+  onEditPet,
   selectedOwnerId,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -61,13 +65,15 @@ export const PetListCard: React.FC<PetListCardProps> = ({
   const getSpeciesTone = (
     species: string
   ): "success" | "info" | "warning" | "neutral" => {
-    switch (species.toLowerCase()) {
+    switch (species?.toLowerCase()) {
       case "dog":
         return "info";
       case "cat":
         return "success";
       case "bird":
         return "warning";
+      case "rabbit":
+        return "neutral";
       default:
         return "neutral";
     }
@@ -77,7 +83,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
     <Card>
       <div className="card-header">
         <div>
-          <div className="eyebrow">Registered Patients</div>
+          <div className="eyebrow">Registered Patients · UC-05 to UC-08</div>
           <h3>Pet Profiles ({pets.length})</h3>
         </div>
         <Button
@@ -94,7 +100,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
         <div className="search-input">
           <Search size={16} />
           <input
-            placeholder="Search by pet name, breed, or ID..."
+            placeholder="Search by pet name, breed, or Short ID (e.g. PET-1001, OWN-2001)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -117,7 +123,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
         </div>
       </div>
 
-      {/* Loading Skeleton / Empty State / Pet Cards Grid */}
+      {/* Loading / Empty State / Grid */}
       {loading ? (
         <div className="empty-state" style={{ minHeight: "200px" }}>
           <PawPrint size={32} className="animate-pulse" style={{ color: "var(--primary)" }} />
@@ -129,14 +135,14 @@ export const PetListCard: React.FC<PetListCardProps> = ({
           <h4 style={{ margin: "10px 0 4px", fontSize: "14px" }}>
             {pets.length === 0
               ? selectedOwnerId
-                ? "No pets registered under this owner yet."
-                : "No pets registered yet in the system."
-              : "No pets match your search criteria."}
+                ? `No pets registered under ${selectedOwnerId} yet.`
+                : "No pets registered in the clinic database yet."
+              : "No pets match your filter criteria."}
           </h4>
-          <p style={{ margin: 0, fontSize: "11px", color: "var(--muted)", maxWidth: "360px" }}>
+          <p style={{ margin: 0, fontSize: "11px", color: "var(--muted)", maxWidth: "380px" }}>
             {pets.length === 0
-              ? "Register a new pet to begin creating consultation requests and medical records."
-              : "Try clearing filters or changing your search term."}
+              ? "Register a new pet with short ID generation to enable consultation requests and medical records."
+              : "Try clearing search filters or changing the species filter."}
           </p>
           {pets.length === 0 && (
             <Button
@@ -152,7 +158,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))",
             gap: "14px",
           }}
         >
@@ -182,22 +188,37 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <div
-                      style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "10px",
-                        background: "var(--primary-soft)",
-                        color: "var(--primary)",
-                        display: "grid",
-                        placeItems: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <PawPrint size={18} />
-                    </div>
+                    {pet.photoUrl ? (
+                      <img
+                        src={pet.photoUrl}
+                        alt={pet.name}
+                        onError={(e) => ((e.target as HTMLElement).style.display = "none")}
+                        style={{
+                          width: "42px",
+                          height: "42px",
+                          borderRadius: "11px",
+                          objectFit: "cover",
+                          flexShrink: 0,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "42px",
+                          height: "42px",
+                          borderRadius: "11px",
+                          background: "var(--primary-soft)",
+                          color: "var(--primary)",
+                          display: "grid",
+                          placeItems: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <PawPrint size={20} />
+                      </div>
+                    )}
                     <div>
-                      <strong style={{ fontSize: "14px", color: "var(--ink)" }}>
+                      <strong style={{ fontSize: "15px", color: "var(--ink)" }}>
                         {pet.name}
                       </strong>
                       <span
@@ -214,14 +235,36 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                   <Badge tone={getSpeciesTone(pet.species)}>{pet.species}</Badge>
                 </div>
 
-                {/* Medical History */}
+                {/* Date of Birth & Short IDs Info Bar */}
                 <div
                   style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                     marginTop: "10px",
+                    padding: "6px 8px",
+                    background: "#f4f8f6",
+                    borderRadius: "8px",
+                    fontSize: "10px",
+                    color: "var(--muted)",
+                  }}
+                >
+                  <span>
+                    DOB: {pet.dateOfBirth ? formatDate(pet.dateOfBirth.slice(0, 10)) : "Not specified"}
+                  </span>
+                  <span>
+                    Owner: <strong style={{ color: "var(--ink)" }}>{pet.ownerId}</strong>
+                  </span>
+                </div>
+
+                {/* Notes / Health Summary Preview */}
+                <div
+                  style={{
+                    marginTop: "8px",
                     padding: "8px 10px",
                     borderRadius: "8px",
-                    background: "#f4f8f6",
-                    border: "1px solid #e2ebe6",
+                    background: "#fff",
+                    border: "1px solid var(--line)",
                     fontSize: "11px",
                     color: "#465751",
                   }}
@@ -237,7 +280,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                       marginBottom: "2px",
                     }}
                   >
-                    Medical History
+                    Notes & Profile Summary
                   </span>
                   <span
                     style={{
@@ -249,12 +292,12 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                       lineHeight: "1.4",
                     }}
                   >
-                    {pet.medicalHistorySummary || "No previous conditions recorded. General checkup up-to-date."}
+                    {pet.notes || pet.medicalHistorySummary || "General wellness up to date. No known food or drug allergies."}
                   </span>
                 </div>
               </div>
 
-              {/* GUID and Quick Actions */}
+              {/* Card Footer: Short ID & Actions */}
               <div
                 style={{
                   borderTop: "1px solid var(--line)",
@@ -274,7 +317,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                   }}
                 >
                   <span>
-                    Pet ID: <code style={{ color: "var(--ink)", fontWeight: 600 }}>{pet.id.slice(0, 8)}...</code>
+                    Pet ID: <code style={{ color: "var(--ink)", fontWeight: 700 }}>{pet.id}</code>
                   </span>
                   <button
                     type="button"
@@ -289,7 +332,7 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                       gap: "3px",
                       fontSize: "10px",
                     }}
-                    title="Copy full Pet GUID"
+                    title="Copy Pet Short ID"
                   >
                     {copiedId === `pet-${pet.id}` ? (
                       <>
@@ -297,24 +340,46 @@ export const PetListCard: React.FC<PetListCardProps> = ({
                       </>
                     ) : (
                       <>
-                        <Copy size={11} /> Copy GUID
+                        <Copy size={11} /> Copy ID
                       </>
                     )}
                   </button>
                 </div>
 
+                {/* Primary & Secondary Action Buttons */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => onViewHistory(pet)}
+                    icon={<Stethoscope size={13} />}
+                    style={{ fontSize: "10px", padding: "4px 8px", minHeight: "32px", justifyContent: "center" }}
+                    title="View medical & vaccination history (UC-08)"
+                  >
+                    Clinical Log
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => onEditPet(pet)}
+                    icon={<Edit3 size={13} />}
+                    style={{ fontSize: "10px", padding: "4px 8px", minHeight: "32px", justifyContent: "center" }}
+                    title="Edit non-clinical pet profile (UC-06/UC-07)"
+                  >
+                    Edit Profile
+                  </Button>
+                </div>
+
                 <Button
-                  variant="secondary"
+                  variant="primary"
                   onClick={() => onRequestConsultation(pet)}
                   icon={<Sparkles size={14} />}
                   style={{
                     width: "100%",
                     justifyContent: "center",
                     fontSize: "11px",
-                    minHeight: "32px",
+                    minHeight: "34px",
                   }}
                 >
-                  Request Consultation
+                  Request Consultation (UC-09)
                 </Button>
               </div>
             </div>

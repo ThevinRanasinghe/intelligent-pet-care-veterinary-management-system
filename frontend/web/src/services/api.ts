@@ -1,12 +1,89 @@
 /**
  * API boundary for the ASP.NET Core backend (Component 1: Pet & Consultation Management).
+ * Aligned with C# .NET 8 backend handling UC-05 through UC-17 and Short ID schema.
  */
+
+import {
+  type Pet,
+  type CreatePetDto,
+  type UpdatePetProfileDto,
+  type PetOwner,
+  type MedicalRecordDto,
+  type VaccinationRecordDto,
+  type PetMedicalHistoryDto,
+  type CreateMedicalRecordDto,
+  type CreateVaccinationRecordDto,
+  type ConsultationRequest,
+  type CreateConsultationRequestDto,
+  type ConsultationStatusTrackingDto,
+  type ConsultationHistoryItemDto,
+  type UpdateConsultationStatusDto,
+  type ClinicBranch,
+  type ConsultationStatusString,
+  ConsultationStatus,
+} from "../types/domain";
+
+export {
+  type Pet,
+  type CreatePetDto,
+  type UpdatePetProfileDto,
+  type PetOwner,
+  type MedicalRecordDto,
+  type VaccinationRecordDto,
+  type PetMedicalHistoryDto,
+  type CreateMedicalRecordDto,
+  type CreateVaccinationRecordDto,
+  type ConsultationRequest,
+  type CreateConsultationRequestDto,
+  type ConsultationStatusTrackingDto,
+  type ConsultationHistoryItemDto,
+  type UpdateConsultationStatusDto,
+  type ClinicBranch,
+  type ConsultationStatusString,
+  ConsultationStatus,
+};
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5143/api";
 
+// ----------------------------------------------------
+// Short ID Format Validation & Generation
+// Prefixes: PET-xxxx, OWN-xxxx, REQ-xxxx, MED-xxxx, VAC-xxxx
+// ----------------------------------------------------
+
+export function isValidShortId(value: string, prefix?: string): boolean {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (prefix) {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`^${escaped}-\\d{3,}$`, "i");
+    return regex.test(trimmed);
+  }
+  return /^(PET|OWN|REQ|MED|VAC)-\d{3,}$/i.test(trimmed);
+}
+
+export function isValidPetId(id: string): boolean {
+  return isValidShortId(id, "PET");
+}
+
+export function isValidOwnerId(id: string): boolean {
+  return isValidShortId(id, "OWN");
+}
+
+export function isValidRequestId(id: string): boolean {
+  return isValidShortId(id, "REQ");
+}
+
+export function isValidMedicalRecordId(id: string): boolean {
+  return isValidShortId(id, "MED");
+}
+
+export function isValidVaccinationRecordId(id: string): boolean {
+  return isValidShortId(id, "VAC");
+}
+
 /**
- * Validates whether a given string is a valid standard UUID/GUID.
+ * Backward compatibility helper for legacy code/tests
  */
 export function isValidGuid(value: string): boolean {
   if (!value || typeof value !== "string") return false;
@@ -16,8 +93,15 @@ export function isValidGuid(value: string): boolean {
 }
 
 /**
- * Generates a random v4 UUID/GUID.
+ * Generates a mock sequential Short ID (e.g. for testing / client-side previews)
  */
+export function generateShortId(prefix: "PET" | "OWN" | "REQ" | "MED" | "VAC"): string {
+  const min = 1000;
+  const max = 9999;
+  const randomNum = Math.floor(Math.random() * (max - min + 1)) + min;
+  return `${prefix}-${randomNum}`;
+}
+
 export function generateGuid(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -29,27 +113,111 @@ export function generateGuid(): string {
   });
 }
 
-/**
- * Demo preset Owner IDs for quick testing and UI simulation.
- */
-export const DEMO_OWNER_ID = "e2b8d000-0000-0000-0000-000000000001";
-export const DEMO_OWNERS = [
-  { id: "e2b8d000-0000-0000-0000-000000000001", name: "Sarah Fernando", phone: "+94 77 123 4567" },
-  { id: "e2b8d000-0000-0000-0000-000000000002", name: "Kamal Perera", phone: "+94 71 987 6543" },
-  { id: "e2b8d000-0000-0000-0000-000000000003", name: "Anura Silva", phone: "+94 75 555 1212" },
+// ----------------------------------------------------
+// Demo Data & Presets (matching backend DbInitializer)
+// ----------------------------------------------------
+
+export const DEMO_OWNER_ID = "OWN-2001";
+
+export const DEMO_OWNERS: PetOwner[] = [
+  {
+    id: "OWN-2001",
+    fullName: "Sarah Jenkins",
+    email: "sarah.jenkins@example.com",
+    phoneNumber: "+1-555-0199",
+    address: "742 Evergreen Terrace, Springfield",
+  },
+  {
+    id: "OWN-2002",
+    fullName: "Michael Chen",
+    email: "michael.chen@example.com",
+    phoneNumber: "+1-555-0142",
+    address: "100 Main Street, Suite 4B, Metro City",
+  },
 ];
 
-export const DEMO_BRANCHES = [
-  "Colombo Branch",
-  "Kandy Branch",
-  "Nugegoda Branch",
-  "Negombo Branch",
-  "Galle Branch",
+export const CLINIC_BRANCHES: ClinicBranch[] = [
+  {
+    name: "Downtown Central Vet Clinic",
+    address: "101 Market St, Downtown",
+    lat: 37.7749,
+    lng: -122.4194,
+  },
+  {
+    name: "Northside Veterinary Hospital",
+    address: "450 Columbus Ave, North Beach",
+    lat: 37.7983,
+    lng: -122.4075,
+  },
+  {
+    name: "West End Pet Health Care",
+    address: "820 Haight St, Lower Haight",
+    lat: 37.769,
+    lng: -122.4467,
+  },
+  {
+    name: "Eastside Emergency & Specialty",
+    address: "1200 3rd St, Mission Bay",
+    lat: 37.7599,
+    lng: -122.3888,
+  },
+  {
+    name: "Metro Pet Clinic",
+    address: "55 9th St, SoMa",
+    lat: 37.7833,
+    lng: -122.4167,
+  },
 ];
 
+export const DEMO_BRANCHES: string[] = CLINIC_BRANCHES.map((b) => b.name);
+
 /**
- * Parses HTTP error response body into a clean human-readable error message.
+ * Calculates Haversine distance in kilometers between two GPS coordinates
  */
+export function calculateDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371; // Earth radius in km
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+/**
+ * Finds the nearest clinic branch based on user GPS coordinates
+ */
+export function findNearestClinic(userLat: number, userLng: number): ClinicBranch & { distanceKm: number } {
+  let nearest = CLINIC_BRANCHES[0];
+  let minDistance = calculateDistanceKm(userLat, userLng, nearest.lat, nearest.lng);
+
+  for (let i = 1; i < CLINIC_BRANCHES.length; i++) {
+    const branch = CLINIC_BRANCHES[i];
+    const dist = calculateDistanceKm(userLat, userLng, branch.lat, branch.lng);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearest = branch;
+    }
+  }
+
+  return {
+    ...nearest,
+    distanceKm: minDistance,
+  };
+}
+
+// ----------------------------------------------------
+// HTTP Error Parser & Fetch Wrapper
+// ----------------------------------------------------
+
 export async function parseApiError(response: Response): Promise<string> {
   try {
     const text = await response.text();
@@ -77,7 +245,7 @@ export async function parseApiError(response: Response): Promise<string> {
 
 export async function apiRequest<T>(
   path: string,
-  options?: RequestInit,
+  options?: RequestInit
 ): Promise<T> {
   const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
   let response: Response;
@@ -115,69 +283,16 @@ export async function apiRequest<T>(
 }
 
 // ----------------------------------------------------
-// TypeScript Domain Interfaces & DTOs
-// ----------------------------------------------------
-
-export interface Pet {
-  id: string;
-  ownerId: string;
-  name: string;
-  species: string;
-  breed: string;
-  age: number;
-  medicalHistorySummary?: string | null;
-  createdAt?: string;
-}
-
-export interface CreatePetDto {
-  ownerId: string;
-  name: string;
-  species: string;
-  breed: string;
-  age: number;
-  medicalHistorySummary?: string | null;
-}
-
-export interface ConsultationRequest {
-  id: string;
-  petId: string;
-  ownerId: string;
-  symptomsDescription: string;
-  photoUrl?: string | null;
-  preferredBranch: string;
-  preferredDate: string;
-  budgetLimit: number;
-  status: string;
-  createdAt?: string;
-}
-
-export interface CreateConsultationRequestDto {
-  petId: string;
-  ownerId: string;
-  symptomsDescription: string;
-  photoUrl?: string | null;
-  preferredBranch: string;
-  preferredDate: string;
-  budgetLimit: number;
-}
-
-export interface ConsultationStatusResponse {
-  consultationId: string;
-  status: string;
-  updatedAt?: string;
-}
-
-// ----------------------------------------------------
-// Pet API Service
+// Pet API Service (UC-05 to UC-08)
 // ----------------------------------------------------
 
 export const petService = {
   /**
-   * Register a new pet (Endpoint 1: POST /api/Pets)
+   * UC-05: Register a new pet (POST /api/Pets)
    */
   createPet: (dto: CreatePetDto): Promise<Pet> => {
-    if (!isValidGuid(dto.ownerId)) {
-      return Promise.reject(new Error(`Invalid Owner GUID: "${dto.ownerId}". Must be a valid UUID.`));
+    if (!isValidOwnerId(dto.ownerId) && !isValidGuid(dto.ownerId)) {
+      return Promise.reject(new Error(`Invalid Owner ID: "${dto.ownerId}". Must be in Short ID format (e.g., OWN-2001).`));
     }
     return apiRequest<Pet>("/Pets", {
       method: "POST",
@@ -186,47 +301,98 @@ export const petService = {
   },
 
   /**
-   * Get all pets for a specific owner (Endpoint 2: GET /api/Pets/owner/{ownerId})
+   * UC-06: View single pet profile by ID (GET /api/Pets/{id})
+   */
+  getPetById: (id: string): Promise<Pet> => {
+    if (!isValidPetId(id) && !isValidGuid(id)) {
+      return Promise.reject(new Error(`Invalid Pet ID: "${id}". Must be in Short ID format (e.g., PET-1001).`));
+    }
+    return apiRequest<Pet>(`/Pets/${id}`);
+  },
+
+  /**
+   * UC-06: View all pets for a specific owner (GET /api/Pets/owner/{ownerId})
    */
   getPetsByOwner: (ownerId: string): Promise<Pet[]> => {
-    if (!isValidGuid(ownerId)) {
-      return Promise.reject(new Error(`Invalid Owner GUID: "${ownerId}". Must be a valid UUID.`));
+    if (!isValidOwnerId(ownerId) && !isValidGuid(ownerId)) {
+      return Promise.reject(new Error(`Invalid Owner ID: "${ownerId}". Must be in Short ID format (e.g., OWN-2001).`));
     }
     return apiRequest<Pet[]>(`/Pets/owner/${ownerId}`);
   },
 
   /**
-   * Get all registered pets in the clinic (GET /api/Pets)
+   * UC-06: View all registered pets clinic-wide (GET /api/Pets)
    */
   getAllPets: (): Promise<Pet[]> => {
     return apiRequest<Pet[]>("/Pets");
   },
 
   /**
-   * Get a single pet by ID (GET /api/Pets/{id})
+   * UC-06 & UC-07: Update Pet Profile (PUT /api/Pets/{id}?ownerId={ownerId})
+   * Strictly updates non-clinical fields (clinical records are protected)
    */
-  getPetById: (id: string): Promise<Pet> => {
-    if (!isValidGuid(id)) {
-      return Promise.reject(new Error(`Invalid Pet GUID: "${id}". Must be a valid UUID.`));
+  updatePetProfile: (id: string, dto: UpdatePetProfileDto, ownerId?: string): Promise<Pet> => {
+    if (!isValidPetId(id) && !isValidGuid(id)) {
+      return Promise.reject(new Error(`Invalid Pet ID: "${id}". Must be in Short ID format (e.g., PET-1001).`));
     }
-    return apiRequest<Pet>(`/Pets/${id}`);
+    const query = ownerId ? `?ownerId=${encodeURIComponent(ownerId)}` : "";
+    return apiRequest<Pet>(`/Pets/${id}${query}`, {
+      method: "PUT",
+      body: JSON.stringify(dto),
+    });
+  },
+
+  /**
+   * UC-08: View Pet Medical & Vaccination History (GET /api/Pets/{id}/medical-history)
+   */
+  getPetMedicalHistory: (id: string): Promise<PetMedicalHistoryDto> => {
+    if (!isValidPetId(id) && !isValidGuid(id)) {
+      return Promise.reject(new Error(`Invalid Pet ID: "${id}". Must be in Short ID format (e.g., PET-1001).`));
+    }
+    return apiRequest<PetMedicalHistoryDto>(`/Pets/${id}/medical-history`);
+  },
+
+  /**
+   * Add clinical medical record (Authorized staff only) (POST /api/Pets/{id}/medical-records)
+   */
+  addMedicalRecord: (petId: string, dto: CreateMedicalRecordDto): Promise<MedicalRecordDto> => {
+    if (!isValidPetId(petId) && !isValidGuid(petId)) {
+      return Promise.reject(new Error(`Invalid Pet ID: "${petId}". Must be in Short ID format (e.g., PET-1001).`));
+    }
+    return apiRequest<MedicalRecordDto>(`/Pets/${petId}/medical-records`, {
+      method: "POST",
+      body: JSON.stringify(dto),
+    });
+  },
+
+  /**
+   * Add vaccination record (Authorized staff only) (POST /api/Pets/{id}/vaccinations)
+   */
+  addVaccinationRecord: (petId: string, dto: CreateVaccinationRecordDto): Promise<VaccinationRecordDto> => {
+    if (!isValidPetId(petId) && !isValidGuid(petId)) {
+      return Promise.reject(new Error(`Invalid Pet ID: "${petId}". Must be in Short ID format (e.g., PET-1001).`));
+    }
+    return apiRequest<VaccinationRecordDto>(`/Pets/${petId}/vaccinations`, {
+      method: "POST",
+      body: JSON.stringify(dto),
+    });
   },
 };
 
 // ----------------------------------------------------
-// Consultation API Service
+// Consultation API Service (UC-09 to UC-17)
 // ----------------------------------------------------
 
 export const consultationService = {
   /**
-   * Create consultation request with ownership validation (Endpoint 3: POST /api/Consultations)
+   * UC-09 to UC-13: Submit Consultation Request (POST /api/Consultations)
    */
   createConsultation: (dto: CreateConsultationRequestDto): Promise<ConsultationRequest> => {
-    if (!isValidGuid(dto.ownerId)) {
-      return Promise.reject(new Error(`Invalid Owner GUID: "${dto.ownerId}". Must be a valid UUID.`));
+    if (!isValidOwnerId(dto.ownerId) && !isValidGuid(dto.ownerId)) {
+      return Promise.reject(new Error(`Invalid Owner ID: "${dto.ownerId}". Must be in Short ID format (e.g., OWN-2001).`));
     }
-    if (!isValidGuid(dto.petId)) {
-      return Promise.reject(new Error(`Invalid Pet GUID: "${dto.petId}". Must be a valid UUID.`));
+    if (!isValidPetId(dto.petId) && !isValidGuid(dto.petId)) {
+      return Promise.reject(new Error(`Invalid Pet ID: "${dto.petId}". Must be in Short ID format (e.g., PET-1001).`));
     }
     return apiRequest<ConsultationRequest>("/Consultations", {
       method: "POST",
@@ -235,39 +401,101 @@ export const consultationService = {
   },
 
   /**
-   * Check status of a consultation request (Endpoint 4: GET /api/Consultations/{id}/status)
+   * UC-14: Validate Pet Ownership explicitly (GET /api/Consultations/validate-ownership?petId=...&ownerId=...)
    */
-  getStatus: (id: string): Promise<ConsultationStatusResponse> => {
-    if (!isValidGuid(id)) {
-      return Promise.reject(new Error(`Invalid Consultation GUID: "${id}". Must be a valid UUID.`));
-    }
-    return apiRequest<ConsultationStatusResponse>(`/Consultations/${id}/status`);
+  validateOwnership: (
+    petId: string,
+    ownerId: string
+  ): Promise<{ isValid: boolean; message: string; petId?: string; ownerId?: string }> => {
+    return apiRequest<{ isValid: boolean; message: string; petId?: string; ownerId?: string }>(
+      `/Consultations/validate-ownership?petId=${encodeURIComponent(petId)}&ownerId=${encodeURIComponent(ownerId)}`
+    );
   },
 
   /**
-   * Get all consultation requests for an owner (GET /api/Consultations/owner/{ownerId})
+   * UC-15: View all consultation requests (GET /api/Consultations?status=...)
+   */
+  getAllConsultations: (statusFilter?: ConsultationStatus | number): Promise<ConsultationRequest[]> => {
+    const query = statusFilter ? `?status=${statusFilter}` : "";
+    return apiRequest<ConsultationRequest[]>(`/Consultations${query}`);
+  },
+
+  /**
+   * UC-15: View single consultation request by ID (GET /api/Consultations/{id})
+   */
+  getConsultationById: (id: string): Promise<ConsultationRequest> => {
+    if (!isValidRequestId(id) && !isValidGuid(id)) {
+      return Promise.reject(new Error(`Invalid Consultation ID: "${id}". Must be in Short ID format (e.g., REQ-5001).`));
+    }
+    return apiRequest<ConsultationRequest>(`/Consultations/${id}`);
+  },
+
+  /**
+   * UC-15: View consultation requests for owner (GET /api/Consultations/owner/{ownerId})
    */
   getConsultationsByOwner: (ownerId: string): Promise<ConsultationRequest[]> => {
-    if (!isValidGuid(ownerId)) {
-      return Promise.reject(new Error(`Invalid Owner GUID: "${ownerId}". Must be a valid UUID.`));
+    if (!isValidOwnerId(ownerId) && !isValidGuid(ownerId)) {
+      return Promise.reject(new Error(`Invalid Owner ID: "${ownerId}". Must be in Short ID format (e.g., OWN-2001).`));
     }
     return apiRequest<ConsultationRequest[]>(`/Consultations/owner/${ownerId}`);
   },
 
   /**
-   * Get all consultation requests across the clinic (GET /api/Consultations)
+   * UC-15: View consultation requests for pet (GET /api/Consultations/pet/{petId})
    */
-  getAllConsultations: (): Promise<ConsultationRequest[]> => {
-    return apiRequest<ConsultationRequest[]>("/Consultations");
+  getConsultationsByPet: (petId: string): Promise<ConsultationRequest[]> => {
+    if (!isValidPetId(petId) && !isValidGuid(petId)) {
+      return Promise.reject(new Error(`Invalid Pet ID: "${petId}". Must be in Short ID format (e.g., PET-1001).`));
+    }
+    return apiRequest<ConsultationRequest[]>(`/Consultations/pet/${petId}`);
   },
 
   /**
-   * Get a single consultation request by ID (GET /api/Consultations/{id})
+   * UC-16: Track Consultation Workflow Status (GET /api/Consultations/{id}/status)
    */
-  getConsultationById: (id: string): Promise<ConsultationRequest> => {
-    if (!isValidGuid(id)) {
-      return Promise.reject(new Error(`Invalid Consultation GUID: "${id}". Must be a valid UUID.`));
+  getStatus: (id: string): Promise<ConsultationStatusTrackingDto> => {
+    if (!isValidRequestId(id) && !isValidGuid(id)) {
+      return Promise.reject(new Error(`Invalid Consultation ID: "${id}". Must be in Short ID format (e.g., REQ-5001).`));
     }
-    return apiRequest<ConsultationRequest>(`/Consultations/${id}`);
+    return apiRequest<ConsultationStatusTrackingDto>(`/Consultations/${id}/status`);
+  },
+
+  /**
+   * UC-16: Update Consultation Workflow Status (PATCH /api/Consultations/{id}/status)
+   */
+  updateStatus: (id: string, dto: UpdateConsultationStatusDto): Promise<ConsultationRequest> => {
+    if (!isValidRequestId(id) && !isValidGuid(id)) {
+      return Promise.reject(new Error(`Invalid Consultation ID: "${id}". Must be in Short ID format (e.g., REQ-5001).`));
+    }
+    return apiRequest<ConsultationRequest>(`/Consultations/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(dto),
+    });
+  },
+
+  /**
+   * UC-17: View Consultation Request History / Audit Log (GET /api/Consultations/{id}/history)
+   */
+  getHistory: (id: string): Promise<ConsultationHistoryItemDto[]> => {
+    if (!isValidRequestId(id) && !isValidGuid(id)) {
+      return Promise.reject(new Error(`Invalid Consultation ID: "${id}". Must be in Short ID format (e.g., REQ-5001).`));
+    }
+    return apiRequest<ConsultationHistoryItemDto[]>(`/Consultations/${id}/history`);
+  },
+};
+
+// ----------------------------------------------------
+// Pet Owners API Service
+// ----------------------------------------------------
+
+export const ownerService = {
+  getAllOwners: (): Promise<PetOwner[]> => {
+    return apiRequest<PetOwner[]>("/owners");
+  },
+  getOwnerById: (id: string): Promise<PetOwner> => {
+    if (!isValidOwnerId(id) && !isValidGuid(id)) {
+      return Promise.reject(new Error(`Invalid Owner ID: "${id}". Must be in Short ID format (e.g., OWN-2001).`));
+    }
+    return apiRequest<PetOwner>(`/owners/${id}`);
   },
 };

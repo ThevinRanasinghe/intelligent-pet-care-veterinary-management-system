@@ -1,13 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Heart, Loader2, PawPrint, PlusCircle, User, Wand2 } from "lucide-react";
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  Edit3,
+  Image as ImageIcon,
+  Info,
+  Loader2,
+  Lock,
+  PawPrint,
+  PlusCircle,
+  User,
+  Wand2,
+} from "lucide-react";
 import { Modal } from "../../components/ui/Modal";
 import { Button } from "../../components/ui/Button";
 import {
   DEMO_OWNERS,
-  generateGuid,
-  isValidGuid,
+  generateShortId,
+  isValidOwnerId,
   petService,
   type CreatePetDto,
+  type UpdatePetProfileDto,
   type Pet,
 } from "../../services/api";
 
@@ -22,11 +36,19 @@ const SPECIES_OPTIONS = [
   "Other",
 ];
 
+const PRESET_PHOTOS: Record<string, string> = {
+  Dog: "https://images.unsplash.com/photo-1552053831-71594a27632d?w=300&q=80",
+  Cat: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=300&q=80",
+  Bird: "https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=300&q=80",
+  Rabbit: "https://images.unsplash.com/photo-1585110396000-c9ffd4e4b308?w=300&q=80",
+};
+
 interface PetManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (createdPet: Pet) => void;
+  onSuccess?: (pet: Pet) => void;
   initialOwnerId?: string;
+  petToEdit?: Pet | null;
 }
 
 export const PetManagementModal: React.FC<PetManagementModalProps> = ({
@@ -34,14 +56,19 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
   onClose,
   onSuccess,
   initialOwnerId,
+  petToEdit,
 }) => {
-  const [formData, setFormData] = useState<CreatePetDto>({
+  const isEditMode = Boolean(petToEdit);
+
+  const [formData, setFormData] = useState({
     ownerId: initialOwnerId || DEMO_OWNERS[0].id,
     name: "",
     species: "Dog",
     breed: "",
+    dateOfBirth: "",
     age: 2,
-    medicalHistorySummary: "",
+    notes: "",
+    photoUrl: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -52,26 +79,85 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
     if (isOpen) {
       setError(null);
       setSuccessMsg(null);
-      setFormData({
-        ownerId: initialOwnerId || DEMO_OWNERS[0].id,
-        name: "",
-        species: "Dog",
-        breed: "",
-        age: 2,
-        medicalHistorySummary: "",
-      });
+      if (petToEdit) {
+        setFormData({
+          ownerId: petToEdit.ownerId,
+          name: petToEdit.name,
+          species: petToEdit.species,
+          breed: petToEdit.breed,
+          dateOfBirth: petToEdit.dateOfBirth
+            ? petToEdit.dateOfBirth.slice(0, 10)
+            : "",
+          age: petToEdit.age,
+          notes: petToEdit.notes || "",
+          photoUrl: petToEdit.photoUrl || "",
+        });
+      } else {
+        setFormData({
+          ownerId: initialOwnerId || DEMO_OWNERS[0].id,
+          name: "",
+          species: "Dog",
+          breed: "",
+          dateOfBirth: "",
+          age: 2,
+          notes: "",
+          photoUrl: PRESET_PHOTOS["Dog"] || "",
+        });
+      }
     }
-  }, [isOpen, initialOwnerId]);
+  }, [isOpen, initialOwnerId, petToEdit]);
 
   if (!isOpen) return null;
 
-  const handleGenerateOwnerGuid = () => {
-    const guid = generateGuid();
-    setFormData((prev) => ({ ...prev, ownerId: guid }));
+  // DOB & Age calculation handler
+  const handleDobChange = (dobStr: string) => {
+    if (!dobStr) {
+      setFormData((prev) => ({ ...prev, dateOfBirth: "" }));
+      return;
+    }
+
+    const birthDate = new Date(dobStr);
+    const today = new Date();
+
+    if (birthDate > today) {
+      setError("Date of Birth cannot be in the future.");
+      setFormData((prev) => ({ ...prev, dateOfBirth: dobStr }));
+      return;
+    }
+
+    setError(null);
+
+    // Calculate age in years
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      calculatedAge--;
+    }
+    const safeAge = Math.max(0, calculatedAge);
+
+    setFormData((prev) => ({
+      ...prev,
+      dateOfBirth: dobStr,
+      age: safeAge,
+    }));
   };
 
-  const handleSelectDemoOwner = (ownerId: string) => {
-    setFormData((prev) => ({ ...prev, ownerId }));
+  const handleAgeChange = (newAge: number) => {
+    if (newAge < 0) return;
+    setFormData((prev) => ({
+      ...prev,
+      age: newAge,
+    }));
+  };
+
+  const handleSpeciesChange = (newSpecies: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      species: newSpecies,
+      photoUrl: prev.photoUrl === PRESET_PHOTOS[prev.species] || !prev.photoUrl
+        ? PRESET_PHOTOS[newSpecies] || prev.photoUrl
+        : prev.photoUrl,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,9 +165,9 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
     setError(null);
     setSuccessMsg(null);
 
-    // Validation
-    if (!isValidGuid(formData.ownerId)) {
-      setError("Please provide a valid Owner GUID (UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).");
+    // Validations
+    if (!isValidOwnerId(formData.ownerId)) {
+      setError("Please provide a valid Owner ID (Short ID format: OWN-xxxx, e.g. OWN-2001).");
       return;
     }
 
@@ -100,42 +186,100 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
       return;
     }
 
+    if (formData.dateOfBirth) {
+      const dob = new Date(formData.dateOfBirth);
+      if (dob > new Date()) {
+        setError("Date of Birth cannot be in the future.");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
-      const created = await petService.createPet({
-        ownerId: formData.ownerId.trim(),
-        name: formData.name.trim(),
-        species: formData.species.trim(),
-        breed: formData.breed.trim(),
-        age: Number(formData.age),
-        medicalHistorySummary: formData.medicalHistorySummary?.trim() || null,
-      });
+      if (isEditMode && petToEdit) {
+        // UC-06 & UC-07: Update Pet Profile (Strictly non-clinical fields)
+        const updateDto: UpdatePetProfileDto = {
+          name: formData.name.trim(),
+          species: formData.species.trim(),
+          breed: formData.breed.trim(),
+          dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString() : null,
+          age: Number(formData.age),
+          notes: formData.notes.trim() || null,
+          photoUrl: formData.photoUrl.trim() || null,
+        };
 
-      setSuccessMsg(`Pet "${created.name}" registered successfully!`);
-      if (onSuccess) {
-        onSuccess(created);
+        const updated = await petService.updatePetProfile(petToEdit.id, updateDto, formData.ownerId);
+        setSuccessMsg(`Pet profile for "${updated.name}" (${updated.id}) updated successfully!`);
+        if (onSuccess) onSuccess(updated);
+      } else {
+        // UC-05: Register Pet
+        const createDto: CreatePetDto = {
+          ownerId: formData.ownerId.trim(),
+          name: formData.name.trim(),
+          species: formData.species.trim(),
+          breed: formData.breed.trim(),
+          dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth).toISOString() : null,
+          age: Number(formData.age),
+          notes: formData.notes.trim() || null,
+          photoUrl: formData.photoUrl.trim() || null,
+        };
+
+        const created = await petService.createPet(createDto);
+        setSuccessMsg(`Pet "${created.name}" registered successfully with ID ${created.id}!`);
+        if (onSuccess) onSuccess(created);
       }
+
       setTimeout(() => {
         onClose();
-      }, 1000);
+      }, 1100);
     } catch (err: any) {
-      setError(err.message || "Failed to register pet.");
+      setError(err.message || "Failed to save pet profile.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal title="Register New Pet" onClose={onClose}>
+    <Modal
+      title={isEditMode ? `Edit Pet Profile (${petToEdit?.id})` : "Register New Pet (UC-05)"}
+      onClose={onClose}
+    >
       <form onSubmit={handleSubmit}>
+        {/* Protected Clinical Records Notice in Edit Mode */}
+        {isEditMode && (
+          <div
+            style={{
+              marginBottom: "14px",
+              padding: "10px 12px",
+              borderRadius: "10px",
+              background: "#f0f8ff",
+              border: "1px solid #cce4ff",
+              color: "#1e429f",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "8px",
+              fontSize: "11px",
+            }}
+          >
+            <Lock size={15} style={{ flexShrink: 0, marginTop: "2px", color: "#1a56db" }} />
+            <div>
+              <strong>Clinical Records Protected (UC-06 / UC-07)</strong>
+              <p style={{ margin: "2px 0 0", lineHeight: 1.4, fontSize: "10px" }}>
+                Only general profile fields (Name, Species, Breed, Age/DOB, Notes, Photo) are editable.
+                Diagnostic records, medical charts, and vaccination logs remain strictly immutable here and can only be altered by authorized veterinary personnel.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Error Alert */}
         {error && (
           <div className="form-error" style={{ marginBottom: "14px" }}>
             <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
               <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "2px" }} />
               <div>
-                <strong>Registration Error</strong>
+                <strong>Form Validation Notice</strong>
                 <p style={{ margin: "2px 0 0", fontSize: "11px" }}>{error}</p>
               </div>
             </div>
@@ -164,67 +308,74 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
         )}
 
         <div className="form-grid">
-          {/* Owner ID (GUID) */}
+          {/* Owner ID (Short ID schema: OWN-2001) */}
           <div style={{ gridColumn: "1 / -1" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
               <label htmlFor="pet-owner-id" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <User size={13} /> Owner GUID (UUID) *
+                <User size={13} /> Owner Short ID (e.g. OWN-2001) *
               </label>
-              <button
-                type="button"
-                onClick={handleGenerateOwnerGuid}
-                style={{
-                  fontSize: "10px",
-                  background: "none",
-                  border: "none",
-                  color: "var(--primary)",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
-              >
-                Generate New GUID
-              </button>
+              {!isEditMode && (
+                <button
+                  type="button"
+                  onClick={() => setFormData((prev) => ({ ...prev, ownerId: generateShortId("OWN") }))}
+                  style={{
+                    fontSize: "10px",
+                    background: "none",
+                    border: "none",
+                    color: "var(--primary)",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Generate ID
+                </button>
+              )}
             </div>
             <input
               id="pet-owner-id"
               type="text"
               required
-              placeholder="e.g. e2b8d000-0000-0000-0000-000000000001"
+              disabled={isEditMode}
+              placeholder="e.g. OWN-2001"
               value={formData.ownerId}
-              onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, ownerId: e.target.value.toUpperCase() })}
               style={{
                 width: "100%",
-                borderColor: formData.ownerId && !isValidGuid(formData.ownerId) ? "var(--danger)" : undefined,
+                borderColor: formData.ownerId && !isValidOwnerId(formData.ownerId) ? "var(--danger)" : undefined,
+                background: isEditMode ? "#f3f7f5" : undefined,
               }}
             />
-            {formData.ownerId && !isValidGuid(formData.ownerId) && (
+            {formData.ownerId && !isValidOwnerId(formData.ownerId) && (
               <span style={{ color: "var(--danger)", fontSize: "10px", display: "block", marginTop: "2px" }}>
-                Invalid GUID format. Must be a valid UUID.
+                Invalid Owner ID format. Must follow Short ID schema (e.g. OWN-2001).
               </span>
             )}
 
             {/* Quick Demo Owner Presets */}
-            <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "10px", color: "var(--muted)" }}>Preset owners:</span>
-              {DEMO_OWNERS.map((owner) => (
-                <button
-                  key={owner.id}
-                  type="button"
-                  onClick={() => handleSelectDemoOwner(owner.id)}
-                  style={{
-                    fontSize: "10px",
-                    padding: "2px 8px",
-                    borderRadius: "6px",
-                    border: "1px solid var(--line)",
-                    background: formData.ownerId.toLowerCase() === owner.id.toLowerCase() ? "var(--primary-soft)" : "#fff",
-                    color: formData.ownerId.toLowerCase() === owner.id.toLowerCase() ? "var(--primary-deep)" : "var(--ink)",
-                    cursor: "pointer",
-                  }}
-                >
-                  {owner.name}
-                </button>
-              ))}
-            </div>
+            {!isEditMode && (
+              <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "10px", color: "var(--muted)" }}>Quick owner presets:</span>
+                {DEMO_OWNERS.map((owner) => (
+                  <button
+                    key={owner.id}
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, ownerId: owner.id }))}
+                    style={{
+                      fontSize: "10px",
+                      padding: "2px 8px",
+                      borderRadius: "6px",
+                      border: "1px solid var(--line)",
+                      background: formData.ownerId.toUpperCase() === owner.id.toUpperCase() ? "var(--primary-soft)" : "#fff",
+                      color: formData.ownerId.toUpperCase() === owner.id.toUpperCase() ? "var(--primary-deep)" : "var(--ink)",
+                      cursor: "pointer",
+                      fontWeight: formData.ownerId.toUpperCase() === owner.id.toUpperCase() ? 700 : 500,
+                    }}
+                  >
+                    {owner.fullName} ({owner.id})
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Pet Name */}
@@ -233,7 +384,7 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
             <input
               type="text"
               required
-              placeholder="e.g. Milo, Bella, Max"
+              placeholder="e.g. Buddy, Milo, Luna"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
@@ -244,7 +395,7 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
             Species *
             <select
               value={formData.species}
-              onChange={(e) => setFormData({ ...formData, species: e.target.value })}
+              onChange={(e) => handleSpeciesChange(e.target.value)}
             >
               {SPECIES_OPTIONS.map((species) => (
                 <option key={species} value={species}>
@@ -260,13 +411,24 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
             <input
               type="text"
               required
-              placeholder="e.g. Golden Retriever, Persian, Beagle"
+              placeholder="e.g. Golden Retriever, British Shorthair"
               value={formData.breed}
               onChange={(e) => setFormData({ ...formData, breed: e.target.value })}
             />
           </label>
 
-          {/* Age */}
+          {/* Date of Birth with Automatic Age Calculation */}
+          <label>
+            Date of Birth (DOB)
+            <input
+              type="date"
+              max={new Date().toISOString().split("T")[0]}
+              value={formData.dateOfBirth}
+              onChange={(e) => handleDobChange(e.target.value)}
+            />
+          </label>
+
+          {/* Age (Years) */}
           <label>
             Age (Years) *
             <input
@@ -275,19 +437,54 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
               min="0"
               max="50"
               value={formData.age}
-              onChange={(e) => setFormData({ ...formData, age: Number(e.target.value) })}
+              onChange={(e) => handleAgeChange(Number(e.target.value))}
             />
           </label>
 
-          {/* Medical History Summary */}
+          {/* Photo URL & Quick Presets */}
           <div style={{ gridColumn: "1 / -1" }}>
             <label>
-              Medical History / Allergies / Notes (Optional)
+              Photo URL (Optional)
+              <input
+                type="url"
+                placeholder="https://images.unsplash.com/photo-..."
+                value={formData.photoUrl}
+                onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
+              />
+            </label>
+            {formData.photoUrl && (
+              <div
+                style={{
+                  marginTop: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "8px",
+                  background: "#f9fbfa",
+                  borderRadius: "8px",
+                  border: "1px solid var(--line)",
+                }}
+              >
+                <img
+                  src={formData.photoUrl}
+                  alt="Pet Preview"
+                  onError={(e) => ((e.target as HTMLElement).style.display = "none")}
+                  style={{ width: "42px", height: "42px", borderRadius: "8px", objectFit: "cover" }}
+                />
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>Photo preview attached</span>
+              </div>
+            )}
+          </div>
+
+          {/* Notes / Behavioral / Allergy Summary */}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label>
+              Notes & Allergies (Optional)
               <textarea
                 rows={3}
-                placeholder="e.g. Fully vaccinated (Rabies, DHPPi). Known allergy to penicillin. Prior surgery in 2024."
-                value={formData.medicalHistorySummary || ""}
-                onChange={(e) => setFormData({ ...formData, medicalHistorySummary: e.target.value })}
+                placeholder="e.g. Allergic to chicken-based dry food. Friendly temperament. Indoor pet."
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
             </label>
           </div>
@@ -298,8 +495,12 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
           <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <Button type="submit" disabled={loading} icon={loading ? <Loader2 size={16} className="animate-spin" /> : <PlusCircle size={16} />}>
-            {loading ? "Registering..." : "Register Pet"}
+          <Button
+            type="submit"
+            disabled={loading}
+            icon={loading ? <Loader2 size={16} className="animate-spin" /> : isEditMode ? <Edit3 size={16} /> : <PlusCircle size={16} />}
+          >
+            {loading ? "Saving..." : isEditMode ? "Update Profile" : "Register Pet"}
           </Button>
         </div>
       </form>
