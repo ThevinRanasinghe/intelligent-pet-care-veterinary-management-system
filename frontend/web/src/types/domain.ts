@@ -129,6 +129,13 @@ export interface PetOwner {
   createdAt?: string;
 }
 
+export interface CreatePetOwnerDto {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  address?: string | null;
+}
+
 export interface Pet {
   id: string; // e.g., PET-1001
   ownerId: string; // e.g., OWN-2001
@@ -146,7 +153,8 @@ export interface Pet {
 
 export interface CreatePetDto {
   id?: string;
-  ownerId: string;
+  ownerId?: string;
+  owner?: CreatePetOwnerDto;
   name: string;
   species: string;
   breed: string;

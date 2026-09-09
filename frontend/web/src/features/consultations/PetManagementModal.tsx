@@ -60,16 +60,18 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
 }) => {
   const isEditMode = Boolean(petToEdit);
 
-  const [formData, setFormData] = useState({
-    ownerId: initialOwnerId || DEMO_OWNERS[0].id,
-    name: "",
-    species: "Dog",
-    breed: "",
-    dateOfBirth: "",
-    age: 2,
-    notes: "",
-    photoUrl: "",
-  });
+    const [formData, setFormData] = useState({
+      ownerId: initialOwnerId || DEMO_OWNERS[0].id,
+      ownerFullName: "",
+      ownerEmail: "",
+      name: "",
+      species: "Dog",
+      breed: "",
+      dateOfBirth: "",
+      age: 2,
+      notes: "",
+      photoUrl: "",
+    });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +84,8 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
       if (petToEdit) {
         setFormData({
           ownerId: petToEdit.ownerId,
+          ownerFullName: "",
+          ownerEmail: "",
           name: petToEdit.name,
           species: petToEdit.species,
           breed: petToEdit.breed,
@@ -95,6 +99,8 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
       } else {
         setFormData({
           ownerId: initialOwnerId || DEMO_OWNERS[0].id,
+          ownerFullName: "",
+          ownerEmail: "",
           name: "",
           species: "Dog",
           breed: "",
@@ -166,8 +172,8 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
     setSuccessMsg(null);
 
     // Validations
-    if (!isValidOwnerId(formData.ownerId)) {
-      setError("Please provide a valid Owner ID (Short ID format: OWN-xxxx, e.g. OWN-2001).");
+    if (!isValidOwnerId(formData.ownerId) && !(formData.ownerFullName && formData.ownerEmail)) {
+      setError("Please provide a valid Owner ID or Owner Name and Email.");
       return;
     }
 
@@ -216,6 +222,12 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
         // UC-05: Register Pet
         const createDto: CreatePetDto = {
           ownerId: formData.ownerId.trim(),
+          owner: {
+            fullName: formData.ownerFullName.trim(),
+            email: formData.ownerEmail.trim(),
+            phoneNumber: "",
+            address: null,
+          },
           name: formData.name.trim(),
           species: formData.species.trim(),
           breed: formData.breed.trim(),
@@ -350,6 +362,30 @@ export const PetManagementModal: React.FC<PetManagementModalProps> = ({
                 Invalid Owner ID format (e.g. OWN-2001).
               </span>
             )}
+
+            {/* Owner Full Name */}
+            <label>
+              Owner Full Name *
+              <input
+                type="text"
+                required={!isValidOwnerId(formData.ownerId)}
+                placeholder="e.g. John Doe"
+                value={formData.ownerFullName}
+                onChange={(e) => setFormData({ ...formData, ownerFullName: e.target.value })}
+              />
+            </label>
+
+            {/* Owner Email / Contact */}
+            <label>
+              Owner Email *
+              <input
+                type="email"
+                required={!isValidOwnerId(formData.ownerId)}
+                placeholder="john@example.com"
+                value={formData.ownerEmail}
+                onChange={(e) => setFormData({ ...formData, ownerEmail: e.target.value })}
+              />
+            </label>
 
             {/* Quick Demo Owner Presets */}
             {!isEditMode && (

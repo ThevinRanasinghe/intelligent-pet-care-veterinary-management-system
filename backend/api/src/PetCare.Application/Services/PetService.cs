@@ -26,20 +26,38 @@ public class PetService : IPetService
         if (string.IsNullOrWhiteSpace(dto.Species))
             throw new ArgumentException("Pet species is required.", nameof(dto.Species));
 
-        if (string.IsNullOrWhiteSpace(dto.OwnerId))
-            throw new ArgumentException("Owner ID is required.", nameof(dto.OwnerId));
+        // Require either OwnerId or Owner details
+        if (string.IsNullOrWhiteSpace(dto.OwnerId) && dto.Owner == null)
+            throw new ArgumentException("Either OwnerId or Owner details must be provided.", nameof(dto.OwnerId));
 
-        // Verify or create owner if it doesn't exist yet for test convenience
-        var ownerExists = await _context.PetOwners.AnyAsync(o => o.Id == dto.OwnerId);
-        if (!ownerExists)
+        string ownerId = dto.OwnerId;
+        if (string.IsNullOrWhiteSpace(ownerId) && dto.Owner != null)
         {
+            // Generate a new OwnerId and create the owner record
+            ownerId = await _idGenerator.GenerateOwnerIdAsync();
             _context.PetOwners.Add(new PetOwner
             {
-                Id = dto.OwnerId,
-                FullName = $"Owner {dto.OwnerId}",
-                Email = $"{dto.OwnerId.ToLower()}@example.com",
-                PhoneNumber = "000-000-0000"
+                Id = ownerId,
+                FullName = dto.Owner.FullName,
+                Email = dto.Owner.Email,
+                PhoneNumber = dto.Owner.PhoneNumber,
+                Address = dto.Owner.Address
             });
+        }
+        else
+        {
+            // Ensure owner exists; if not, create a placeholder
+            var ownerExists = await _context.PetOwners.AnyAsync(o => o.Id == ownerId);
+            if (!ownerExists)
+            {
+                _context.PetOwners.Add(new PetOwner
+                {
+                    Id = ownerId,
+                    FullName = $"Owner {ownerId}",
+                    Email = $"{ownerId.ToLower()}@example.com",
+                    PhoneNumber = "000-000-0000"
+                });
+            }
         }
 
         var petId = !string.IsNullOrWhiteSpace(dto.Id)
@@ -49,7 +67,7 @@ public class PetService : IPetService
         var pet = new Pet
         {
             Id = petId,
-            OwnerId = dto.OwnerId,
+            OwnerId = ownerId,
             Name = dto.Name.Trim(),
             Species = dto.Species.Trim(),
             Breed = dto.Breed?.Trim() ?? string.Empty,

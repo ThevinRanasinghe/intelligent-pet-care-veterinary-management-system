@@ -291,7 +291,7 @@ export const petService = {
    * UC-05: Register a new pet (POST /api/Pets)
    */
   createPet: (dto: CreatePetDto): Promise<Pet> => {
-    if (!isValidOwnerId(dto.ownerId) && !isValidGuid(dto.ownerId)) {
+    if (dto.ownerId && !isValidOwnerId(dto.ownerId) && !isValidGuid(dto.ownerId)) {
       return Promise.reject(new Error(`Invalid Owner ID: "${dto.ownerId}". Must be in Short ID format (e.g., OWN-2001).`));
     }
     return apiRequest<Pet>("/Pets", {

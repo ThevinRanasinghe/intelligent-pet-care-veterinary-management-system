@@ -3,7 +3,8 @@ namespace PetCare.Application.DTOs;
 public class CreatePetDto
 {
     public string? Id { get; set; } // Optional short ID override (e.g., PET-1001)
-    public string OwnerId { get; set; } = string.Empty; // e.g., OWN-2001
+    public string? OwnerId { get; set; } // e.g., OWN-2001 (optional when providing Owner)
+    public CreatePetOwnerDto? Owner { get; set; } // New owner details when OwnerId not supplied
     public string Name { get; set; } = string.Empty;
     public string Species { get; set; } = string.Empty;
     public string Breed { get; set; } = string.Empty;
