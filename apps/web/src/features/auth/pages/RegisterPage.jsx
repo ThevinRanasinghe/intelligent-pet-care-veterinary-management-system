@@ -234,7 +234,8 @@ export default function RegisterPage() {
           confirmPassword:    orgForm.confirmPassword,
         });
         setSuccess(true);
-        setTimeout(() => navigate('/login', { replace: true }), 2500);
+        const timeout = regType === 'pet-owner' ? 2500 : 4000;
+        setTimeout(() => navigate('/login', { replace: true }), timeout);
       } catch (err) {
         setApiError(err.message ?? 'Organization registration failed. Please try again.');
       }
@@ -281,7 +282,7 @@ export default function RegisterPage() {
           <span>
             {regType === 'pet-owner'
               ? 'Account created successfully! Redirecting to login…'
-              : 'Organization and Clinic Manager account registered! Redirecting to login…'}
+              : 'Your veterinary organization registration has been submitted successfully and is awaiting Beacon administrator verification.'}
           </span>
         </div>
       )}

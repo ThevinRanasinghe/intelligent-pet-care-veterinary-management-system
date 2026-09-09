@@ -38,6 +38,11 @@ public sealed class ExceptionHandlingMiddleware
             _logger.LogWarning("Unauthorized access: {Message}", ex.Message);
             await WriteResponseAsync(context, HttpStatusCode.Unauthorized, ex.Message);
         }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning("Not found: {Message}", ex.Message);
+            await WriteResponseAsync(context, HttpStatusCode.NotFound, ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning("Bad request: {Message}", ex.Message);

@@ -22,6 +22,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IStaffService, StaffService>();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. FluentValidation
@@ -29,6 +30,10 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IValidator<LoginRequestDto>,                LoginRequestValidator>();
 builder.Services.AddScoped<IValidator<RegisterPetOwnerRequestDto>,     RegisterPetOwnerRequestValidator>();
 builder.Services.AddScoped<IValidator<RegisterOrganizationRequestDto>, RegisterOrganizationRequestValidator>();
+builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Users.CreateStaffUserRequestDto>, PetCare.Application.Validators.Users.CreateStaffUserRequestValidator>();
+builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Users.ChangePasswordRequestDto>, PetCare.Application.Validators.Users.ChangePasswordRequestValidator>();
+builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Organizations.RejectOrganizationDto>, PetCare.Application.Validators.Users.RejectOrganizationValidator>();
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 3. JWT Bearer Authentication

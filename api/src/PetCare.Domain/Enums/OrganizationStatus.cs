@@ -7,6 +7,8 @@ public enum OrganizationStatus
 {
     Pending,
     Active,
+    Rejected,
     Suspended,
     Inactive
 }
+

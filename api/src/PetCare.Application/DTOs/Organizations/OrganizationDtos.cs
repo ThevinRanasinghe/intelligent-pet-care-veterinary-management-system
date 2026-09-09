@@ -15,8 +15,16 @@ public sealed record OrganizationDetailsDto(
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    int StaffCount = 0
+    int StaffCount = 0,
+    DateTime? ApprovedAt = null,
+    string? ApprovedByUserId = null,
+    DateTime? RejectedAt = null,
+    string? RejectedByUserId = null,
+    string? RejectionReason = null,
+    string? InitialManagerName = null,
+    string? InitialManagerEmail = null
 );
+
 
 public sealed record CreateOrganizationDto(
     string Name,

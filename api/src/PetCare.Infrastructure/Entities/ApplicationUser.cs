@@ -27,6 +27,14 @@ public sealed class ApplicationUser : IdentityUser
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Lifecycle/Account status for the user (Pending, Active, Suspended, Disabled).
+    /// </summary>
+    public PetCare.Domain.Enums.UserAccountStatus AccountStatus { get; set; } = PetCare.Domain.Enums.UserAccountStatus.Active;
+
+    /// <summary>UTC timestamp of the most recent successful login.</summary>
+    public DateTime? LastLoginAt { get; set; }
+
+    /// <summary>
     /// Associated veterinary organization ID for staff members (ClinicManager, Veterinarian, InventoryOfficer).
     /// Null for platform-level SuperAdmin and PetOwner.
     /// </summary>
@@ -38,3 +46,4 @@ public sealed class ApplicationUser : IdentityUser
     /// <summary>Computed full name (not persisted).</summary>
     public string FullName => $"{FirstName} {LastName}".Trim();
 }
+

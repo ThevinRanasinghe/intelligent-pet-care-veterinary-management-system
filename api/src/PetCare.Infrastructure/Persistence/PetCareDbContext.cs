@@ -63,13 +63,30 @@ public sealed class PetCareDbContext : IdentityDbContext<ApplicationUser>
                 .HasConversion<string>()
                 .HasMaxLength(50);
 
+            entity.Property(e => e.ApprovedByUserId)
+                .HasMaxLength(450);
+
+            entity.Property(e => e.RejectedByUserId)
+                .HasMaxLength(450);
+
+            entity.Property(e => e.RejectionReason)
+                .HasMaxLength(1000);
+
             entity.HasIndex(e => e.Email);
             entity.HasIndex(e => e.Name);
+            entity.HasIndex(e => e.Status);
         });
 
-        // ── ApplicationUser - Organization relationship ──
+        // ── ApplicationUser - Organization relationship & AccountStatus ──
         builder.Entity<ApplicationUser>(entity =>
         {
+            entity.Property(u => u.AccountStatus)
+                .IsRequired()
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            entity.HasIndex(u => u.OrganizationId);
+
             entity.HasOne(u => u.Organization)
                 .WithMany()
                 .HasForeignKey(u => u.OrganizationId)
@@ -77,3 +94,4 @@ public sealed class PetCareDbContext : IdentityDbContext<ApplicationUser>
         });
     }
 }
+

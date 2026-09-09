@@ -474,4 +474,121 @@ public sealed class AuthServiceTests
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*suspended*");
     }
+
+    [Fact]
+    public async Task Login_PendingAccountStatus_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var request = new LoginRequestDto("pending@vetclinic.com", "Password1!");
+        var user = new ApplicationUser
+        {
+            Id            = Guid.NewGuid().ToString(),
+            Email         = request.Email,
+            FirstName     = "Pending",
+            LastName      = "Manager",
+            AccountStatus = UserAccountStatus.Pending,
+            IsActive      = true
+        };
+
+        _userManagerMock
+            .Setup(m => m.FindByEmailAsync(request.Email))
+            .ReturnsAsync(user);
+
+        _userManagerMock
+            .Setup(m => m.CheckPasswordAsync(user, request.Password))
+            .ReturnsAsync(true);
+
+        // Act
+        var act = () => _authService.LoginAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*pending administrator verification*");
+    }
+
+    [Fact]
+    public async Task Login_RejectedOrganization_ThrowsUnauthorizedAccessExceptionWithReason()
+    {
+        // Arrange
+        var org = new Organization
+        {
+            Id              = Guid.NewGuid(),
+            Name            = "Rejected Vet Clinic",
+            Email           = "contact@rejectedvet.com",
+            Phone           = "555-0400",
+            Address         = "202 Elm St",
+            City            = "Star City",
+            Country         = "USA",
+            Status          = OrganizationStatus.Rejected,
+            IsActive        = false,
+            RejectionReason = "Invalid veterinary license document.",
+            CreatedAt       = DateTime.UtcNow,
+            UpdatedAt       = DateTime.UtcNow
+        };
+        _dbContext.Organizations.Add(org);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new LoginRequestDto("manager@rejectedvet.com", "Password1!");
+        var user = new ApplicationUser
+        {
+            Id             = Guid.NewGuid().ToString(),
+            Email          = request.Email,
+            FirstName      = "Bob",
+            LastName       = "Denied",
+            OrganizationId = org.Id,
+            AccountStatus  = UserAccountStatus.Active,
+            IsActive       = true
+        };
+
+        _userManagerMock
+            .Setup(m => m.FindByEmailAsync(request.Email))
+            .ReturnsAsync(user);
+
+        _userManagerMock
+            .Setup(m => m.CheckPasswordAsync(user, request.Password))
+            .ReturnsAsync(true);
+
+        _userManagerMock
+            .Setup(m => m.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { Roles.ClinicManager });
+
+        // Act
+        var act = () => _authService.LoginAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*rejected*Invalid veterinary license*");
+    }
+
+    [Fact]
+    public async Task Login_DisabledStaffAccount_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var request = new LoginRequestDto("disabled@vetclinic.com", "Password1!");
+        var user = new ApplicationUser
+        {
+            Id            = Guid.NewGuid().ToString(),
+            Email         = request.Email,
+            FirstName     = "Disabled",
+            LastName      = "Staff",
+            AccountStatus = UserAccountStatus.Disabled,
+            IsActive      = false
+        };
+
+        _userManagerMock
+            .Setup(m => m.FindByEmailAsync(request.Email))
+            .ReturnsAsync(user);
+
+        _userManagerMock
+            .Setup(m => m.CheckPasswordAsync(user, request.Password))
+            .ReturnsAsync(true);
+
+        // Act
+        var act = () => _authService.LoginAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*disabled*");
+    }
 }
+

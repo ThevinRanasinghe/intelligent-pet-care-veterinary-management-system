@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PetCare.Api.DTOs;
@@ -7,14 +8,16 @@ using PetCare.Application.Interfaces;
 using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
+using PetCare.Infrastructure.Entities;
 using PetCare.Infrastructure.Persistence;
 
 namespace PetCare.Api.Controllers;
 
 /// <summary>
 /// Platform Organization Management endpoints.
-/// Provides full CRUD operations for Veterinary Organizations on Beacon Pet Health.
-/// Access is restricted to SuperAdmin (with self-management for Clinic Managers).
+/// Provides full lifecycle management for Veterinary Organizations on Beacon Pet Health:
+/// - SuperAdmin: Review, Approve, Reject, Suspend, Activate, and List all organizations.
+/// - ClinicManager: View and edit own organization workspace with strict tenant isolation.
 /// </summary>
 [ApiController]
 [Route("api/organizations")]
@@ -22,18 +25,24 @@ namespace PetCare.Api.Controllers;
 [Authorize]
 public sealed class OrganizationsController : ControllerBase
 {
-    private readonly PetCareDbContext    _dbContext;
-    private readonly ICurrentUserService _currentUser;
+    private readonly PetCareDbContext            _dbContext;
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ICurrentUserService         _currentUser;
 
-    public OrganizationsController(PetCareDbContext dbContext, ICurrentUserService currentUser)
+    public OrganizationsController(
+        PetCareDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        ICurrentUserService currentUser)
     {
         _dbContext   = dbContext;
+        _userManager = userManager;
         _currentUser = currentUser;
     }
 
     /// <summary>
     /// READ ALL: Lists all registered veterinary organizations.
     /// Restricted to SuperAdmin platform administrators.
+    /// Supports filtering by search term and lifecycle status.
     /// </summary>
     [HttpGet]
     [Authorize(Roles = Roles.SuperAdmin)]
@@ -62,15 +71,37 @@ public sealed class OrganizationsController : ControllerBase
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync(ct);
 
-        // Compute staff counts
         var orgIds = organizations.Select(o => o.Id).ToList();
+
+        // Compute staff counts
         var staffCounts = await _dbContext.Users
             .Where(u => u.OrganizationId.HasValue && orgIds.Contains(u.OrganizationId.Value))
             .GroupBy(u => u.OrganizationId!.Value)
             .Select(g => new { OrgId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.OrgId, x => x.Count, ct);
 
-        var dtos = organizations.Select(o => MapToDetailsDto(o, staffCounts.GetValueOrDefault(o.Id, 0)));
+        // Fetch primary/initial manager for each organization
+        var managers = await _dbContext.Users
+            .Where(u => u.OrganizationId.HasValue && orgIds.Contains(u.OrganizationId.Value))
+            .OrderBy(u => u.CreatedAt)
+            .GroupBy(u => u.OrganizationId!.Value)
+            .Select(g => new
+            {
+                OrgId = g.Key,
+                Manager = g.Select(u => new { u.FullName, u.Email }).FirstOrDefault()
+            })
+            .ToDictionaryAsync(x => x.OrgId, x => x.Manager, ct);
+
+        var dtos = organizations.Select(o =>
+        {
+            var manager = managers.GetValueOrDefault(o.Id);
+            return MapToDetailsDto(
+                o,
+                staffCounts.GetValueOrDefault(o.Id, 0),
+                manager?.FullName,
+                manager?.Email
+            );
+        });
 
         return Ok(ApiResponse<IEnumerable<OrganizationDetailsDto>>.Ok(dtos));
     }
@@ -103,55 +134,170 @@ public sealed class OrganizationsController : ControllerBase
         }
 
         var staffCount = await _dbContext.Users.CountAsync(u => u.OrganizationId == id, ct);
+        var manager = await _dbContext.Users
+            .Where(u => u.OrganizationId == id)
+            .OrderBy(u => u.CreatedAt)
+            .Select(u => new { u.FullName, u.Email })
+            .FirstOrDefaultAsync(ct);
 
-        return Ok(ApiResponse<OrganizationDetailsDto>.Ok(MapToDetailsDto(org, staffCount)));
+        return Ok(ApiResponse<OrganizationDetailsDto>.Ok(
+            MapToDetailsDto(org, staffCount, manager?.FullName, manager?.Email)));
     }
 
     /// <summary>
-    /// CREATE: Creates a new organization workspace.
-    /// Restricted to SuperAdmin.
+    /// APPROVE: SuperAdmin approves a pending veterinary organization.
+    /// Atomically activates the Organization and the primary ClinicManager account.
     /// </summary>
-    [HttpPost]
+    [HttpPost("{id:guid}/approve")]
     [Authorize(Roles = Roles.SuperAdmin)]
-    [ProducesResponseType(typeof(ApiResponse<OrganizationDetailsDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<OrganizationDetailsDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Create([FromBody] CreateOrganizationDto request, CancellationToken ct)
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Email))
+        var org = await _dbContext.Organizations.FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (org is null)
         {
-            return BadRequest(ApiResponse.Fail("Organization name and email are required."));
+            return NotFound(ApiResponse.Fail("Organization not found."));
         }
 
-        var exists = await _dbContext.Organizations
-            .AnyAsync(o => o.Name.ToLower() == request.Name.ToLower()
-                        || o.Email.ToLower() == request.Email.ToLower(), ct);
-
-        if (exists)
+        if (org.Status == OrganizationStatus.Active)
         {
-            return BadRequest(ApiResponse.Fail("An organization with this name or email already exists."));
+            return BadRequest(ApiResponse.Fail("Organization is already active."));
         }
 
-        var org = new Organization
-        {
-            Id                 = Guid.NewGuid(),
-            Name               = request.Name.Trim(),
-            RegistrationNumber = string.IsNullOrWhiteSpace(request.RegistrationNumber) ? null : request.RegistrationNumber.Trim(),
-            Email              = request.Email.Trim(),
-            Phone              = request.Phone.Trim(),
-            Address            = request.Address.Trim(),
-            City               = request.City.Trim(),
-            Country            = request.Country.Trim(),
-            Status             = request.Status,
-            IsActive           = request.Status == OrganizationStatus.Active,
-            CreatedAt          = DateTime.UtcNow,
-            UpdatedAt          = DateTime.UtcNow
-        };
+        org.Status            = OrganizationStatus.Active;
+        org.IsActive          = true;
+        org.ApprovedAt        = DateTime.UtcNow;
+        org.ApprovedByUserId  = _currentUser.UserId;
+        org.UpdatedAt         = DateTime.UtcNow;
 
-        _dbContext.Organizations.Add(org);
+        // Activate the organization's initial ClinicManager
+        var managers = await _dbContext.Users
+            .Where(u => u.OrganizationId == id)
+            .ToListAsync(ct);
+
+        foreach (var mgr in managers)
+        {
+            mgr.AccountStatus = UserAccountStatus.Active;
+            mgr.IsActive      = true;
+            mgr.UpdatedAt     = DateTime.UtcNow;
+        }
+
         await _dbContext.SaveChangesAsync(ct);
 
-        return StatusCode(StatusCodes.Status201Created,
-            ApiResponse<OrganizationDetailsDto>.Ok(MapToDetailsDto(org, 0), "Organization created successfully."));
+        var staffCount = managers.Count;
+        var primaryMgr = managers.OrderBy(m => m.CreatedAt).FirstOrDefault();
+
+        return Ok(ApiResponse<OrganizationDetailsDto>.Ok(
+            MapToDetailsDto(org, staffCount, primaryMgr?.FullName, primaryMgr?.Email),
+            "Veterinary organization and initial Clinic Manager approved successfully."));
+    }
+
+    /// <summary>
+    /// REJECT: SuperAdmin rejects a pending veterinary organization registration.
+    /// Records the rejection reason and prevents manager from operating.
+    /// </summary>
+    [HttpPost("{id:guid}/reject")]
+    [Authorize(Roles = Roles.SuperAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<OrganizationDetailsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Reject(
+        Guid id,
+        [FromBody] RejectOrganizationDto request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(ApiResponse.Fail("A rejection reason is required."));
+        }
+
+        var org = await _dbContext.Organizations.FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (org is null)
+        {
+            return NotFound(ApiResponse.Fail("Organization not found."));
+        }
+
+        org.Status            = OrganizationStatus.Rejected;
+        org.IsActive          = false;
+        org.RejectedAt        = DateTime.UtcNow;
+        org.RejectedByUserId  = _currentUser.UserId;
+        org.RejectionReason   = request.Reason.Trim();
+        org.UpdatedAt         = DateTime.UtcNow;
+
+        // Keep staff accounts inactive
+        var staff = await _dbContext.Users
+            .Where(u => u.OrganizationId == id)
+            .ToListAsync(ct);
+
+        foreach (var member in staff)
+        {
+            member.AccountStatus = UserAccountStatus.Suspended;
+            member.IsActive      = false;
+            member.UpdatedAt     = DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        var primaryMgr = staff.OrderBy(m => m.CreatedAt).FirstOrDefault();
+
+        return Ok(ApiResponse<OrganizationDetailsDto>.Ok(
+            MapToDetailsDto(org, staff.Count, primaryMgr?.FullName, primaryMgr?.Email),
+            "Organization registration rejected."));
+    }
+
+    /// <summary>
+    /// SUSPEND: SuperAdmin suspends an active veterinary organization.
+    /// Blocks staff from accessing organization functionality while preserving audit data.
+    /// </summary>
+    [HttpPost("{id:guid}/suspend")]
+    [Authorize(Roles = Roles.SuperAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<OrganizationDetailsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Suspend(Guid id, CancellationToken ct)
+    {
+        var org = await _dbContext.Organizations.FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (org is null)
+        {
+            return NotFound(ApiResponse.Fail("Organization not found."));
+        }
+
+        org.Status    = OrganizationStatus.Suspended;
+        org.IsActive  = false;
+        org.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        var staffCount = await _dbContext.Users.CountAsync(u => u.OrganizationId == id, ct);
+        return Ok(ApiResponse<OrganizationDetailsDto>.Ok(
+            MapToDetailsDto(org, staffCount), "Organization has been suspended."));
+    }
+
+    /// <summary>
+    /// ACTIVATE: SuperAdmin reactivates a suspended organization.
+    /// </summary>
+    [HttpPost("{id:guid}/activate")]
+    [Authorize(Roles = Roles.SuperAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<OrganizationDetailsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
+    {
+        var org = await _dbContext.Organizations.FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (org is null)
+        {
+            return NotFound(ApiResponse.Fail("Organization not found."));
+        }
+
+        org.Status    = OrganizationStatus.Active;
+        org.IsActive  = true;
+        org.UpdatedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        var staffCount = await _dbContext.Users.CountAsync(u => u.OrganizationId == id, ct);
+        return Ok(ApiResponse<OrganizationDetailsDto>.Ok(
+            MapToDetailsDto(org, staffCount), "Organization reactivated successfully."));
     }
 
     /// <summary>
@@ -204,33 +350,6 @@ public sealed class OrganizationsController : ControllerBase
     }
 
     /// <summary>
-    /// UPDATE STATUS: Approves, activates, suspends, or deactivates an organization.
-    /// Restricted to SuperAdmin platform administrators.
-    /// </summary>
-    [HttpPatch("{id:guid}/status")]
-    [Authorize(Roles = Roles.SuperAdmin)]
-    [ProducesResponseType(typeof(ApiResponse<OrganizationDetailsDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateOrganizationStatusDto request, CancellationToken ct)
-    {
-        var org = await _dbContext.Organizations.FirstOrDefaultAsync(o => o.Id == id, ct);
-        if (org is null)
-        {
-            return NotFound(ApiResponse.Fail("Organization not found."));
-        }
-
-        org.Status    = request.Status;
-        org.IsActive  = request.Status == OrganizationStatus.Active;
-        org.UpdatedAt = DateTime.UtcNow;
-
-        await _dbContext.SaveChangesAsync(ct);
-
-        var staffCount = await _dbContext.Users.CountAsync(u => u.OrganizationId == id, ct);
-        return Ok(ApiResponse<OrganizationDetailsDto>.Ok(MapToDetailsDto(org, staffCount),
-            $"Organization status updated to {request.Status}."));
-    }
-
-    /// <summary>
     /// DELETE / DEACTIVATE: Soft-deactivates an organization.
     /// Restricted to SuperAdmin platform administrators.
     /// </summary>
@@ -246,7 +365,6 @@ public sealed class OrganizationsController : ControllerBase
             return NotFound(ApiResponse.Fail("Organization not found."));
         }
 
-        // Soft delete / set Inactive
         org.IsActive  = false;
         org.Status    = OrganizationStatus.Inactive;
         org.UpdatedAt = DateTime.UtcNow;
@@ -256,8 +374,15 @@ public sealed class OrganizationsController : ControllerBase
         return Ok(ApiResponse.Ok("Organization deactivated successfully."));
     }
 
-    // ── Helper ──
-    private static OrganizationDetailsDto MapToDetailsDto(Organization o, int staffCount) =>
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helper
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static OrganizationDetailsDto MapToDetailsDto(
+        Organization o,
+        int staffCount,
+        string? managerName = null,
+        string? managerEmail = null) =>
         new(
             Id:                 o.Id,
             Name:               o.Name,
@@ -271,6 +396,13 @@ public sealed class OrganizationsController : ControllerBase
             IsActive:           o.IsActive,
             CreatedAt:          o.CreatedAt,
             UpdatedAt:          o.UpdatedAt,
-            StaffCount:         staffCount
+            StaffCount:         staffCount,
+            ApprovedAt:         o.ApprovedAt,
+            ApprovedByUserId:   o.ApprovedByUserId,
+            RejectedAt:         o.RejectedAt,
+            RejectedByUserId:   o.RejectedByUserId,
+            RejectionReason:    o.RejectionReason,
+            InitialManagerName: managerName,
+            InitialManagerEmail: managerEmail
         );
 }

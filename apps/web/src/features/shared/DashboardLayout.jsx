@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, LayoutDashboard } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
+import ProfileModal from './ProfileModal';
 
 /**
  * Shared dashboard layout with sidebar navigation.
@@ -9,6 +11,8 @@ import useAuthStore from '../../store/authStore';
 export default function DashboardLayout({ children, navItems = [], pageTitle, pageSubtitle }) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const [profileOpen, setProfileOpen] = useState(false);
+
 
   const handleLogout = () => {
     logout();
@@ -49,13 +53,22 @@ export default function DashboardLayout({ children, navItems = [], pageTitle, pa
           ))}
         </nav>
 
-        {/* User card + Logout */}
+        {/* User card + Profile + Logout */}
         <div className="sidebar-footer">
-          <div className="sidebar-user-card" aria-label={`Logged in as ${user?.firstName} ${user?.lastName}`}>
+          <div
+            className="sidebar-user-card"
+            onClick={() => setProfileOpen(true)}
+            style={{ cursor: 'pointer' }}
+            title="Click to manage account settings"
+            aria-label={`Logged in as ${user?.firstName} ${user?.lastName}. Click to manage profile.`}
+          >
             <div className="sidebar-avatar" aria-hidden="true">{initials}</div>
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div className="sidebar-user-name">{user?.firstName} {user?.lastName}</div>
-              <div className="sidebar-user-role">{user?.role}</div>
+              <div className="sidebar-user-role" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span>{user?.role}</span>
+                <span style={{ fontSize: '0.65rem', opacity: 0.6 }}>(Edit)</span>
+              </div>
             </div>
           </div>
 
@@ -70,6 +83,8 @@ export default function DashboardLayout({ children, navItems = [], pageTitle, pa
           </button>
         </div>
       </aside>
+
+      <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
 
       {/* ── MAIN CONTENT ── */}
       <div className="dashboard-main">

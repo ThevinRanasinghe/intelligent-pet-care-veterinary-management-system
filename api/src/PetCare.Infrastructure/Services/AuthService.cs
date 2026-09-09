@@ -38,12 +38,25 @@ public sealed class AuthService : IAuthService
         var user = await _userManager.FindByEmailAsync(request.Email);
 
         // Generic error — do not reveal whether the email exists
-        if (user is null || !user.IsActive)
+        if (user is null)
             throw new UnauthorizedAccessException("Invalid email or password.");
 
         var passwordValid = await _userManager.CheckPasswordAsync(user, request.Password);
         if (!passwordValid)
             throw new UnauthorizedAccessException("Invalid email or password.");
+
+        // Check user account status
+        if (user.AccountStatus == UserAccountStatus.Pending)
+            throw new UnauthorizedAccessException("Your account is pending administrator verification.");
+
+        if (user.AccountStatus == UserAccountStatus.Disabled)
+            throw new UnauthorizedAccessException("Your account has been disabled. Please contact your Clinic Manager.");
+
+        if (user.AccountStatus == UserAccountStatus.Suspended)
+            throw new UnauthorizedAccessException("Your account has been suspended.");
+
+        if (!user.IsActive)
+            throw new UnauthorizedAccessException("Your account is inactive.");
 
         var roles = await _userManager.GetRolesAsync(user);
         var role  = roles.FirstOrDefault() ?? Roles.PetOwner;
@@ -60,17 +73,27 @@ public sealed class AuthService : IAuthService
                 .AsNoTracking()
                 .FirstOrDefaultAsync(o => o.Id == user.OrganizationId.Value, ct);
 
-            if (organization is null || !organization.IsActive || organization.Status == OrganizationStatus.Inactive)
-                throw new UnauthorizedAccessException("Your veterinary organization account is inactive.");
+            if (organization is null)
+                throw new UnauthorizedAccessException("Associated veterinary organization was not found.");
+
+            if (organization.Status == OrganizationStatus.Pending)
+                throw new UnauthorizedAccessException("Your veterinary organization registration is pending Beacon administrator verification.");
+
+            if (organization.Status == OrganizationStatus.Rejected)
+                throw new UnauthorizedAccessException($"Your veterinary organization registration was rejected. Reason: {organization.RejectionReason ?? "Application does not meet platform criteria."}");
 
             if (organization.Status == OrganizationStatus.Suspended)
                 throw new UnauthorizedAccessException("Your veterinary organization has been suspended. Please contact platform support.");
 
-            if (organization.Status == OrganizationStatus.Pending)
-                throw new UnauthorizedAccessException("Your veterinary organization registration is pending approval.");
+            if (organization.Status == OrganizationStatus.Inactive || !organization.IsActive)
+                throw new UnauthorizedAccessException("Your veterinary organization account is inactive.");
 
             organizationDto = MapToOrganizationDto(organization);
         }
+
+        // Record last login
+        user.LastLoginAt = DateTime.UtcNow;
+        await _userManager.UpdateAsync(user);
 
         var (token, expiresAt) = _tokenService.GenerateToken(
             user.Id, user.Email!, role, user.FirstName, user.LastName, user.OrganizationId);
@@ -93,13 +116,14 @@ public sealed class AuthService : IAuthService
 
         var user = new ApplicationUser
         {
-            UserName  = request.Email,
-            Email     = request.Email,
-            FirstName = request.FirstName.Trim(),
-            LastName  = request.LastName.Trim(),
-            IsActive  = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
+            UserName      = request.Email,
+            Email         = request.Email,
+            FirstName     = request.FirstName.Trim(),
+            LastName      = request.LastName.Trim(),
+            AccountStatus = UserAccountStatus.Active,
+            IsActive      = true,
+            CreatedAt     = DateTime.UtcNow,
+            UpdatedAt     = DateTime.UtcNow,
         };
 
         // Identity hashes the password — never stored as plain text
@@ -158,8 +182,8 @@ public sealed class AuthService : IAuthService
                 Address            = request.Address.Trim(),
                 City               = request.City.Trim(),
                 Country            = request.Country.Trim(),
-                Status             = OrganizationStatus.Active,
-                IsActive           = true,
+                Status             = OrganizationStatus.Pending,
+                IsActive           = false,
                 CreatedAt          = DateTime.UtcNow,
                 UpdatedAt          = DateTime.UtcNow
             };
@@ -174,7 +198,8 @@ public sealed class AuthService : IAuthService
                 FirstName      = request.ManagerFirstName.Trim(),
                 LastName       = request.ManagerLastName.Trim(),
                 OrganizationId = organization.Id,
-                IsActive       = true,
+                AccountStatus  = UserAccountStatus.Pending,
+                IsActive       = false,
                 CreatedAt      = DateTime.UtcNow,
                 UpdatedAt      = DateTime.UtcNow
             };

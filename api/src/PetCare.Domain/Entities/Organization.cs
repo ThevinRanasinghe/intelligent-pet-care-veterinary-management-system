@@ -32,14 +32,30 @@ public sealed class Organization
     public string Country { get; set; } = string.Empty;
 
     /// <summary>Current lifecycle status of the organization.</summary>
-    public OrganizationStatus Status { get; set; } = OrganizationStatus.Active;
+    public OrganizationStatus Status { get; set; } = OrganizationStatus.Pending;
 
     /// <summary>Whether the organization is actively operating on Beacon.</summary>
-    public bool IsActive { get; set; } = true;
+    public bool IsActive { get; set; } = false;
 
     /// <summary>UTC timestamp when the organization registered.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>UTC timestamp of last details update.</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>UTC timestamp when SuperAdmin approved the organization.</summary>
+    public DateTime? ApprovedAt { get; set; }
+
+    /// <summary>User ID of the SuperAdmin who approved the organization.</summary>
+    public string? ApprovedByUserId { get; set; }
+
+    /// <summary>UTC timestamp when SuperAdmin rejected the registration.</summary>
+    public DateTime? RejectedAt { get; set; }
+
+    /// <summary>User ID of the SuperAdmin who rejected the registration.</summary>
+    public string? RejectedByUserId { get; set; }
+
+    /// <summary>Reason provided by SuperAdmin when rejecting the registration.</summary>
+    public string? RejectionReason { get; set; }
 }
+
