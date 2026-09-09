@@ -41,7 +41,7 @@ public sealed class StaffService : IStaffService
     {
         var orgId = await GetScopeOrganizationIdAsync(ct);
 
-        var query = _dbContext.Users.AsNoTracking();
+        var query = _dbContext.Users.Include(u => u.Organization).AsNoTracking();
         if (orgId.HasValue)
         {
             query = query.Where(u => u.OrganizationId == orgId.Value);
@@ -92,7 +92,7 @@ public sealed class StaffService : IStaffService
     {
         var orgId = await GetScopeOrganizationIdAsync(ct);
 
-        var query = _dbContext.Users.AsNoTracking();
+        var query = _dbContext.Users.Include(u => u.Organization).AsNoTracking();
         if (orgId.HasValue)
         {
             query = query.Where(u => u.OrganizationId == orgId.Value);
@@ -367,6 +367,7 @@ public sealed class StaffService : IStaffService
             OrganizationId:     user.OrganizationId ?? Guid.Empty,
             CreatedAt:          user.CreatedAt,
             LastLoginAt:        user.LastLoginAt,
-            MustChangePassword: user.MustChangePassword
+            MustChangePassword: user.MustChangePassword,
+            OrganizationName:   user.Organization?.Name
         );
 }

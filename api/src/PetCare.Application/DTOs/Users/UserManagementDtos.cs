@@ -18,7 +18,8 @@ public sealed record StaffUserDto(
     Guid OrganizationId,
     DateTime CreatedAt,
     DateTime? LastLoginAt,
-    bool MustChangePassword = false
+    bool MustChangePassword = false,
+    string? OrganizationName = null
 );
 
 /// <summary>

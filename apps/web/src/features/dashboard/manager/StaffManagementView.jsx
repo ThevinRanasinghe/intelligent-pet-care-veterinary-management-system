@@ -19,15 +19,15 @@ function generateRandomPassword() {
   return pass;
 }
 
-export default function StaffManagementView({ isSuperAdmin = false }) {
+export default function StaffManagementView({ isSuperAdmin = false, defaultTab = isSuperAdmin ? 'PENDING' : 'ALL' }) {
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'VET' | 'INVENTORY' | 'DISABLED'
+  const [selectedStatus, setSelectedStatus] = useState(defaultTab === 'PENDING' ? 'Pending' : '');
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   // Add Staff Modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -288,108 +288,177 @@ export default function StaffManagementView({ isSuperAdmin = false }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#111827', margin: 0 }}>
-            Clinic Staff & Team
+            {isSuperAdmin ? 'Staff Verification & Governance' : 'Clinic Staff & Team'}
           </h2>
           <p style={{ fontSize: '0.85rem', color: '#6B7280', marginTop: '0.25rem' }}>
-            Manage veterinarians, inventory officers, credentials, and organization-scoped permissions.
+            {isSuperAdmin
+              ? 'Review pending registrations, verify veterinarians and inventory officers across organizations, and govern platform staff.'
+              : 'Manage veterinarians, inventory officers, credentials, and organization-scoped permissions.'}
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            const pass = generateRandomPassword();
-            setAddForm({
-              firstName: '',
-              lastName: '',
-              email: '',
-              phoneNumber: '',
-              role: 'Veterinarian',
-              password: pass,
-              confirmPassword: pass
-            });
-            setAddErrors({});
-            setAddModalOpen(true);
-          }}
-          style={{
-            padding: '0.6rem 1.25rem',
-            backgroundColor: 'var(--petcare-black, #111111)',
-            color: '#FFFFFF',
-            border: 'none',
-            borderRadius: '0.5rem',
-            fontWeight: '600',
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}
-        >
-          <UserPlus size={16} />
-          Add Staff Member
-        </button>
+        {!isSuperAdmin && (
+          <button
+            onClick={() => {
+              const pass = generateRandomPassword();
+              setAddForm({
+                firstName: '',
+                lastName: '',
+                email: '',
+                phoneNumber: '',
+                role: 'Veterinarian',
+                password: pass,
+                confirmPassword: pass
+              });
+              setAddErrors({});
+              setAddModalOpen(true);
+            }}
+            style={{
+              padding: '0.6rem 1.25rem',
+              backgroundColor: 'var(--petcare-black, #111111)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '0.5rem',
+              fontWeight: '600',
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}
+          >
+            <UserPlus size={16} />
+            Add Staff Member
+          </button>
+        )}
       </div>
 
       {/* Quick Navigation Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid #E5E7EB', marginBottom: '1.25rem' }}>
-        <button
-          type="button"
-          onClick={() => handleTabChange('ALL')}
-          style={{
-            padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
-            border: 'none', borderBottom: activeTab === 'ALL' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
-            background: 'transparent', color: activeTab === 'ALL' ? '#111827' : '#6B7280', cursor: 'pointer'
-          }}
-        >
-          All Staff
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange('VET')}
-          style={{
-            padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
-            border: 'none', borderBottom: activeTab === 'VET' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
-            background: 'transparent', color: activeTab === 'VET' ? '#111827' : '#6B7280', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
-          }}
-        >
-          <Stethoscope size={15} /> Veterinarians
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange('INVENTORY')}
-          style={{
-            padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
-            border: 'none', borderBottom: activeTab === 'INVENTORY' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
-            background: 'transparent', color: activeTab === 'INVENTORY' ? '#111827' : '#6B7280', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
-          }}
-        >
-          <Package size={15} /> Inventory Officers
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange('PENDING')}
-          style={{
-            padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
-            border: 'none', borderBottom: activeTab === 'PENDING' ? '2px solid #D97706' : '2px solid transparent',
-            background: 'transparent', color: activeTab === 'PENDING' ? '#D97706' : '#6B7280', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
-          }}
-        >
-          <AlertCircle size={15} /> Pending Verification
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange('DISABLED')}
-          style={{
-            padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
-            border: 'none', borderBottom: activeTab === 'DISABLED' ? '2px solid #DC2626' : '2px solid transparent',
-            background: 'transparent', color: activeTab === 'DISABLED' ? '#DC2626' : '#6B7280', cursor: 'pointer'
-          }}
-        >
-          Disabled Staff
-        </button>
+        {isSuperAdmin ? (
+          <>
+            <button
+              type="button"
+              onClick={() => handleTabChange('PENDING')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'PENDING' ? '2px solid #D97706' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'PENDING' ? '#D97706' : '#6B7280', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+              }}
+            >
+              <AlertCircle size={15} /> Pending Verification
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('ALL')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'ALL' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'ALL' ? '#111827' : '#6B7280', cursor: 'pointer'
+              }}
+            >
+              All Staff
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('VET')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'VET' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'VET' ? '#111827' : '#6B7280', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+              }}
+            >
+              <Stethoscope size={15} /> Veterinarians
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('INVENTORY')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'INVENTORY' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'INVENTORY' ? '#111827' : '#6B7280', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+              }}
+            >
+              <Package size={15} /> Inventory Officers
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('DISABLED')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'DISABLED' ? '2px solid #DC2626' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'DISABLED' ? '#DC2626' : '#6B7280', cursor: 'pointer'
+              }}
+            >
+              Disabled Staff
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => handleTabChange('ALL')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'ALL' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'ALL' ? '#111827' : '#6B7280', cursor: 'pointer'
+              }}
+            >
+              All Staff
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('VET')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'VET' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'VET' ? '#111827' : '#6B7280', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+              }}
+            >
+              <Stethoscope size={15} /> Veterinarians
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('INVENTORY')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'INVENTORY' ? '2px solid var(--petcare-black, #111111)' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'INVENTORY' ? '#111827' : '#6B7280', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+              }}
+            >
+              <Package size={15} /> Inventory Officers
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('PENDING')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'PENDING' ? '2px solid #D97706' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'PENDING' ? '#D97706' : '#6B7280', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+              }}
+            >
+              <AlertCircle size={15} /> Pending Verification
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('DISABLED')}
+              style={{
+                padding: '0.6rem 1.1rem', fontSize: '0.875rem', fontWeight: '600',
+                border: 'none', borderBottom: activeTab === 'DISABLED' ? '2px solid #DC2626' : '2px solid transparent',
+                background: 'transparent', color: activeTab === 'DISABLED' ? '#DC2626' : '#6B7280', cursor: 'pointer'
+              }}
+            >
+              Disabled Staff
+            </button>
+          </>
+        )}
       </div>
 
       {/* Notifications */}
@@ -439,10 +508,11 @@ export default function StaffManagementView({ isSuperAdmin = false }) {
 
         <select
           value={selectedStatus}
-          onChange={(e) => { setSelectedStatus(e.target.value); setActiveTab('ALL'); }}
+          onChange={(e) => { setSelectedStatus(e.target.value); setActiveTab(e.target.value === 'Pending' ? 'PENDING' : 'ALL'); }}
           style={{ padding: '0.5rem 0.75rem', fontSize: '0.875rem', borderRadius: '0.375rem', border: '1px solid #D1D5DB', backgroundColor: '#FFFFFF' }}
         >
           <option value="">All Statuses</option>
+          <option value="Pending">Pending Verification</option>
           <option value="Active">Active</option>
           <option value="Disabled">Disabled</option>
         </select>
@@ -477,9 +547,15 @@ export default function StaffManagementView({ isSuperAdmin = false }) {
       ) : staffList.length === 0 ? (
         <div style={{ backgroundColor: '#FFFFFF', border: '1px dashed #D1D5DB', borderRadius: '0.75rem', padding: '3rem', textAlign: 'center' }}>
           <Users size={36} style={{ color: '#9CA3AF', margin: '0 auto 0.5rem auto' }} />
-          <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#374151' }}>No staff members found</h4>
+          <h4 style={{ fontSize: '1rem', fontWeight: '600', color: '#374151' }}>
+            {activeTab === 'PENDING' ? 'No pending staff accounts' : 'No staff members found'}
+          </h4>
           <p style={{ fontSize: '0.875rem', color: '#6B7280', marginTop: '0.25rem' }}>
-            {searchQuery ? `No staff match "${searchQuery}".` : 'Get started by creating Veterinarian or Inventory Officer accounts.'}
+            {searchQuery
+              ? `No staff match "${searchQuery}".`
+              : activeTab === 'PENDING'
+              ? 'There are currently no staff accounts awaiting verification.'
+              : 'Get started by creating Veterinarian or Inventory Officer accounts.'}
           </p>
         </div>
       ) : (
@@ -488,6 +564,7 @@ export default function StaffManagementView({ isSuperAdmin = false }) {
             <thead style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB', color: '#4B5563', fontSize: '0.75rem', textTransform: 'uppercase' }}>
               <tr>
                 <th style={{ padding: '0.75rem 1rem' }}>Staff Member</th>
+                {isSuperAdmin && <th style={{ padding: '0.75rem 1rem' }}>Organization</th>}
                 <th style={{ padding: '0.75rem 1rem' }}>Role</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Contact</th>
                 <th style={{ padding: '0.75rem 1rem' }}>Status & Security</th>
@@ -516,6 +593,13 @@ export default function StaffManagementView({ isSuperAdmin = false }) {
                         </div>
                       </div>
                     </td>
+                    {isSuperAdmin && (
+                      <td style={{ padding: '0.85rem 1rem' }}>
+                        <span style={{ fontWeight: '600', color: '#374151' }}>
+                          {member.organizationName || 'Global Platform'}
+                        </span>
+                      </td>
+                    )}
                     <td style={{ padding: '0.85rem 1rem' }}>
                       {member.role === 'Veterinarian' && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#EFF6FF', color: '#1D4ED8', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: '600', fontSize: '0.75rem' }}>
@@ -595,17 +679,18 @@ export default function StaffManagementView({ isSuperAdmin = false }) {
                               fontSize: '0.75rem',
                               fontWeight: '600',
                               borderRadius: '0.375rem',
-                              border: '1px solid #10B981',
-                              backgroundColor: '#ECFDF5',
-                              color: '#059669',
+                              border: '1px solid #059669',
+                              backgroundColor: '#10B981',
+                              color: '#FFFFFF',
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '0.25rem'
+                              gap: '0.3rem',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
                             }}
                           >
                             <CheckCircle size={13} />
-                            Verify
+                            Verify Account
                           </button>
                         )}
 
@@ -1124,6 +1209,13 @@ export default function StaffManagementView({ isSuperAdmin = false }) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.875rem' }}>
+              {selectedStaff.organizationName && (
+                <div style={{ padding: '0.75rem', backgroundColor: '#EFF6FF', borderRadius: '0.5rem', border: '1px solid #DBEAFE' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#1D4ED8', textTransform: 'uppercase', fontWeight: '600' }}>Affiliated Clinic / Organization</div>
+                  <div style={{ fontWeight: '700', color: '#1E3A8A', fontSize: '0.95rem', marginTop: '0.15rem' }}>{selectedStaff.organizationName}</div>
+                </div>
+              )}
+
               <div style={{ padding: '0.75rem', backgroundColor: '#F9FAFB', borderRadius: '0.5rem', border: '1px solid #F3F4F6' }}>
                 <div style={{ fontSize: '0.75rem', color: '#6B7280', textTransform: 'uppercase' }}>Full Name</div>
                 <div style={{ fontWeight: '600', color: '#111827', fontSize: '1rem', marginTop: '0.15rem' }}>{selectedStaff.fullName}</div>
