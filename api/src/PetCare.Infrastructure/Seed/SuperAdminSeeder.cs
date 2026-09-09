@@ -33,19 +33,28 @@ public static class SuperAdminSeeder
         var existing = await userManager.FindByEmailAsync(email);
         if (existing is not null)
         {
-            logger.LogInformation("SuperAdmin '{Email}' already exists — skipping seed.", email);
+            if (existing.AccountStatus != Domain.Enums.UserAccountStatus.Active || !existing.IsActive)
+            {
+                existing.AccountStatus = Domain.Enums.UserAccountStatus.Active;
+                existing.IsActive = true;
+                existing.UpdatedAt = DateTime.UtcNow;
+                await userManager.UpdateAsync(existing);
+                logger.LogInformation("SuperAdmin '{Email}' status verified and set to Active.", email);
+            }
+            logger.LogInformation("SuperAdmin '{Email}' already exists — skipping creation.", email);
             return;
         }
 
         var admin = new ApplicationUser
         {
-            UserName  = email,
-            Email     = email,
-            FirstName = "Super",
-            LastName  = "Admin",
-            IsActive  = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
+            UserName      = email,
+            Email         = email,
+            FirstName     = "Super",
+            LastName      = "Admin",
+            AccountStatus = Domain.Enums.UserAccountStatus.Active,
+            IsActive      = true,
+            CreatedAt     = DateTime.UtcNow,
+            UpdatedAt     = DateTime.UtcNow,
         };
 
         var result = await userManager.CreateAsync(admin, password);

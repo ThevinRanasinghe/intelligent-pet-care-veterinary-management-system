@@ -45,21 +45,24 @@ public sealed class AuthService : IAuthService
         if (!passwordValid)
             throw new UnauthorizedAccessException("Invalid email or password.");
 
-        // Check user account status
-        if (user.AccountStatus == UserAccountStatus.Pending)
-            throw new UnauthorizedAccessException("Your account is pending administrator verification.");
-
-        if (user.AccountStatus == UserAccountStatus.Disabled)
-            throw new UnauthorizedAccessException("Your account has been disabled. Please contact your Clinic Manager.");
-
-        if (user.AccountStatus == UserAccountStatus.Suspended)
-            throw new UnauthorizedAccessException("Your account has been suspended.");
-
-        if (!user.IsActive)
-            throw new UnauthorizedAccessException("Your account is inactive.");
-
         var roles = await _userManager.GetRolesAsync(user);
-        var role  = roles.FirstOrDefault() ?? Roles.PetOwner;
+        var role  = roles?.FirstOrDefault() ?? Roles.PetOwner;
+
+        // SuperAdmin is a platform administrator and never requires verification
+        if (role != Roles.SuperAdmin)
+        {
+            if (user.AccountStatus == UserAccountStatus.Pending)
+                throw new UnauthorizedAccessException("Your account is pending administrator verification.");
+
+            if (user.AccountStatus == UserAccountStatus.Disabled)
+                throw new UnauthorizedAccessException("Your account has been disabled. Please contact your Clinic Manager.");
+
+            if (user.AccountStatus == UserAccountStatus.Suspended)
+                throw new UnauthorizedAccessException("Your account has been suspended.");
+
+            if (!user.IsActive)
+                throw new UnauthorizedAccessException("Your account is inactive.");
+        }
 
         OrganizationDto? organizationDto = null;
 
@@ -279,13 +282,15 @@ public sealed class AuthService : IAuthService
         string role,
         OrganizationDto? organization = null) =>
         new(
-            Id:           user.Id,
-            FirstName:    user.FirstName,
-            LastName:     user.LastName,
-            Email:        user.Email!,
-            Role:         role,
-            Organization: organization,
-            FullName:     user.FullName
+            Id:                 user.Id,
+            FirstName:          user.FirstName,
+            LastName:           user.LastName,
+            Email:              user.Email!,
+            Role:               role,
+            Organization:       organization,
+            FullName:           user.FullName,
+            Status:             user.AccountStatus.ToString(),
+            MustChangePassword: user.MustChangePassword
         );
 
     private static OrganizationDto MapToOrganizationDto(Organization org) =>

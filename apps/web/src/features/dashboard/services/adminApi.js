@@ -70,6 +70,16 @@ export async function updateStaffStatus(id, status) {
   return response.data?.data;
 }
 
+export async function resetStaffPassword(id, temporaryPassword) {
+  const response = await api.post(`/organization/users/${id}/reset-password`, { temporaryPassword });
+  return response.data;
+}
+
+export async function verifyStaffMember(id) {
+  const response = await api.post(`/organization/users/${id}/verify`);
+  return response.data?.data;
+}
+
 // ── User Account & Profile ──
 export async function getProfile() {
   const response = await api.get('/account/profile');

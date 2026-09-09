@@ -85,6 +85,9 @@ public sealed class PetCareDbContext : IdentityDbContext<ApplicationUser>
                 .HasConversion<string>()
                 .HasMaxLength(50);
 
+            entity.Property(u => u.MustChangePassword)
+                .HasDefaultValue(false);
+
             entity.HasIndex(u => u.OrganizationId);
 
             entity.HasOne(u => u.Organization)

@@ -507,6 +507,41 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task Login_SuperAdmin_DoesNotRequireVerification_Succeeds()
+    {
+        // Arrange
+        var request = new LoginRequestDto("admin@beacon.com", "Secret123!");
+        var superAdmin = new ApplicationUser
+        {
+            Id            = "super-admin-id",
+            Email         = request.Email,
+            FirstName     = "Super",
+            LastName      = "Admin",
+            AccountStatus = UserAccountStatus.Pending, // Even if set to Pending, SuperAdmin never requires verification
+            IsActive      = true
+        };
+
+        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email))
+            .ReturnsAsync(superAdmin);
+        _userManagerMock.Setup(m => m.CheckPasswordAsync(superAdmin, request.Password))
+            .ReturnsAsync(true);
+        _userManagerMock.Setup(m => m.GetRolesAsync(superAdmin))
+            .ReturnsAsync(new List<string> { Roles.SuperAdmin });
+        _userManagerMock.Setup(m => m.UpdateAsync(superAdmin))
+            .ReturnsAsync(IdentityResult.Success);
+        _tokenServiceMock.Setup(m => m.GenerateToken(
+                superAdmin.Id, superAdmin.Email, Roles.SuperAdmin, superAdmin.FirstName, superAdmin.LastName, null))
+            .Returns(("mock-superadmin-token", DateTime.UtcNow.AddHours(1)));
+
+        // Act
+        var result = await _authService.LoginAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.User.Role.Should().Be(Roles.SuperAdmin);
+    }
+
+    [Fact]
     public async Task Login_RejectedOrganization_ThrowsUnauthorizedAccessExceptionWithReason()
     {
         // Arrange

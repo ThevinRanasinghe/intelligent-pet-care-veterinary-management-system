@@ -14,8 +14,9 @@ namespace PetCare.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/organization/users")]
+[Route("api/organization/staff")]
 [Produces("application/json")]
-[Authorize(Roles = Roles.ClinicManager)]
+[Authorize(Roles = $"{Roles.ClinicManager},{Roles.SuperAdmin}")]
 public sealed class OrganizationUsersController : ControllerBase
 {
     private readonly IStaffService                           _staffService;
@@ -136,6 +137,53 @@ public sealed class OrganizationUsersController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(ApiResponse.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// RESET PASSWORD: Sets a new temporary password for a staff member and marks MustChangePassword = true.
+    /// </summary>
+    [HttpPost("{id}/reset-password")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetPassword(
+        string id,
+        [FromBody] ResetStaffPasswordRequestDto request,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _staffService.ResetStaffPasswordAsync(id, request, ct);
+            return Ok(ApiResponse.Ok("Temporary password set successfully. Staff must change it on next login."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse.Fail(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// VERIFY: Approves and activates a staff member's account.
+    /// Can be performed by either the ClinicManager or the SuperAdmin.
+    /// </summary>
+    [HttpPost("{id}/verify")]
+    [ProducesResponseType(typeof(ApiResponse<StaffUserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> VerifyStaff(string id, CancellationToken ct)
+    {
+        try
+        {
+            var staff = await _staffService.VerifyStaffMemberAsync(id, ct);
+            return Ok(ApiResponse<StaffUserDto>.Ok(staff, "Staff account verified and activated successfully."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse.Fail(ex.Message));
         }
     }
 }

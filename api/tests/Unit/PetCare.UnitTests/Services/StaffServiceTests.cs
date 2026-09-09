@@ -254,4 +254,198 @@ public sealed class StaffServiceTests
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*cannot alter the status of your own administrator account*");
     }
+
+    [Fact]
+    public async Task CreateStaffMember_ValidInventoryOfficer_SetsMustChangePasswordTrue()
+    {
+        // Arrange
+        var request = new CreateStaffUserRequestDto(
+            FirstName:   "Sarah",
+            LastName:    "Inventory",
+            Email:       "sarah@clinicA.com",
+            Role:        Roles.InventoryOfficer,
+            Password:    "TempPass123!",
+            PhoneNumber: "555-4321"
+        );
+
+        _userManagerMock
+            .Setup(m => m.FindByEmailAsync(request.Email))
+            .ReturnsAsync((ApplicationUser?)null);
+
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success);
+
+        _userManagerMock
+            .Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), request.Role))
+            .ReturnsAsync(IdentityResult.Success);
+
+        // Act
+        var result = await _staffService.CreateStaffMemberAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Email.Should().Be("sarah@clinicA.com");
+        result.Role.Should().Be(Roles.InventoryOfficer);
+        result.MustChangePassword.Should().BeTrue();
+
+        _userManagerMock.Verify(m => m.CreateAsync(
+            It.Is<ApplicationUser>(u => u.MustChangePassword == true && u.OrganizationId == _testOrgId),
+            request.Password), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateStaffMember_OrganizationInactiveOrPending_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange - set org status to Pending
+        var org = await _dbContext.Organizations.FindAsync(_testOrgId);
+        org!.Status = OrganizationStatus.Pending;
+        await _dbContext.SaveChangesAsync();
+
+        var request = new CreateStaffUserRequestDto(
+            FirstName: "Pending",
+            LastName:  "Doctor",
+            Email:     "pending@clinicA.com",
+            Role:      Roles.Veterinarian,
+            Password:  "Secure123!"
+        );
+
+        // Act
+        var act = () => _staffService.CreateStaffMemberAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*active, approved veterinary organizations*");
+    }
+
+    [Fact]
+    public async Task ResetStaffPassword_ValidRequest_SetsTemporaryPasswordAndMustChangePasswordTrue()
+    {
+        // Arrange
+        var staff = new ApplicationUser
+        {
+            Id                 = "staff-to-reset",
+            Email              = "vet@clinicA.com",
+            FirstName          = "Emma",
+            LastName           = "Reed",
+            OrganizationId     = _testOrgId,
+            AccountStatus      = UserAccountStatus.Active,
+            MustChangePassword = false
+        };
+
+        _dbContext.Users.Add(staff);
+        await _dbContext.SaveChangesAsync();
+
+        _userManagerMock
+            .Setup(m => m.GeneratePasswordResetTokenAsync(staff))
+            .ReturnsAsync("reset-token-123");
+
+        _userManagerMock
+            .Setup(m => m.ResetPasswordAsync(staff, "reset-token-123", "NewTempPass!"))
+            .ReturnsAsync(IdentityResult.Success);
+
+        _userManagerMock
+            .Setup(m => m.UpdateAsync(It.IsAny<ApplicationUser>()))
+            .ReturnsAsync(IdentityResult.Success);
+
+        _userManagerMock
+            .Setup(m => m.GetRolesAsync(staff))
+            .ReturnsAsync(new List<string> { Roles.Veterinarian });
+
+        // Act
+        var result = await _staffService.ResetStaffPasswordAsync(
+            "staff-to-reset",
+            new ResetStaffPasswordRequestDto("NewTempPass!"));
+
+        // Assert
+        result.Should().NotBeNull();
+        result.MustChangePassword.Should().BeTrue();
+
+        var userInDb = await _dbContext.Users.FindAsync("staff-to-reset");
+        userInDb!.MustChangePassword.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task VerifyStaffMember_ByClinicManager_ActivatesStaffAccount()
+    {
+        // Arrange
+        var pendingStaff = new ApplicationUser
+        {
+            Id             = "pending-vet-1",
+            Email          = "pendingvet@clinicA.com",
+            FirstName      = "David",
+            LastName       = "Pending",
+            OrganizationId = _testOrgId,
+            AccountStatus  = UserAccountStatus.Pending,
+            IsActive       = false
+        };
+
+        _dbContext.Users.Add(pendingStaff);
+        await _dbContext.SaveChangesAsync();
+
+        _userManagerMock
+            .Setup(m => m.UpdateAsync(It.IsAny<ApplicationUser>()))
+            .ReturnsAsync(IdentityResult.Success);
+
+        _userManagerMock
+            .Setup(m => m.GetRolesAsync(pendingStaff))
+            .ReturnsAsync(new List<string> { Roles.Veterinarian });
+
+        // Act
+        var result = await _staffService.VerifyStaffMemberAsync("pending-vet-1");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be("Active");
+
+        var userInDb = await _dbContext.Users.FindAsync("pending-vet-1");
+        userInDb!.AccountStatus.Should().Be(UserAccountStatus.Active);
+        userInDb.IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task VerifyStaffMember_BySuperAdmin_VerifiesAnyClinicStaff()
+    {
+        // Arrange - SuperAdmin context (no OrganizationId)
+        var superAdminContext = new Mock<ICurrentUserService>();
+        superAdminContext.Setup(c => c.Role).Returns(Roles.SuperAdmin);
+        superAdminContext.Setup(c => c.UserId).Returns("superadmin-id");
+        superAdminContext.Setup(c => c.OrganizationId).Returns((Guid?)null);
+
+        var staffServiceSuperAdmin = new StaffService(
+            _userManagerMock.Object, _dbContext, superAdminContext.Object);
+
+        var anyClinicStaff = new ApplicationUser
+        {
+            Id             = "remote-vet-99",
+            Email          = "remote@otherclinic.com",
+            FirstName      = "Remote",
+            LastName       = "Vet",
+            OrganizationId = Guid.NewGuid(), // Different clinic
+            AccountStatus  = UserAccountStatus.Pending,
+            IsActive       = false
+        };
+
+        _dbContext.Users.Add(anyClinicStaff);
+        await _dbContext.SaveChangesAsync();
+
+        _userManagerMock
+            .Setup(m => m.UpdateAsync(It.IsAny<ApplicationUser>()))
+            .ReturnsAsync(IdentityResult.Success);
+
+        _userManagerMock
+            .Setup(m => m.GetRolesAsync(anyClinicStaff))
+            .ReturnsAsync(new List<string> { Roles.Veterinarian });
+
+        // Act - SuperAdmin verifies staff of another clinic
+        var result = await staffServiceSuperAdmin.VerifyStaffMemberAsync("remote-vet-99");
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Status.Should().Be("Active");
+
+        var userInDb = await _dbContext.Users.FindAsync("remote-vet-99");
+        userInDb!.AccountStatus.Should().Be(UserAccountStatus.Active);
+        userInDb.IsActive.Should().BeTrue();
+    }
 }

@@ -5,6 +5,7 @@ import useAuthStore from './store/authStore';
 // Auth Pages & Components
 import LoginPage from './features/auth/pages/LoginPage';
 import RegisterPage from './features/auth/pages/RegisterPage';
+import ChangePasswordPage from './features/auth/pages/ChangePasswordPage';
 import ProtectedRoute from './features/auth/components/ProtectedRoute';
 import RoleRoute from './features/auth/components/RoleRoute';
 
@@ -48,6 +49,16 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+      {/* Forced Password Change (First login) */}
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute allowPasswordChange={true}>
+            <ChangePasswordPage />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Protected Role-Based Routes */}
       <Route

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, LayoutDashboard } from 'lucide-react';
+import { LogOut, LayoutDashboard, Building2 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import ProfileModal from './ProfileModal';
 
@@ -31,10 +31,36 @@ export default function DashboardLayout({ children, navItems = [], pageTitle, pa
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">🐾</div>
           <div>
-            <div className="sidebar-logo-text">PetCare AI</div>
-            <div className="sidebar-logo-subtext">Management System</div>
+            <div className="sidebar-logo-text">Beacon Pet Health</div>
+            <div className="sidebar-logo-subtext">
+              {user?.organization ? user.organization.name : 'Veterinary Platform'}
+            </div>
           </div>
         </div>
+
+        {/* Tenant Organization Scoping Badge */}
+        {user?.organization && (
+          <div style={{
+            margin: '0 0.85rem 1rem 0.85rem',
+            padding: '0.6rem 0.75rem',
+            backgroundColor: 'rgba(255,255,255,0.06)',
+            borderRadius: '0.5rem',
+            border: '1px solid rgba(255,255,255,0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem'
+          }}>
+            <Building2 size={16} style={{ color: 'var(--petcare-primary, #FFBE00)', flexShrink: 0 }} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: '0.7rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Active Clinic
+              </div>
+              <div style={{ fontSize: '0.825rem', fontWeight: '600', color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user.organization.name}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="sidebar-nav" aria-label="Dashboard navigation">
@@ -95,7 +121,33 @@ export default function DashboardLayout({ children, navItems = [], pageTitle, pa
               <p className="dashboard-header-subtitle">{pageSubtitle}</p>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {user?.organization && (
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.3rem 0.65rem',
+                backgroundColor: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                borderRadius: '9999px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                color: '#1D4ED8'
+              }}>
+                <Building2 size={13} />
+                <span>{user.organization.name}</span>
+                <span style={{
+                  fontSize: '0.65rem',
+                  backgroundColor: '#D1FAE5',
+                  color: '#065F46',
+                  padding: '0.1rem 0.35rem',
+                  borderRadius: '9999px'
+                }}>
+                  {user.organization.status || 'Active'}
+                </span>
+              </div>
+            )}
             <span style={{ fontSize: '0.8rem', color: 'var(--petcare-muted)' }}>
               Welcome back, <strong style={{ color: 'var(--petcare-black)' }}>{user?.firstName}</strong>
             </span>

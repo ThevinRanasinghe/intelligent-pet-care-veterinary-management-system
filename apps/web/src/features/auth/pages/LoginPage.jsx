@@ -67,6 +67,10 @@ export default function LoginPage() {
 
     try {
       const user = await login({ email: form.email, password: form.password });
+      if (user.mustChangePassword) {
+        navigate('/change-password', { replace: true });
+        return;
+      }
       const route = ROLE_ROUTES[user.role] ?? '/';
       navigate(route, { replace: true });
     } catch (err) {

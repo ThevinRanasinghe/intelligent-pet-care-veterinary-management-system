@@ -17,7 +17,8 @@ public sealed record StaffUserDto(
     string Status,
     Guid OrganizationId,
     DateTime CreatedAt,
-    DateTime? LastLoginAt
+    DateTime? LastLoginAt,
+    bool MustChangePassword = false
 );
 
 /// <summary>
@@ -49,6 +50,13 @@ public sealed record UpdateStaffStatusRequestDto(
 );
 
 /// <summary>
+/// Request by ClinicManager to reset a staff member's temporary password.
+/// </summary>
+public sealed record ResetStaffPasswordRequestDto(
+    string TemporaryPassword
+);
+
+/// <summary>
 /// Authenticated user's own profile.
 /// </summary>
 public sealed record UserProfileDto(
@@ -62,7 +70,8 @@ public sealed record UserProfileDto(
     string Status,
     OrganizationDto? Organization,
     DateTime CreatedAt,
-    DateTime? LastLoginAt
+    DateTime? LastLoginAt,
+    bool MustChangePassword = false
 );
 
 /// <summary>
@@ -83,3 +92,4 @@ public sealed record ChangePasswordRequestDto(
     string NewPassword,
     string ConfirmNewPassword
 );
+

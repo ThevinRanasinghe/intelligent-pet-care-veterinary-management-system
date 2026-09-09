@@ -81,17 +81,18 @@ public sealed class AccountController : ControllerBase
         }
 
         var profile = new UserProfileDto(
-            Id:           user.Id,
-            FirstName:    user.FirstName,
-            LastName:     user.LastName,
-            FullName:     user.FullName,
-            Email:        user.Email ?? string.Empty,
-            PhoneNumber:  user.PhoneNumber,
-            Role:         role,
-            Status:       user.AccountStatus.ToString(),
-            Organization: orgDto,
-            CreatedAt:    user.CreatedAt,
-            LastLoginAt:  user.LastLoginAt
+            Id:                 user.Id,
+            FirstName:          user.FirstName,
+            LastName:           user.LastName,
+            FullName:           user.FullName,
+            Email:              user.Email ?? string.Empty,
+            PhoneNumber:        user.PhoneNumber,
+            Role:               role,
+            Status:             user.AccountStatus.ToString(),
+            Organization:       orgDto,
+            CreatedAt:          user.CreatedAt,
+            LastLoginAt:        user.LastLoginAt,
+            MustChangePassword: user.MustChangePassword
         );
 
         return Ok(ApiResponse<UserProfileDto>.Ok(profile));
@@ -180,6 +181,14 @@ public sealed class AccountController : ControllerBase
         {
             var errors = string.Join("; ", result.Errors.Select(e => e.Description));
             return BadRequest(ApiResponse.Fail(errors));
+        }
+
+        // Clear MustChangePassword flag if set
+        if (user.MustChangePassword)
+        {
+            user.MustChangePassword = false;
+            user.UpdatedAt = DateTime.UtcNow;
+            await _userManager.UpdateAsync(user);
         }
 
         return Ok(ApiResponse.Ok("Password changed successfully."));

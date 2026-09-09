@@ -6,8 +6,8 @@ import useAuthStore from '../../../store/authStore';
  * If authentication is still being initialized (checking localStorage token), it displays a loading spinner.
  * If unauthenticated, it redirects to /login.
  */
-export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, isInitializing } = useAuthStore();
+export default function ProtectedRoute({ children, allowPasswordChange = false }) {
+  const { user, isAuthenticated, isInitializing } = useAuthStore();
   const location = useLocation();
 
   if (isInitializing) {
@@ -33,6 +33,11 @@ export default function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Force first-login password change
+  if (user?.mustChangePassword && !allowPasswordChange) {
+    return <Navigate to="/change-password" replace />;
   }
 
   return children;

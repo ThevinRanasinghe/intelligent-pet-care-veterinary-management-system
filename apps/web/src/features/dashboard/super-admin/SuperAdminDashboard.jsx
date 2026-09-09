@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Building2, Server, Shield, Users } from 'lucide-react';
 import DashboardLayout from '../../shared/DashboardLayout';
 import OrganizationManagementView from './OrganizationManagementView';
+import StaffManagementView from '../manager/StaffManagementView';
 
 export default function SuperAdminDashboard() {
-  const [activeSection, setActiveSection] = useState('organizations'); // 'organizations' | 'overview' | 'audit'
+  const [activeSection, setActiveSection] = useState('organizations'); // 'organizations' | 'staff' | 'overview' | 'audit'
 
   const navItems = [
     {
@@ -12,6 +13,12 @@ export default function SuperAdminDashboard() {
       icon: <Building2 size={18} />,
       active: activeSection === 'organizations',
       onClick: () => setActiveSection('organizations')
+    },
+    {
+      label: 'Staff Verification & Team',
+      icon: <Users size={18} />,
+      active: activeSection === 'staff',
+      onClick: () => setActiveSection('staff')
     },
     {
       label: 'System Overview',
@@ -32,6 +39,8 @@ export default function SuperAdminDashboard() {
       pageTitle={
         activeSection === 'organizations'
           ? 'Veterinary Organization Governance'
+          : activeSection === 'staff'
+          ? 'Staff Verification & Governance'
           : activeSection === 'overview'
           ? 'Platform Overview'
           : 'Security & Governance'
@@ -40,6 +49,7 @@ export default function SuperAdminDashboard() {
       navItems={navItems}
     >
       {activeSection === 'organizations' && <OrganizationManagementView />}
+      {activeSection === 'staff' && <StaffManagementView isSuperAdmin={true} />}
 
       {activeSection === 'overview' && (
         <>

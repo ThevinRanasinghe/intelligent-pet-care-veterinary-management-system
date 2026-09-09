@@ -32,4 +32,13 @@ public interface IStaffService
         string staffId,
         UpdateStaffStatusRequestDto request,
         CancellationToken ct = default);
+
+    Task<StaffUserDto> ResetStaffPasswordAsync(
+        string staffId,
+        ResetStaffPasswordRequestDto request,
+        CancellationToken ct = default);
+
+    Task<StaffUserDto> VerifyStaffMemberAsync(
+        string staffId,
+        CancellationToken ct = default);
 }

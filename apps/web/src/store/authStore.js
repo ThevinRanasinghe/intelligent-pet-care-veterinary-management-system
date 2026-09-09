@@ -123,9 +123,20 @@ const useAuthStore = create((set, get) => ({
   clearError: () => set({ error: null }),
 
   /**
+   * Update full or partial user object in state.
+   */
+  setUser: (user) => set({ user }),
+  updateUser: (fields) => set((state) => ({
+    user: state.user ? { ...state.user, ...fields } : null
+  })),
+
+  /**
    * Returns the appropriate dashboard route for the currently logged-in user.
    */
   getHomeRoute: () => {
+    if (get().user?.mustChangePassword) {
+      return '/change-password';
+    }
     const role = get().user?.role;
     switch (role) {
       case 'SuperAdmin':       return '/super-admin';

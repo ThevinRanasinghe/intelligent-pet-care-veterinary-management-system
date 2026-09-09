@@ -35,6 +35,12 @@ public sealed class ApplicationUser : IdentityUser
     public DateTime? LastLoginAt { get; set; }
 
     /// <summary>
+    /// Whether the user must change their temporary password upon initial login.
+    /// Set to true when ClinicManager creates a staff account, cleared on successful password change.
+    /// </summary>
+    public bool MustChangePassword { get; set; } = false;
+
+    /// <summary>
     /// Associated veterinary organization ID for staff members (ClinicManager, Veterinarian, InventoryOfficer).
     /// Null for platform-level SuperAdmin and PetOwner.
     /// </summary>
@@ -46,4 +52,5 @@ public sealed class ApplicationUser : IdentityUser
     /// <summary>Computed full name (not persisted).</summary>
     public string FullName => $"{FirstName} {LastName}".Trim();
 }
+
 
