@@ -17,18 +17,21 @@ namespace PetCare.Api.Controllers;
 [Produces("application/json")]
 public sealed class AuthController : ControllerBase
 {
-    private readonly IAuthService                          _authService;
-    private readonly IValidator<LoginRequestDto>           _loginValidator;
-    private readonly IValidator<RegisterPetOwnerRequestDto> _registerValidator;
+    private readonly IAuthService                              _authService;
+    private readonly IValidator<LoginRequestDto>               _loginValidator;
+    private readonly IValidator<RegisterPetOwnerRequestDto>     _registerValidator;
+    private readonly IValidator<RegisterOrganizationRequestDto> _orgRegisterValidator;
 
     public AuthController(
-        IAuthService                          authService,
-        IValidator<LoginRequestDto>           loginValidator,
-        IValidator<RegisterPetOwnerRequestDto> registerValidator)
+        IAuthService                              authService,
+        IValidator<LoginRequestDto>               loginValidator,
+        IValidator<RegisterPetOwnerRequestDto>     registerValidator,
+        IValidator<RegisterOrganizationRequestDto> orgRegisterValidator)
     {
-        _authService       = authService;
-        _loginValidator    = loginValidator;
-        _registerValidator = registerValidator;
+        _authService          = authService;
+        _loginValidator       = loginValidator;
+        _registerValidator    = registerValidator;
+        _orgRegisterValidator = orgRegisterValidator;
     }
 
     /// <summary>
@@ -62,6 +65,7 @@ public sealed class AuthController : ControllerBase
     /// <response code="201">Registration successful.</response>
     /// <response code="400">Validation error or duplicate email.</response>
     [HttpPost("register")]
+    [HttpPost("register/pet-owner")]
     [ProducesResponseType(typeof(ApiResponse<CurrentUserDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register(
@@ -78,6 +82,31 @@ public sealed class AuthController : ControllerBase
         var user = await _authService.RegisterPetOwnerAsync(request, ct);
         return StatusCode(StatusCodes.Status201Created,
             ApiResponse<CurrentUserDto>.Ok(user, "Registration successful. Please log in."));
+    }
+
+    /// <summary>
+    /// Register a new independent Veterinary Organization and its initial ClinicManager account.
+    /// Role is always ClinicManager — cannot be chosen by the user.
+    /// </summary>
+    /// <response code="201">Organization and ClinicManager registered successfully.</response>
+    /// <response code="400">Validation error or duplicate name/email.</response>
+    [HttpPost("register/organization")]
+    [ProducesResponseType(typeof(ApiResponse<CurrentUserDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RegisterOrganization(
+        [FromBody] RegisterOrganizationRequestDto request,
+        CancellationToken ct)
+    {
+        var validation = await _orgRegisterValidator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return BadRequest(new ValidationErrorResponse(
+                false,
+                "Validation failed.",
+                validation.ToDictionary()));
+
+        var user = await _authService.RegisterOrganizationAsync(request, ct);
+        return StatusCode(StatusCodes.Status201Created,
+            ApiResponse<CurrentUserDto>.Ok(user, "Organization registered successfully. Please log in with your Clinic Manager account."));
     }
 
     /// <summary>

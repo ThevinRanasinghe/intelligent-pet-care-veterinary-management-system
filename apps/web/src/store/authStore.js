@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import { login as apiLogin, registerPetOwner as apiRegister, getCurrentUser } from '../features/auth/services/authApi';
+import {
+  login as apiLogin,
+  registerPetOwner as apiRegister,
+  registerOrganization as apiRegisterOrg,
+  getCurrentUser
+} from '../features/auth/services/authApi';
 
 const TOKEN_KEY = 'petcare_token';
 
@@ -7,7 +12,7 @@ const TOKEN_KEY = 'petcare_token';
  * Global authentication state store (Zustand).
  *
  * Tracks:
- * - user: current user profile (id, firstName, lastName, email, role)
+ * - user: current user profile (id, firstName, lastName, email, role, organization)
  * - isAuthenticated: boolean
  * - isLoading: global loading state
  * - error: last error message
@@ -55,6 +60,22 @@ const useAuthStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await apiRegister(userData);
+      set({ isLoading: false, error: null });
+      return user;
+    } catch (err) {
+      const message = extractErrorMessage(err);
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
+  },
+
+  /**
+   * Register a new Veterinary Organization and primary ClinicManager.
+   */
+  registerOrganization: async (orgData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = await apiRegisterOrg(orgData);
       set({ isLoading: false, error: null });
       return user;
     } catch (err) {
@@ -124,9 +145,13 @@ function extractErrorMessage(err) {
   if (err?.response?.data?.message) {
     return err.response.data.message;
   }
+  // Endpoint 404 Not Found (e.g. backend needs restart after adding new routes)
+  if (err?.response?.status === 404) {
+    return 'The requested API endpoint was not found (404). Please restart your backend server (dotnet run) to apply latest route changes.';
+  }
   // Network / timeout
   if (err?.code === 'ECONNABORTED' || err?.message?.includes('Network Error')) {
-    return 'Unable to connect to PetCare AI. Please try again.';
+    return 'Unable to connect to the backend server. Please verify it is running on http://localhost:5000.';
   }
   // Generic
   return err?.message ?? 'An unexpected error occurred. Please try again.';

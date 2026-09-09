@@ -856,12 +856,261 @@ input, textarea, select {
     padding: var(--space-6) var(--space-4);
   }
 
-  .form-row { grid-template-columns: 1fr; }
-
   .sidebar {
     transform: translateX(-100%);
     width: 240px;
   }
 
   .dashboard-main { margin-left: 0; }
+}
+
+/* ============================================================
+   Registration Type Switcher & Multi-Org Form Styles
+   ============================================================ */
+
+.reg-type-switcher {
+  display: flex;
+  background: #f1f3f5;
+  padding: 4px;
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-6);
+  gap: 4px;
+}
+
+.reg-type-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.75rem var(--space-4);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--petcare-neutral);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.reg-type-btn:hover:not(.active) {
+  color: var(--petcare-black);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.reg-type-btn.active {
+  background: var(--petcare-black);
+  color: var(--petcare-yellow);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.form-section-header {
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid #f1f3f5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--petcare-black);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.form-section-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  background: #fff8e1;
+  color: #b78103;
+  border-radius: var(--radius-full);
+  border: 1px solid #ffe082;
+}
+
+.org-info-callout {
+  background: #f8f9fa;
+  border-left: 4px solid var(--petcare-yellow);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  margin-bottom: var(--space-5);
+  font-size: 0.82rem;
+  color: #495057;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   Animated Animal Mascot Styles (Matches Design Screenshot)
+   ============================================================ */
+
+.mascot-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-4);
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.12));
+}
+
+.mascot-team-svg {
+  overflow: visible;
+}
+
+@keyframes dogBreathing {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes catBreathing {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-2.5px) rotate(-1deg); }
+}
+
+@keyframes bunnyHop {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3.5px); }
+}
+
+@keyframes tailWag {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(8deg); }
+}
+
+@keyframes headBobHero {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes headBobSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+
+@keyframes headBobFast {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+
+.dog-mascot {
+  animation: dogBreathing 3.6s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.cat-mascot {
+  animation: catBreathing 3.2s ease-in-out infinite 0.2s;
+  transform-origin: center bottom;
+}
+
+.bunny-mascot {
+  animation: bunnyHop 2.8s ease-in-out infinite 0.5s;
+  transform-origin: center bottom;
+}
+
+.tail-animated {
+  transform-origin: 50px 170px;
+  animation: tailWag 1.8s ease-in-out infinite alternate;
+}
+
+.head-bob-hero {
+  animation: headBobHero 3.6s ease-in-out infinite;
+  transform-origin: 178px 106px;
+}
+
+.head-bob-slow {
+  animation: headBobSlow 3.2s ease-in-out infinite;
+  transform-origin: 94px 132px;
+}
+
+.head-bob-fast {
+  animation: headBobFast 2.8s ease-in-out infinite;
+  transform-origin: 248px 162px;
+}
+
+/* ============================================================
+   Wizard Multi-Step Indicator Styles
+   ============================================================ */
+
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.wizard-step-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #f1f3f5;
+  color: var(--petcare-neutral);
+  transition: all var(--transition-fast);
+}
+
+.wizard-step-pill.active {
+  background: var(--petcare-black);
+  color: var(--petcare-yellow);
+}
+
+.wizard-step-pill.completed {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.wizard-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.1);
+  font-size: 0.75rem;
+}
+
+.wizard-step-pill.active .wizard-step-num {
+  background: var(--petcare-yellow);
+  color: var(--petcare-black);
+}
+
+.wizard-step-divider {
+  width: 24px;
+  height: 2px;
+  background: #dee2e6;
+}
+
+.wizard-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.875rem var(--space-5);
+  border-radius: var(--radius-full);
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: #f1f3f5;
+  color: var(--petcare-black);
+  border: 1px solid #ced4da;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #e9ecef;
+  transform: translateY(-1px);
 }

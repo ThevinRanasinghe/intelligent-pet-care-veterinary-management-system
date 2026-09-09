@@ -12,5 +12,7 @@ public interface IAuthService
 
     Task<CurrentUserDto> RegisterPetOwnerAsync(RegisterPetOwnerRequestDto request, CancellationToken ct = default);
 
+    Task<CurrentUserDto> RegisterOrganizationAsync(RegisterOrganizationRequestDto request, CancellationToken ct = default);
+
     Task<CurrentUserDto?> GetCurrentUserAsync(string userId, CancellationToken ct = default);
 }

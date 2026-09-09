@@ -76,8 +76,8 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Welcome Back!"
-      subtitle="Sign in to continue to PetCare AI."
+      title="Welcome Back"
+      subtitle="Sign in to your Beacon Pet Health account."
     >
       <form onSubmit={handleSubmit} noValidate aria-label="Login form">
 
@@ -125,12 +125,12 @@ export default function LoginPage() {
         >
           {isLoading
             ? <><span className="btn-spinner" aria-hidden="true" /> Signing in…</>
-            : 'Log In'
+            : 'Sign In'
           }
         </button>
 
         <div className="auth-footer" style={{ marginTop: '1.5rem' }}>
-          New pet owner?{' '}
+          Don't have an account?{' '}
           <Link to="/register" className="auth-footer-link">
             Create an account
           </Link>

@@ -3,9 +3,13 @@ using Moq;
 using PetCare.Application.DTOs.Auth;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Constants;
+using PetCare.Domain.Entities;
+using PetCare.Domain.Enums;
 using PetCare.Infrastructure.Entities;
+using PetCare.Infrastructure.Persistence;
 using PetCare.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace PetCare.UnitTests.Services;
@@ -17,6 +21,7 @@ public sealed class AuthServiceTests
 {
     private readonly Mock<UserManager<ApplicationUser>> _userManagerMock;
     private readonly Mock<ITokenService>               _tokenServiceMock;
+    private readonly PetCareDbContext                  _dbContext;
     private readonly AuthService                       _authService;
 
     public AuthServiceTests()
@@ -27,7 +32,13 @@ public sealed class AuthServiceTests
             store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
 
         _tokenServiceMock = new Mock<ITokenService>();
-        _authService      = new AuthService(_userManagerMock.Object, _tokenServiceMock.Object);
+
+        var options = new DbContextOptionsBuilder<PetCareDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        _dbContext = new PetCareDbContext(options);
+
+        _authService = new AuthService(_userManagerMock.Object, _tokenServiceMock.Object, _dbContext);
     }
 
     // =========================================================================
@@ -178,7 +189,7 @@ public sealed class AuthServiceTests
         var expiry = DateTime.UtcNow.AddHours(1);
         _tokenServiceMock
             .Setup(m => m.GenerateToken(
-                user.Id, user.Email!, Roles.PetOwner, user.FirstName, user.LastName))
+                user.Id, user.Email!, Roles.PetOwner, user.FirstName, user.LastName, It.IsAny<Guid?>()))
             .Returns(("jwt.token.here", expiry));
 
         // Act
@@ -257,5 +268,210 @@ public sealed class AuthServiceTests
         // Assert
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("Invalid email or password.");
+    }
+
+    // =========================================================================
+    // MULTI-ORGANIZATION TESTS
+    // =========================================================================
+
+    [Fact]
+    public async Task RegisterOrganization_ValidRequest_CreatesOrgAndClinicManager()
+    {
+        // Arrange
+        var request = new RegisterOrganizationRequestDto(
+            OrganizationName:   "Happy Paws Clinic",
+            RegistrationNumber: "VET-12345",
+            OrganizationEmail:  "contact@happypaws.com",
+            OrganizationPhone:  "+1234567890",
+            Address:            "123 Main St",
+            City:               "Metropolis",
+            Country:            "USA",
+            ManagerFirstName:   "Alice",
+            ManagerLastName:    "Smith",
+            ManagerEmail:       "alice@happypaws.com",
+            Password:           "Password1!",
+            ConfirmPassword:    "Password1!"
+        );
+
+        _userManagerMock
+            .Setup(m => m.FindByEmailAsync(request.ManagerEmail))
+            .ReturnsAsync((ApplicationUser?)null);
+
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success);
+
+        _userManagerMock
+            .Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), Roles.ClinicManager))
+            .ReturnsAsync(IdentityResult.Success);
+
+        // Act
+        var result = await _authService.RegisterOrganizationAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Email.Should().Be(request.ManagerEmail);
+        result.Role.Should().Be(Roles.ClinicManager);
+        result.Organization.Should().NotBeNull();
+        result.Organization!.Name.Should().Be("Happy Paws Clinic");
+
+        // Verify ClinicManager was assigned
+        _userManagerMock.Verify(
+            m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), Roles.ClinicManager),
+            Times.Once);
+
+        // Verify organization was saved in DbContext
+        var savedOrg = await _dbContext.Organizations.FirstOrDefaultAsync(o => o.Name == "Happy Paws Clinic");
+        savedOrg.Should().NotBeNull();
+        savedOrg!.Email.Should().Be("contact@happypaws.com");
+    }
+
+    [Fact]
+    public async Task RegisterOrganization_DuplicateManagerEmail_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var request = new RegisterOrganizationRequestDto(
+            OrganizationName:   "Duplicate Manager Clinic",
+            RegistrationNumber: null,
+            OrganizationEmail:  "info@dupclinic.com",
+            OrganizationPhone:  "555-0100",
+            Address:            "456 Oak St",
+            City:               "Metropolis",
+            Country:            "USA",
+            ManagerFirstName:   "Bob",
+            ManagerLastName:    "Jones",
+            ManagerEmail:       "existing_manager@example.com",
+            Password:           "Password1!",
+            ConfirmPassword:    "Password1!"
+        );
+
+        _userManagerMock
+            .Setup(m => m.FindByEmailAsync(request.ManagerEmail))
+            .ReturnsAsync(new ApplicationUser { Email = request.ManagerEmail });
+
+        // Act
+        var act = () => _authService.RegisterOrganizationAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*already exists*");
+    }
+
+    [Fact]
+    public async Task Login_OrganizationStaff_IncludesOrgClaimAndOrganizationDto()
+    {
+        // Arrange
+        var org = new Organization
+        {
+            Id        = Guid.NewGuid(),
+            Name      = "City Vet Hospital",
+            Email     = "contact@cityvet.com",
+            Phone     = "555-0200",
+            Address   = "789 Pine Rd",
+            City      = "Gotham",
+            Country   = "USA",
+            Status    = OrganizationStatus.Active,
+            IsActive  = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _dbContext.Organizations.Add(org);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new LoginRequestDto("vet@cityvet.com", "Password1!");
+        var user = new ApplicationUser
+        {
+            Id             = Guid.NewGuid().ToString(),
+            Email          = request.Email,
+            FirstName      = "David",
+            LastName       = "Miller",
+            OrganizationId = org.Id,
+            IsActive       = true
+        };
+
+        _userManagerMock
+            .Setup(m => m.FindByEmailAsync(request.Email))
+            .ReturnsAsync(user);
+
+        _userManagerMock
+            .Setup(m => m.CheckPasswordAsync(user, request.Password))
+            .ReturnsAsync(true);
+
+        _userManagerMock
+            .Setup(m => m.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { Roles.Veterinarian });
+
+        var expiry = DateTime.UtcNow.AddHours(1);
+        _tokenServiceMock
+            .Setup(m => m.GenerateToken(
+                user.Id, user.Email!, Roles.Veterinarian, user.FirstName, user.LastName, org.Id))
+            .Returns(("jwt.token.with.org", expiry));
+
+        // Act
+        var result = await _authService.LoginAsync(request);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.User.Role.Should().Be(Roles.Veterinarian);
+        result.User.Organization.Should().NotBeNull();
+        result.User.Organization!.Id.Should().Be(org.Id);
+        result.User.Organization.Name.Should().Be("City Vet Hospital");
+
+        // Verify token service was invoked with org.Id
+        _tokenServiceMock.Verify(
+            m => m.GenerateToken(user.Id, user.Email!, Roles.Veterinarian, user.FirstName, user.LastName, org.Id),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Login_SuspendedOrganization_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var org = new Organization
+        {
+            Id        = Guid.NewGuid(),
+            Name      = "Suspended Vet Care",
+            Email     = "contact@suspendedvet.com",
+            Phone     = "555-0300",
+            Address   = "101 Elm St",
+            City      = "Star City",
+            Country   = "USA",
+            Status    = OrganizationStatus.Suspended,
+            IsActive  = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _dbContext.Organizations.Add(org);
+        await _dbContext.SaveChangesAsync();
+
+        var request = new LoginRequestDto("manager@suspendedvet.com", "Password1!");
+        var user = new ApplicationUser
+        {
+            Id             = Guid.NewGuid().ToString(),
+            Email          = request.Email,
+            FirstName      = "Sam",
+            LastName       = "Oak",
+            OrganizationId = org.Id,
+            IsActive       = true
+        };
+
+        _userManagerMock
+            .Setup(m => m.FindByEmailAsync(request.Email))
+            .ReturnsAsync(user);
+
+        _userManagerMock
+            .Setup(m => m.CheckPasswordAsync(user, request.Password))
+            .ReturnsAsync(true);
+
+        _userManagerMock
+            .Setup(m => m.GetRolesAsync(user))
+            .ReturnsAsync(new List<string> { Roles.ClinicManager });
+
+        // Act
+        var act = () => _authService.LoginAsync(request);
+
+        // Assert — blocked with suspended message
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*suspended*");
     }
 }

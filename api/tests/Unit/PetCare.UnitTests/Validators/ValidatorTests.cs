@@ -120,3 +120,77 @@ public sealed class LoginRequestValidatorTests
         result.ShouldHaveValidationErrorFor(x => x.Password);
     }
 }
+
+public sealed class RegisterOrganizationRequestValidatorTests
+{
+    private readonly RegisterOrganizationRequestValidator _validator = new();
+
+    [Fact]
+    public void Valid_OrganizationRequest_Passes()
+    {
+        var request = new RegisterOrganizationRequestDto(
+            OrganizationName:   "Paws & Claws Veterinary",
+            RegistrationNumber: "VET-98765",
+            OrganizationEmail:  "contact@pawsclaws.com",
+            OrganizationPhone:  "+1555123456",
+            Address:            "100 Animal Hospital Way",
+            City:               "Boston",
+            Country:            "USA",
+            ManagerFirstName:   "Jane",
+            ManagerLastName:    "Doc",
+            ManagerEmail:       "jane@pawsclaws.com",
+            Password:           "Password1!",
+            ConfirmPassword:    "Password1!"
+        );
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void Missing_OrganizationName_Fails()
+    {
+        var request = new RegisterOrganizationRequestDto(
+            OrganizationName:   "",
+            RegistrationNumber: null,
+            OrganizationEmail:  "contact@pawsclaws.com",
+            OrganizationPhone:  "+1555123456",
+            Address:            "100 Animal Hospital Way",
+            City:               "Boston",
+            Country:            "USA",
+            ManagerFirstName:   "Jane",
+            ManagerLastName:    "Doc",
+            ManagerEmail:       "jane@pawsclaws.com",
+            Password:           "Password1!",
+            ConfirmPassword:    "Password1!"
+        );
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldHaveValidationErrorFor(x => x.OrganizationName);
+    }
+
+    [Fact]
+    public void PasswordMismatch_Fails()
+    {
+        var request = new RegisterOrganizationRequestDto(
+            OrganizationName:   "Paws Clinic",
+            RegistrationNumber: null,
+            OrganizationEmail:  "contact@pawsclaws.com",
+            OrganizationPhone:  "+1555123456",
+            Address:            "100 Animal Way",
+            City:               "Boston",
+            Country:            "USA",
+            ManagerFirstName:   "Jane",
+            ManagerLastName:    "Doc",
+            ManagerEmail:       "jane@pawsclaws.com",
+            Password:           "Password1!",
+            ConfirmPassword:    "DifferentPassword2@"
+        );
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldHaveValidationErrorFor(x => x.ConfirmPassword);
+    }
+}

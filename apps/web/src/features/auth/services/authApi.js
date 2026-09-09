@@ -16,12 +16,22 @@ export async function login(credentials) {
 }
 
 /**
- * POST /api/auth/register
+ * POST /api/auth/register/pet-owner
  * @param {{ firstName, lastName, email, password, confirmPassword }} userData
  * @returns {Promise<{ id, firstName, lastName, email, role }>}
  */
 export async function registerPetOwner(userData) {
   const { data } = await apiClient.post('/auth/register', userData);
+  return data.data;
+}
+
+/**
+ * POST /api/auth/register/organization
+ * @param {Object} orgData
+ * @returns {Promise<{ id, firstName, lastName, email, role, organization }>}
+ */
+export async function registerOrganization(orgData) {
+  const { data } = await apiClient.post('/auth/register/organization', orgData);
   return data.data;
 }
 

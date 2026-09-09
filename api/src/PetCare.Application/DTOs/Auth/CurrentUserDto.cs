@@ -10,5 +10,10 @@ public sealed record CurrentUserDto(
     string FirstName,
     string LastName,
     string Email,
-    string Role
-);
+    string Role,
+    OrganizationDto? Organization = null,
+    string? FullName = null
+)
+{
+    public string FullName { get; init; } = FullName ?? $"{FirstName} {LastName}".Trim();
+}

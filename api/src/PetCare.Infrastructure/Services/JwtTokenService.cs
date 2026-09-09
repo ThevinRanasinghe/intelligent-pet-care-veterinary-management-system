@@ -26,7 +26,8 @@ public sealed class JwtTokenService : ITokenService
         string email,
         string role,
         string firstName,
-        string lastName)
+        string lastName,
+        Guid? organizationId = null)
     {
         var jwtKey = _configuration["Jwt:Key"]
             ?? throw new InvalidOperationException("Jwt:Key configuration is missing.");
@@ -43,7 +44,7 @@ public sealed class JwtTokenService : ITokenService
 
         var expiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub,   userId),
             new Claim(JwtRegisteredClaimNames.Email, email),
@@ -52,6 +53,11 @@ public sealed class JwtTokenService : ITokenService
             new Claim("firstName",                   firstName),
             new Claim("lastName",                    lastName),
         };
+
+        if (organizationId.HasValue)
+        {
+            claims.Add(new Claim("organizationId", organizationId.Value.ToString()));
+        }
 
         var token = new JwtSecurityToken(
             issuer:             issuer,

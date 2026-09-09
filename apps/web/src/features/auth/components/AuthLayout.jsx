@@ -13,7 +13,7 @@ export default function AuthLayout({ children, title, subtitle }) {
         <div className="auth-brand-logo">
           <div className="auth-brand-logo-icon">🐾</div>
           <div>
-            <div className="auth-brand-logo-text">PetCare AI</div>
+            <div className="auth-brand-logo-text">Beacon Pet Health</div>
           </div>
         </div>
 
@@ -26,11 +26,11 @@ export default function AuthLayout({ children, title, subtitle }) {
         </h1>
 
         <p className="auth-brand-subtext">
-          Manage veterinary care, appointments, and pet health in one caring place.
+          Intelligent multi-organization veterinary service, inventory, and clinic management platform.
         </p>
 
         <div className="auth-brand-pills">
-          <span className="auth-brand-pill">🏥 Appointments</span>
+          <span className="auth-brand-pill">🏥 Multi-Clinic</span>
           <span className="auth-brand-pill">💊 Inventory</span>
           <span className="auth-brand-pill">📋 Records</span>
           <span className="auth-brand-pill">🤝 Care Teams</span>
@@ -43,7 +43,7 @@ export default function AuthLayout({ children, title, subtitle }) {
           <div className="auth-form-header">
             {title && (
               <>
-                <p className="auth-form-eyebrow">PetCare AI</p>
+                <p className="auth-form-eyebrow">BEACON PET HEALTH</p>
                 <h2 className="auth-form-title">{title}</h2>
                 {subtitle && <p className="auth-form-subtitle">{subtitle}</p>}
               </>

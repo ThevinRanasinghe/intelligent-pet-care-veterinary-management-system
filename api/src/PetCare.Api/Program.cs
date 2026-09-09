@@ -6,11 +6,13 @@ using Microsoft.IdentityModel.Tokens;
 using PetCare.Api.Extensions;
 using PetCare.Api.Middleware;
 using PetCare.Application.DTOs.Auth;
+using PetCare.Application.Interfaces;
 using PetCare.Application.Validators.Auth;
 using PetCare.Infrastructure.Entities;
 using PetCare.Infrastructure.Extensions;
 using PetCare.Infrastructure.Persistence;
 using PetCare.Infrastructure.Seed;
+using PetCare.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,12 +20,15 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Infrastructure (DbContext + Identity + Application Services)
 // ═══════════════════════════════════════════════════════════════════════════════
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 2. FluentValidation
 // ═══════════════════════════════════════════════════════════════════════════════
-builder.Services.AddScoped<IValidator<LoginRequestDto>,            LoginRequestValidator>();
-builder.Services.AddScoped<IValidator<RegisterPetOwnerRequestDto>, RegisterPetOwnerRequestValidator>();
+builder.Services.AddScoped<IValidator<LoginRequestDto>,                LoginRequestValidator>();
+builder.Services.AddScoped<IValidator<RegisterPetOwnerRequestDto>,     RegisterPetOwnerRequestValidator>();
+builder.Services.AddScoped<IValidator<RegisterOrganizationRequestDto>, RegisterOrganizationRequestValidator>();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 3. JWT Bearer Authentication

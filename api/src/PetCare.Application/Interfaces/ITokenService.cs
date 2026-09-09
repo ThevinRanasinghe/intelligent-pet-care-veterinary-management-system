@@ -15,11 +15,13 @@ public interface ITokenService
     /// <param name="role">The user's application role.</param>
     /// <param name="firstName">The user's first name (included as a claim).</param>
     /// <param name="lastName">The user's last name (included as a claim).</param>
+    /// <param name="organizationId">Optional organization ID for organization-affiliated users.</param>
     /// <returns>A tuple of the token string and its expiry time (UTC).</returns>
     (string Token, DateTime ExpiresAt) GenerateToken(
         string userId,
         string email,
         string role,
         string firstName,
-        string lastName);
+        string lastName,
+        Guid? organizationId = null);
 }

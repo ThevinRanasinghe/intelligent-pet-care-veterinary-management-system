@@ -26,6 +26,15 @@ public sealed class ApplicationUser : IdentityUser
     /// <summary>UTC timestamp of last profile update.</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Associated veterinary organization ID for staff members (ClinicManager, Veterinarian, InventoryOfficer).
+    /// Null for platform-level SuperAdmin and PetOwner.
+    /// </summary>
+    public Guid? OrganizationId { get; set; }
+
+    /// <summary>Navigation property to the associated veterinary organization.</summary>
+    public PetCare.Domain.Entities.Organization? Organization { get; set; }
+
     /// <summary>Computed full name (not persisted).</summary>
     public string FullName => $"{FirstName} {LastName}".Trim();
 }
