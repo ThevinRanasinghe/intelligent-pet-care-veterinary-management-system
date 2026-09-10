@@ -51,6 +51,10 @@ public static class InfrastructureServiceExtensions
         // ── Application Services ──────────────────────────────────────────────
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IAuthService,  AuthService>();
+        services.AddScoped<ISchedulingService, SchedulingService>();
+        services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<IApprovalService, ApprovalService>();
+        services.AddScoped<IClinicManagerService, ClinicManagerService>();
 
         return services;
     }

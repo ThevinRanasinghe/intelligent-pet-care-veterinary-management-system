@@ -145,6 +145,44 @@ public sealed class OrganizationsController : ControllerBase
     }
 
     /// <summary>
+    /// READ CURRENT: Gets details of the authenticated user's organization.
+    /// Dedicated convenience endpoint for ClinicManager.
+    /// </summary>
+    [HttpGet("my-organization")]
+    [Authorize(Roles = $"{Roles.ClinicManager},{Roles.SuperAdmin}")]
+    [ProducesResponseType(typeof(ApiResponse<OrganizationDetailsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMyOrganization(CancellationToken ct)
+    {
+        var orgId = _currentUser.OrganizationId;
+        if (!orgId.HasValue)
+        {
+            return NotFound(ApiResponse.Fail("User is not associated with any organization."));
+        }
+
+        return await GetById(orgId.Value, ct);
+    }
+
+    /// <summary>
+    /// UPDATE CURRENT: Updates details of the authenticated user's organization.
+    /// Dedicated convenience endpoint for ClinicManager.
+    /// </summary>
+    [HttpPut("my-organization")]
+    [Authorize(Roles = $"{Roles.ClinicManager},{Roles.SuperAdmin}")]
+    [ProducesResponseType(typeof(ApiResponse<OrganizationDetailsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateMyOrganization([FromBody] UpdateOrganizationDto request, CancellationToken ct)
+    {
+        var orgId = _currentUser.OrganizationId;
+        if (!orgId.HasValue)
+        {
+            return NotFound(ApiResponse.Fail("User is not associated with any organization."));
+        }
+
+        return await Update(orgId.Value, request, ct);
+    }
+
+    /// <summary>
     /// APPROVE: SuperAdmin approves a pending veterinary organization.
     /// Atomically activates the Organization and the primary ClinicManager account.
     /// </summary>
