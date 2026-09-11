@@ -10,6 +10,7 @@ public static class Roles
     public const string InventoryOfficer = "InventoryOfficer";
     public const string ClinicManager    = "ClinicManager";
     public const string SuperAdmin       = "SuperAdmin";
+    public const string Staff = "Staff";
 
     public static readonly IReadOnlyList<string> All = new[]
     {
