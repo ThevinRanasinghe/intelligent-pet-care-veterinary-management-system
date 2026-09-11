@@ -1,2 +1,108 @@
+# ===========================
+# .NET / ASP.NET Core
+# ===========================
+
+bin/
+obj/
+
+*.user
+*.suo
+*.userprefs
+*.userosscache
+*.sln.docstates
+
+.vs/
+*.vspscc
+*.vssscc
+*.ncb
+*.sdf
+*.opensdf
+*.cachefile
+*.VC.db
+*.VC.opendb
+
+_ReSharper*/
+*.DotSettings.user
+*.dotCover
+
+TestResults/
+*.trx
+*.coverage
+
+# User Secrets - NEVER commit
+secrets.json
+appsettings.*.local.json
+
+# Publish output
+publish/
+*.pubxml.user
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+
+# ===========================
+# Node / React
+# ===========================
+
+node_modules/
+dist/
+.vite/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+*.tsbuildinfo
+
+
+# ===========================
+# macOS
+# ===========================
+
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+
+# ===========================
+# IDE
+# ===========================
+
+.idea/
+*.iml
+
+.vscode/
+
+
+# ===========================
+# Project-specific
+# ===========================
+
+# Ignore accidentally nested Git repository/project
 intelligent-pet-care-veterinary-management-system/
+
+
+# ===========================
+# Misc
+# ===========================
+
+*.log
+*.tmp
+*.temp
+Thumbs.db
