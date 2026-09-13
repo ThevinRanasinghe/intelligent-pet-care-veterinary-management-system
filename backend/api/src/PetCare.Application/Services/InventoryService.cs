@@ -162,5 +162,55 @@ public class InventoryService : IInventoryService
     // straightforward repository calls + mapping, same shape as SchedulingService's
     // GetAppointmentsAsync/GetAppointmentByIdAsync — omitted here since they're pure CRUD.
 
-    // DispenseReservationAsync -> Day 2, step 1 (needs the FEFO batch walk).
+    public async Task DispenseReservationAsync(Guid reservationId, Guid performedByUserId, CancellationToken ct = default)
+{
+    var reservation = await _reservations.GetByIdAsync(reservationId, ct)
+        ?? throw new NotFoundException($"Reservation '{reservationId}' does not exist.");
+
+    if (reservation.Status != ReservationStatus.Reserved)
+    {
+        throw new InventoryConflictException("Only an active reservation can be dispensed.");
+    }
+
+    // FEFO: usable batches ordered earliest-expiry-first.
+    var batches = await _batches.GetUsableByMedicineOrderedByExpiryAsync(reservation.MedicineId, ct);
+
+    var remaining = reservation.Quantity;
+    foreach (var batch in batches)
+    {
+        if (remaining == 0) break;
+
+        var take = Math.Min(remaining, batch.Quantity);
+        batch.Quantity -= take;
+        remaining -= take;
+
+        await _transactions.AddAsync(new InventoryTransaction
+        {
+            MedicineId = reservation.MedicineId,
+            BatchId = batch.Id,
+            ReservationId = reservation.Id,
+            Type = InventoryTransactionType.Dispense,
+            QuantityChange = -take,
+            PerformedByUserId = performedByUserId,
+            OccurredAt = DateTimeOffset.UtcNow
+        }, ct);
+    }
+
+    if (remaining > 0)
+    {
+        // Reserved count and real batch stock disagree — a data problem,
+        // not something the caller can fix by retrying. Surface it loudly
+        // rather than silently under-dispensing.
+        throw new InventoryConflictException(
+            $"Reservation quantity exceeds usable batch stock by {remaining} units.");
+    }
+
+    var medicine = await _medicines.GetByIdAsync(reservation.MedicineId, ct)!;
+    medicine!.TotalQuantity -= reservation.Quantity;
+    medicine.ReservedQuantity -= reservation.Quantity;
+
+    reservation.Status = ReservationStatus.Dispensed;
+
+    await _unitOfWork.SaveChangesAsync(ct); // one transaction: batch decrements + medicine counters + status
+}
 }
