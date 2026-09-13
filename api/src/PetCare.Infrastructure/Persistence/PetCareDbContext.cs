@@ -26,6 +26,11 @@ public sealed class PetCareDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PetOwner> PetOwners => Set<PetOwner>();
     public DbSet<AIProposal> AIProposals => Set<AIProposal>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<Medicine> Medicines => Set<Medicine>();
+    public DbSet<MedicineBatch> MedicineBatches => Set<MedicineBatch>();
+public DbSet<MedicineReservation> MedicineReservations => Set<MedicineReservation>();
+public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
 
     public PetCareDbContext(DbContextOptions<PetCareDbContext> options) : base(options)
     {
