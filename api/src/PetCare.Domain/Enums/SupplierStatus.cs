@@ -1,4 +1,4 @@
-namespace Petcare.Domain.Enums;
+namespace PetCare.Domain.Enums;
 
 public enum SupplierStatus
 {

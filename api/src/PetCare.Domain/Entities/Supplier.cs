@@ -1,9 +1,9 @@
 using PetCare.Domain.Common;
 using PetCare.Domain.Enums;
 
-namespace Petcare.Domain.Entities;
+namespace PetCare.Domain.Entities;
 
-public class Supplier : AuditableEntity, IActiveStatus
+public class Supplier : AuditableEntity
 {
     public string Name { get; set; } = string.Empty;
     public string ContactPerson { get; set; } = string.Empty;
