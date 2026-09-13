@@ -31,6 +31,16 @@ public class PetCareDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
 
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+
+    public DbSet<Medicine> Medicines => Set<Medicine>();
+
+    public DbSet<MedicineBatch> MedicineBatches => Set<MedicineBatch>();
+
+    public DbSet<MedicineReservation> MedicineReservations => Set<MedicineReservation>();
+
+    public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
