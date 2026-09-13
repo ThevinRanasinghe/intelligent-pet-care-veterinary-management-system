@@ -213,4 +213,155 @@ public class InventoryService : IInventoryService
 
     await _unitOfWork.SaveChangesAsync(ct); // one transaction: batch decrements + medicine counters + status
 }
+
+public async Task<MedicineResponse> CreateMedicineAsync(CreateMedicineRequest request, CancellationToken ct = default)
+{
+    var medicine = new Medicine
+    {
+        Name = request.Name,
+        Category = request.Category,
+        Description = request.Description,
+        DosageForm = request.DosageForm,
+        Strength = request.Strength,
+        UnitPrice = request.UnitPrice,
+        Manufacturer = request.Manufacturer,
+        ReorderLevel = request.ReorderLevel,
+        Status = MedicineStatus.Active
+    };
+
+    await _medicines.AddAsync(medicine, ct);
+    await _unitOfWork.SaveChangesAsync(ct);
+
+    return ToResponse(medicine);
+}
+
+public async Task<MedicineResponse?> GetMedicineByIdAsync(Guid id, CancellationToken ct = default)
+{
+    var medicine = await _medicines.GetByIdAsync(id, ct);
+    return medicine is null ? null : ToResponse(medicine);
+}
+
+public async Task<PagedResult<MedicineResponse>> SearchMedicinesAsync(SearchMedicinesRequest request, CancellationToken ct = default)
+{
+    var (items, total) = await _medicines.SearchAsync(
+        request.Search, request.Category, request.LowStockOnly,
+        request.Page, request.PageSize, ct);
+
+    return new PagedResult<MedicineResponse>
+    {
+        Items = items.Select(ToResponse).ToList(),
+        Total = total,
+        Page = request.Page,
+        PageSize = request.PageSize
+    };
+}
+
+public async Task<IReadOnlyList<MedicineResponse>> GetLowStockAsync(CancellationToken ct = default)
+{
+    var (items, _) = await _medicines.SearchAsync(
+        search: null, category: null, lowStockOnly: true,
+        page: 1, pageSize: int.MaxValue, ct);
+
+    return items.Select(ToResponse).ToList();
+}
+
+public async Task<IReadOnlyList<MedicineBatchResponse>> GetExpiringSoonAsync(int withinDays, CancellationToken ct = default)
+{
+    var batches = await _batches.GetExpiringSoonAsync(withinDays, ct);
+    return batches.Select(ToResponse).ToList();
+}
+
+public async Task<IReadOnlyList<MedicineBatchResponse>> GetBatchesForMedicineAsync(Guid medicineId, CancellationToken ct = default)
+{
+    var batches = await _batches.GetByMedicineAsync(medicineId, ct);
+    return batches.Select(ToResponse).ToList();
+}
+
+public async Task<IReadOnlyList<InventoryTransactionResponse>> GetTransactionsAsync(Guid medicineId, CancellationToken ct = default)
+{
+    var transactions = await _transactions.GetByMedicineAsync(medicineId, ct);
+    return transactions.Select(t => new InventoryTransactionResponse
+    {
+        Id = t.Id,
+        MedicineId = t.MedicineId,
+        BatchId = t.BatchId,
+        ReservationId = t.ReservationId,
+        Type = t.Type.ToString(),
+        QuantityChange = t.QuantityChange,
+        PerformedByUserId = t.PerformedByUserId,
+        Notes = t.Notes,
+        OccurredAt = t.OccurredAt
+    }).ToList();
+}
+
+public async Task<SupplierResponse> CreateSupplierAsync(CreateSupplierRequest request, CancellationToken ct = default)
+{
+    var supplier = new Supplier
+    {
+        Name = request.Name,
+        ContactPerson = request.ContactPerson,
+        Phone = request.Phone,
+        Email = request.Email,
+        Address = request.Address,
+        Status = SupplierStatus.Active
+    };
+
+    await _suppliers.AddAsync(supplier, ct);
+    await _unitOfWork.SaveChangesAsync(ct);
+
+    return ToResponse(supplier);
+}
+
+public async Task<IReadOnlyList<SupplierResponse>> GetSuppliersAsync(CancellationToken ct = default)
+{
+    var suppliers = await _suppliers.GetAllAsync(ct);
+    return suppliers.Select(ToResponse).ToList();
+}
+
+public async Task<SupplierResponse?> GetSupplierByIdAsync(Guid id, CancellationToken ct = default)
+{
+    var supplier = await _suppliers.GetByIdAsync(id, ct);
+    return supplier is null ? null : ToResponse(supplier);
+}
+
+private static MedicineResponse ToResponse(Medicine m) => new()
+{
+    Id = m.Id,
+    Name = m.Name,
+    Category = m.Category,
+    Description = m.Description,
+    DosageForm = m.DosageForm,
+    Strength = m.Strength,
+    UnitPrice = m.UnitPrice,
+    Manufacturer = m.Manufacturer,
+    Status = m.Status.ToString(),
+    ReorderLevel = m.ReorderLevel,
+    TotalQuantity = m.TotalQuantity,
+    ReservedQuantity = m.ReservedQuantity,
+    AvailableQuantity = m.AvailableQuantity,
+    IsLowStock = m.IsLowStock
+};
+
+private static MedicineBatchResponse ToResponse(MedicineBatch b) => new()
+{
+    Id = b.Id,
+    MedicineId = b.MedicineId,
+    SupplierId = b.SupplierId,
+    BatchNumber = b.BatchNumber,
+    Quantity = b.Quantity,
+    ExpiryDate = b.ExpiryDate,
+    ReceivedDate = b.ReceivedDate,
+    Status = b.Status.ToString()
+};
+
+private static SupplierResponse ToResponse(Supplier s) => new()
+{
+    Id = s.Id,
+    Name = s.Name,
+    ContactPerson = s.ContactPerson,
+    Phone = s.Phone,
+    Email = s.Email,
+    Address = s.Address,
+    Status = s.Status.ToString()
+};
 }
