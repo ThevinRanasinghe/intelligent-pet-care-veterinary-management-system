@@ -14,4 +14,8 @@ public class MedicineReservation : AuditableEntity
 
     public string? ReferenceType { get; set; }
     public Guid? ReferenceId { get; set; }
+
+    public Guid RequestedByUserId { get; set; }
+    public Guid? CancelledByUserId { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
 }

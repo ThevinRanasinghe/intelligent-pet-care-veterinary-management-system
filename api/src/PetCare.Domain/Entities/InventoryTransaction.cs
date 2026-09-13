@@ -4,7 +4,7 @@ namespace PetCare.Domain.Entities;
 
 public class InventoryTransaction
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     public Guid MedicineId { get; set; }
     public Medicine Medicine { get; set; } = null!;

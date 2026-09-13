@@ -12,7 +12,14 @@ public static class Roles
     /// docs/database/scheduling-billing-approval-domain-model.md#approval.
     /// </summary>
     public const string ClinicManager = "ClinicManager";
-
-    /// <summary>General authenticated staff member (receptionist, vet tech, etc.).</summary>
+    public const string InventoryOfficer = "InventoryOfficer";
+    public const string Veterinarian = "Veterinarian";
+    public const string PetOwner = "PetOwner";
+    public const string SuperAdmin = "SuperAdmin";
     public const string Staff = "Staff";
+
+    public static readonly IReadOnlyList<string> All = new[]
+    {
+        PetOwner, Veterinarian, InventoryOfficer, ClinicManager, SuperAdmin, Staff
+    };
 }

@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
-using PetCare.Infrastructure.Persistence;
 
 namespace PetCare.Infrastructure.Repositories;
 

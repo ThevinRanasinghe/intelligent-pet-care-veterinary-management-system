@@ -1,3 +1,7 @@
+using PetCare.Domain.Entities;
+
+namespace PetCare.Application.Interfaces;
+
 public interface IMedicineReservationRepository
 {
     Task<MedicineReservation?> GetByIdAsync(Guid id, CancellationToken ct = default);

@@ -6,6 +6,7 @@ import { SchedulingPage } from '../features/scheduling/SchedulingPage';
 import { BillingPage } from '../features/billing/BillingPage';
 import { ApprovalPage } from '../features/approvals/ApprovalPage';
 import { AIWorkflowsPage } from '../features/ai-workflows/AIWorkflowsPage';
+import { InventoryPage } from '../features/inventory/InventoryPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 
@@ -16,7 +17,7 @@ export function AppRoutes() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/consultations" element={<PlaceholderPage title="Consultation Requests" />} />
       <Route path="/treatment" element={<PlaceholderPage title="Diagnosis & Treatment" />} />
-      <Route path="/inventory" element={<PlaceholderPage title="Medicine & Inventory" />} />
+      <Route path="/inventory" element={<InventoryPage />} />
       <Route path="/scheduling" element={<SchedulingPage />} />
       <Route path="/billing" element={<BillingPage />} />
       <Route path="/approvals" element={<ApprovalPage />} />

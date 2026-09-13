@@ -7,7 +7,7 @@ namespace PetCare.Domain.Common;
 /// </summary>
 public abstract class AuditableEntity
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     public DateTimeOffset CreatedAt { get; set; }
 

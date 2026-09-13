@@ -1,3 +1,7 @@
+using PetCare.Domain.Entities;
+
+namespace PetCare.Application.Interfaces;
+
 public interface ISupplierRepository
 {
     Task<Supplier?> GetByIdAsync(Guid id, CancellationToken ct = default);

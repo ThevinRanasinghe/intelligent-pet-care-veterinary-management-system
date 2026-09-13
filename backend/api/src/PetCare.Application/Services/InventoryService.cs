@@ -12,6 +12,7 @@ public class InventoryService : IInventoryService
     private readonly IMedicineBatchRepository _batches;
     private readonly IMedicineReservationRepository _reservations;
     private readonly IInventoryTransactionRepository _transactions;
+    private readonly ISupplierRepository _suppliers;
     private readonly IUnitOfWork _unitOfWork;
 
     public InventoryService(
@@ -19,12 +20,14 @@ public class InventoryService : IInventoryService
         IMedicineBatchRepository batches,
         IMedicineReservationRepository reservations,
         IInventoryTransactionRepository transactions,
+        ISupplierRepository suppliers,
         IUnitOfWork unitOfWork)
     {
         _medicines = medicines;
         _batches = batches;
         _reservations = reservations;
         _transactions = transactions;
+        _suppliers = suppliers;
         _unitOfWork = unitOfWork;
     }
 
@@ -69,6 +72,7 @@ public class InventoryService : IInventoryService
         {
             MedicineId = medicine.Id,
             ReservationId = reservation.Id,
+            Reservation = reservation,
             Type = InventoryTransactionType.Reservation,
             QuantityChange = -request.Quantity, // reduces what's available, not physical stock yet
             PerformedByUserId = requestedByUserId,
@@ -122,6 +126,14 @@ public class InventoryService : IInventoryService
         var medicine = await _medicines.GetByIdAsync(medicineId, ct)
             ?? throw new NotFoundException($"Medicine '{medicineId}' does not exist.");
 
+        var supplier = await _suppliers.GetByIdAsync(request.SupplierId, ct)
+            ?? throw new NotFoundException($"Supplier '{request.SupplierId}' does not exist.");
+
+        if (supplier.Status != SupplierStatus.Active)
+        {
+            throw new InventoryConflictException($"Supplier '{supplier.Name}' is not active.");
+        }
+
         var batch = new MedicineBatch
         {
             MedicineId = medicineId,
@@ -140,6 +152,7 @@ public class InventoryService : IInventoryService
         {
             MedicineId = medicineId,
             BatchId = batch.Id,
+            Batch = batch,
             Type = InventoryTransactionType.StockIn,
             QuantityChange = request.Quantity,
             PerformedByUserId = performedByUserId,
