@@ -20,6 +20,7 @@ public class MedicineConfiguration : IEntityTypeConfiguration<Medicine>
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Id).HasDefaultValueSql("gen_random_uuid()");
 
+        builder.Property(m => m.OrganizationId);
         builder.Property(m => m.Name).IsRequired().HasMaxLength(200);
         builder.Property(m => m.Category).IsRequired().HasMaxLength(100);
         builder.Property(m => m.Manufacturer).HasMaxLength(200);
@@ -29,6 +30,7 @@ public class MedicineConfiguration : IEntityTypeConfiguration<Medicine>
         builder.Ignore(m => m.AvailableQuantity);
         builder.Ignore(m => m.IsLowStock);
 
+        builder.HasIndex(m => m.OrganizationId);
         builder.HasIndex(m => m.Name);
         builder.HasIndex(m => m.Status);
     }

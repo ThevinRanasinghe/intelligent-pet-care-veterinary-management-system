@@ -5,6 +5,7 @@ namespace PetCare.Domain.Entities;
 
 public class MedicineReservation : AuditableEntity
 {
+    public Guid? OrganizationId { get; set; }
     public Guid MedicineId { get; set; }
     public Medicine Medicine { get; set; } = null!;
 
@@ -14,4 +15,8 @@ public class MedicineReservation : AuditableEntity
 
     public string? ReferenceType { get; set; }
     public Guid? ReferenceId { get; set; }
+
+    public Guid RequestedByUserId { get; set; }
+    public Guid? CancelledByUserId { get; set; }
+    public DateTimeOffset? CancelledAt { get; set; }
 }

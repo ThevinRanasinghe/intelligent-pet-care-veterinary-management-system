@@ -12,6 +12,7 @@ import StaffManagementView from './StaffManagementView';
 import ClinicReportsView from './ClinicReportsView';
 import OrganizationProfileView from './OrganizationProfileView';
 import AuditTrailView from './AuditTrailView';
+import InventoryManagementView from '../inventory/InventoryManagementView';
 import useAuthStore from '../../../store/authStore';
 
 export default function ClinicManagerDashboard() {
@@ -48,6 +49,12 @@ export default function ClinicManagerDashboard() {
       icon: <Users size={18} />,
       active: activeSection === 'staff',
       onClick: () => setActiveSection('staff')
+    },
+    {
+      label: 'Medicine & Inventory',
+      icon: <Package size={18} />,
+      active: activeSection === 'inventory',
+      onClick: () => setActiveSection('inventory')
     },
     {
       label: 'Reports & Analytics',
@@ -101,6 +108,11 @@ export default function ClinicManagerDashboard() {
           title: 'Clinic Analytics & Performance Reports',
           subtitle: 'Revenue trends, diagnosed health conditions, and veterinarian workload analytics'
         };
+      case 'inventory':
+        return {
+          title: 'Medicine & Inventory Management',
+          subtitle: 'Pharmaceutical stock tracking, FEFO batch dispensing, and supplier directory'
+        };
       case 'profile':
         return {
           title: 'Clinic Workspace Profile',
@@ -134,6 +146,7 @@ export default function ClinicManagerDashboard() {
       {activeSection === 'appointments' && <AppointmentManagementView />}
       {activeSection === 'schedules' && <VeterinarianScheduleView />}
       {activeSection === 'staff' && <StaffManagementView />}
+      {activeSection === 'inventory' && <InventoryManagementView />}
       {activeSection === 'reports' && <ClinicReportsView />}
       {activeSection === 'profile' && <OrganizationProfileView />}
       {activeSection === 'audit' && <AuditTrailView />}

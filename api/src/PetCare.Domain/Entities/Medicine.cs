@@ -5,6 +5,7 @@ namespace PetCare.Domain.Entities;
 
 public class Medicine : AuditableEntity
 {
+    public Guid? OrganizationId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

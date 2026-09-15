@@ -5,6 +5,7 @@ namespace PetCare.Domain.Entities;
 
 public class Supplier : AuditableEntity
 {
+    public Guid? OrganizationId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string ContactPerson { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;

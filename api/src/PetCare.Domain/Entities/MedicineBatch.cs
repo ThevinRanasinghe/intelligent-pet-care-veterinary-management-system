@@ -5,6 +5,7 @@ namespace PetCare.Domain.Entities;
 
 public class MedicineBatch : AuditableEntity
 {
+    public Guid? OrganizationId { get; set; }
     public Guid MedicineId { get; set; }
     public Medicine Medicine { get; set; } = null!;
 

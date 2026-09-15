@@ -38,6 +38,16 @@ public sealed class ExceptionHandlingMiddleware
             _logger.LogWarning("Unauthorized access: {Message}", ex.Message);
             await WriteResponseAsync(context, HttpStatusCode.Unauthorized, ex.Message);
         }
+        catch (PetCare.Application.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning("Not found: {Message}", ex.Message);
+            await WriteResponseAsync(context, HttpStatusCode.NotFound, ex.Message);
+        }
+        catch (PetCare.Application.Exceptions.InventoryConflictException ex)
+        {
+            _logger.LogWarning("Inventory conflict: {Message}", ex.Message);
+            await WriteResponseAsync(context, HttpStatusCode.Conflict, ex.Message);
+        }
         catch (KeyNotFoundException ex)
         {
             _logger.LogWarning("Not found: {Message}", ex.Message);

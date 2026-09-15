@@ -56,6 +56,15 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IApprovalService, ApprovalService>();
         services.AddScoped<IClinicManagerService, ClinicManagerService>();
 
+        // ── Inventory Services & Repositories ──────────────────────────────────
+        services.AddScoped<IUnitOfWork, PetCare.Infrastructure.Repositories.UnitOfWork>();
+        services.AddScoped<IMedicineRepository, PetCare.Infrastructure.Repositories.MedicineRepository>();
+        services.AddScoped<ISupplierRepository, PetCare.Infrastructure.Repositories.SupplierRepository>();
+        services.AddScoped<IMedicineBatchRepository, PetCare.Infrastructure.Repositories.MedicineBatchRepository>();
+        services.AddScoped<IMedicineReservationRepository, PetCare.Infrastructure.Repositories.MedicineReservationRepository>();
+        services.AddScoped<IInventoryTransactionRepository, PetCare.Infrastructure.Repositories.InventoryTransactionRepository>();
+        services.AddScoped<IInventoryService, PetCare.Application.Services.InventoryService>();
+
         return services;
     }
 }

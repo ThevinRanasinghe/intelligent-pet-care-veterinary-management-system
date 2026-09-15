@@ -6,6 +6,7 @@ public class InventoryTransaction
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
+    public Guid? OrganizationId { get; set; }
     public Guid MedicineId { get; set; }
     public Medicine Medicine { get; set; } = null!;
 

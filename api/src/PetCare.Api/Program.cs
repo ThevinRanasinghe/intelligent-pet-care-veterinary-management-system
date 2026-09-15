@@ -33,6 +33,10 @@ builder.Services.AddScoped<IValidator<RegisterOrganizationRequestDto>, RegisterO
 builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Users.CreateStaffUserRequestDto>, PetCare.Application.Validators.Users.CreateStaffUserRequestValidator>();
 builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Users.ChangePasswordRequestDto>, PetCare.Application.Validators.Users.ChangePasswordRequestValidator>();
 builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Organizations.RejectOrganizationDto>, PetCare.Application.Validators.Users.RejectOrganizationValidator>();
+builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Inventory.CreateMedicineRequest>, PetCare.Application.Validators.CreateMedicineRequestValidator>();
+builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Inventory.ReceiveStockRequest>, PetCare.Application.Validators.ReceiveStockRequestValidator>();
+builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Inventory.ReserveMedicineRequest>, PetCare.Application.Validators.ReserveMedicineRequestValidator>();
+builder.Services.AddScoped<IValidator<PetCare.Application.DTOs.Inventory.CreateSupplierRequest>, PetCare.Application.Validators.CreateSupplierRequestValidator>();
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
