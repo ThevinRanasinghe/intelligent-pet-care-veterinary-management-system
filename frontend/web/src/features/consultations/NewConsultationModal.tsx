@@ -1,12 +1,20 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, PawPrint, CalendarDays, Clock3, MapPin } from "lucide-react";
+import {
+  X,
+  PawPrint,
+  CalendarDays,
+  Clock3,
+  MapPin,
+  Navigation,
+} from "lucide-react";
 
 import {
   petService,
   consultationService,
   Pet,
   ConsultationRequestApi,
+  NearestClinicApi,
 } from "../../services/api";
 
 /* ============================================================
@@ -67,6 +75,16 @@ export function NewConsultationModal({
   const [submitting, setSubmitting] = useState(false);
 
   const [error, setError] = useState("");
+
+  // GPS location
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+
+  const [nearestClinic, setNearestClinic] = useState<NearestClinicApi | null>(
+    null,
+  );
+
+  const [loadingNearestClinic, setLoadingNearestClinic] = useState(false);
 
   /* ============================================================
      LOAD REGISTERED PETS
@@ -148,11 +166,70 @@ export function NewConsultationModal({
   };
 
   /* ============================================================
+     GET CURRENT LOCATION
+     ============================================================ */
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by this browser.");
+      return;
+    }
+
+    setError("");
+    setNearestClinic(null);
+    setLoadingNearestClinic(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const currentLatitude = position.coords.latitude;
+        const currentLongitude = position.coords.longitude;
+
+        setLatitude(currentLatitude);
+        setLongitude(currentLongitude);
+
+        try {
+          const clinic = await consultationService.getNearestClinic(
+            currentLatitude,
+            currentLongitude,
+          );
+
+          setNearestClinic(clinic);
+
+          // Automatically select the nearest clinic
+          setForm((previous) => ({
+            ...previous,
+            clinic: clinic.name,
+          }));
+        } catch (err) {
+          console.error("Failed to find nearest clinic:", err);
+
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to find the nearest clinic.",
+          );
+        } finally {
+          setLoadingNearestClinic(false);
+        }
+      },
+      () => {
+        setLoadingNearestClinic(false);
+
+        setError("Unable to get your location. Please allow location access.");
+      },
+    );
+  };
+
+  /* ============================================================
      RESET FORM
      ============================================================ */
 
   const resetForm = () => {
     setForm(initialForm);
+    setLatitude(null);
+    setLongitude(null);
+    setNearestClinic(null);
+    setLoadingNearestClinic(false);
     setError("");
   };
 
@@ -298,9 +375,9 @@ export function NewConsultationModal({
 
         symptomPhotoUrl: null,
 
-        latitude: null,
+        latitude,
 
-        longitude: null,
+        longitude,
 
         additionalNotes: form.additionalNotes.trim() || null,
       });
@@ -1096,6 +1173,107 @@ export function NewConsultationModal({
                     Clinic preference is currently kept in the consultation
                     form.
                   </p>
+
+                  {/* ==================================================
+                      GPS LOCATION + NEAREST CLINIC
+                      ================================================== */}
+
+                  <button
+                    type="button"
+                    onClick={handleGetLocation}
+                    disabled={submitting || loadingNearestClinic}
+                    style={{
+                      marginTop: "10px",
+                      height: "38px",
+                      padding: "0 14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "7px",
+                      border: "1px solid #d6aa00",
+                      borderRadius: "8px",
+                      background: "#fffbea",
+                      color: "#735900",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      cursor:
+                        submitting || loadingNearestClinic
+                          ? "not-allowed"
+                          : "pointer",
+                      opacity: submitting || loadingNearestClinic ? 0.6 : 1,
+                    }}
+                  >
+                    <Navigation size={15} />
+
+                    {loadingNearestClinic
+                      ? "Finding nearest clinic..."
+                      : "Use My Location"}
+                  </button>
+
+                  {latitude !== null && longitude !== null && (
+                    <p
+                      style={{
+                        margin: "7px 0 0",
+                        fontSize: "10px",
+                        color: "#5f7a3a",
+                      }}
+                    >
+                      ✓ Location captured
+                    </p>
+                  )}
+
+                  {nearestClinic && (
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        padding: "11px 12px",
+                        border: "1px solid #e8dfad",
+                        borderRadius: "9px",
+                        background: "#fffdf2",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 800,
+                          color: "#735900",
+                          marginBottom: "5px",
+                        }}
+                      >
+                        Nearest Clinic
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          color: "#242424",
+                        }}
+                      >
+                        {nearestClinic.name}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "3px",
+                          fontSize: "10px",
+                          color: "#777777",
+                        }}
+                      >
+                        {nearestClinic.address}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "5px",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          color: "#5f7a3a",
+                        }}
+                      >
+                        {nearestClinic.distanceKm} km away
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1245,7 +1423,7 @@ export function NewConsultationModal({
 
   /* ============================================================
      RENDER THROUGH BODY PORTAL
-     
+
      This prevents the modal from being affected by the page
      layout, overflow, stacking context, or sidebar.
      ============================================================ */

@@ -25,6 +25,9 @@ public interface IConsultationRequestService
     Task<bool> CancelAsync(
         string id);
 
+    Task<List<ConsultationStatusHistoryDto>> GetStatusHistoryAsync(
+        string consultationId);
+
     Task<bool> ValidateOwnershipAsync(
         string petId,
         string ownerId);

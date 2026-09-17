@@ -18,6 +18,7 @@ import {
   petService,
   ownerService,
   ConsultationRequestApi,
+  ConsultationStatusHistoryApi,
   Pet,
   PetOwner,
 } from "../../services/api";
@@ -186,6 +187,12 @@ export function ConsultationRequestsPage() {
 
   const [detailsError, setDetailsError] = useState("");
 
+  const [statusHistory, setStatusHistory] = useState<
+    ConsultationStatusHistoryApi[]
+  >([]);
+
+  const [isLoadingStatusHistory, setIsLoadingStatusHistory] = useState(false);
+
   /* ------------------------------------------------------------------------ */
   /* Submit Consultation                                                      */
   /* ------------------------------------------------------------------------ */
@@ -194,6 +201,11 @@ export function ConsultationRequestsPage() {
     useState(false);
 
   const [submitError, setSubmitError] = useState("");
+
+  const [isCancellingConsultation, setIsCancellingConsultation] =
+    useState(false);
+
+  const [cancelError, setCancelError] = useState("");
 
   /* ======================================================================== */
   /* Load Consultations                                                       */
@@ -390,6 +402,23 @@ export function ConsultationRequestsPage() {
         await consultationService.getConsultationById(consultationId);
 
       setSelectedConsultation(details);
+
+      setIsLoadingStatusHistory(true);
+
+      try {
+        const history =
+          await consultationService.getStatusHistory(consultationId);
+
+        setStatusHistory(history);
+      } catch (historyError) {
+        console.error(
+          "Error loading consultation status history:",
+          historyError,
+        );
+        setStatusHistory([]);
+      } finally {
+        setIsLoadingStatusHistory(false);
+      }
     } catch (error) {
       console.error("Error loading consultation details:", error);
 
@@ -439,6 +468,12 @@ export function ConsultationRequestsPage() {
 
       await loadConsultations();
 
+      const history = await consultationService.getStatusHistory(
+        updatedConsultation.id,
+      );
+
+      setStatusHistory(history);
+
       /* -------------------------------------------------------------- */
       /* Success message                                                 */
       /* -------------------------------------------------------------- */
@@ -464,11 +499,97 @@ export function ConsultationRequestsPage() {
   };
 
   /* ======================================================================== */
+  /* CANCEL CONSULTATION                                                      */
+  /* ======================================================================== */
+
+  const handleCancelConsultation = async () => {
+    if (!selectedConsultation) {
+      return;
+    }
+
+    const cancellableStatuses = ["Draft", "Submitted", "Processing"];
+
+    if (!cancellableStatuses.includes(selectedConsultation.status)) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to cancel consultation ${selectedConsultation.id}?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsCancellingConsultation(true);
+
+      setCancelError("");
+      setSubmitError("");
+      setDetailsError("");
+
+      /* -------------------------------------------------------------- */
+      /* Cancel request                                                  */
+      /* -------------------------------------------------------------- */
+
+      await consultationService.cancelConsultation(selectedConsultation.id);
+
+      /* -------------------------------------------------------------- */
+      /* Get latest consultation details                                 */
+      /* -------------------------------------------------------------- */
+
+      const updatedConsultation = await consultationService.getConsultationById(
+        selectedConsultation.id,
+      );
+
+      setSelectedConsultation(updatedConsultation);
+
+      /* -------------------------------------------------------------- */
+      /* Refresh main consultation list                                  */
+      /* -------------------------------------------------------------- */
+
+      await loadConsultations();
+
+      const history = await consultationService.getStatusHistory(
+        updatedConsultation.id,
+      );
+
+      setStatusHistory(history);
+
+      /* -------------------------------------------------------------- */
+      /* Success message                                                  */
+      /* -------------------------------------------------------------- */
+
+      setSuccessNotice(
+        `Consultation ${updatedConsultation.id} was cancelled successfully.`,
+      );
+
+      window.setTimeout(() => {
+        setSuccessNotice("");
+      }, 4000);
+    } catch (error) {
+      console.error("Error cancelling consultation:", error);
+
+      setCancelError(
+        error instanceof Error
+          ? error.message
+          : "Unable to cancel the consultation request.",
+      );
+    } finally {
+      setIsCancellingConsultation(false);
+    }
+  };
+
+  /* ======================================================================== */
   /* CLOSE DETAILS                                                            */
   /* ======================================================================== */
 
   const handleCloseDetails = () => {
-    if (isLoadingDetails || isSubmittingConsultation) {
+    if (
+      isLoadingDetails ||
+      isSubmittingConsultation ||
+      isCancellingConsultation
+    ) {
       return;
     }
 
@@ -476,9 +597,13 @@ export function ConsultationRequestsPage() {
 
     setSelectedConsultation(null);
 
+    setStatusHistory([]);
+
     setDetailsError("");
 
     setSubmitError("");
+
+    setCancelError("");
   };
 
   /* ======================================================================== */
@@ -927,7 +1052,11 @@ export function ConsultationRequestsPage() {
               <button
                 type="button"
                 onClick={handleCloseDetails}
-                disabled={isLoadingDetails || isSubmittingConsultation}
+                disabled={
+                  isLoadingDetails ||
+                  isSubmittingConsultation ||
+                  isCancellingConsultation
+                }
                 aria-label="Close consultation details"
                 style={{
                   width: "34px",
@@ -940,11 +1069,17 @@ export function ConsultationRequestsPage() {
                   background: "#ffffff",
                   color: "#555555",
                   cursor:
-                    isLoadingDetails || isSubmittingConsultation
+                    isLoadingDetails ||
+                    isSubmittingConsultation ||
+                    isCancellingConsultation
                       ? "not-allowed"
                       : "pointer",
                   opacity:
-                    isLoadingDetails || isSubmittingConsultation ? 0.5 : 1,
+                    isLoadingDetails ||
+                    isSubmittingConsultation ||
+                    isCancellingConsultation
+                      ? 0.5
+                      : 1,
                 }}
               >
                 <X size={19} />
@@ -1397,6 +1532,109 @@ export function ConsultationRequestsPage() {
                   </div>
 
                   {/* ==================================================== */}
+                  {/* STATUS HISTORY                                        */}
+                  {/* ==================================================== */}
+
+                  <div
+                    style={{
+                      marginTop: "18px",
+                      marginBottom: "18px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        marginBottom: "10px",
+                        fontSize: "11px",
+                        fontWeight: 800,
+                        color: "#333333",
+                      }}
+                    >
+                      Status History
+                    </div>
+
+                    {isLoadingStatusHistory ? (
+                      <div
+                        style={{
+                          padding: "14px",
+                          border: "1px solid #e8e8e2",
+                          borderRadius: "9px",
+                          background: "#fafaf7",
+                          fontSize: "12px",
+                          color: "#777777",
+                        }}
+                      >
+                        Loading status history...
+                      </div>
+                    ) : statusHistory.length === 0 ? (
+                      <div
+                        style={{
+                          padding: "14px",
+                          border: "1px solid #e8e8e2",
+                          borderRadius: "9px",
+                          background: "#fafaf7",
+                          fontSize: "12px",
+                          color: "#777777",
+                        }}
+                      >
+                        No status history available.
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "10px",
+                        }}
+                      >
+                        {statusHistory.map((history) => (
+                          <div
+                            key={history.id}
+                            style={{
+                              padding: "13px 14px",
+                              border: "1px solid #e8e8e2",
+                              borderRadius: "9px",
+                              background: "#fafaf7",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: "12px",
+                                marginBottom: "5px",
+                              }}
+                            >
+                              <span className={getStatusClass(history.status)}>
+                                {history.status}
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  color: "#888888",
+                                }}
+                              >
+                                {formatDateTime(history.changedAt)}
+                              </span>
+                            </div>
+
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                lineHeight: 1.5,
+                                color: "#555555",
+                              }}
+                            >
+                              {history.comments || "No comments available."}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ==================================================== */}
                   {/* CREATED / UPDATED                                     */}
                   {/* ==================================================== */}
 
@@ -1484,6 +1722,23 @@ export function ConsultationRequestsPage() {
                       {submitError}
                     </div>
                   )}
+
+                  {cancelError && (
+                    <div
+                      style={{
+                        marginTop: "16px",
+                        padding: "12px 14px",
+                        border: "1px solid #f2b8b5",
+                        borderRadius: "9px",
+                        background: "#fff1f0",
+                        color: "#b42318",
+                        fontSize: "12px",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {cancelError}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1532,10 +1787,54 @@ export function ConsultationRequestsPage() {
                   type="button"
                   className="btn btn-secondary"
                   onClick={handleCloseDetails}
-                  disabled={isLoadingDetails || isSubmittingConsultation}
+                  disabled={
+                    isLoadingDetails ||
+                    isSubmittingConsultation ||
+                    isCancellingConsultation
+                  }
                 >
                   Close
                 </button>
+
+                {/* ====================================================== */}
+                {/* CANCEL REQUEST BUTTON                                  */}
+                {/* ====================================================== */}
+
+                {selectedConsultation &&
+                  ["Draft", "Submitted", "Processing"].includes(
+                    selectedConsultation.status,
+                  ) && (
+                    <button
+                      type="button"
+                      onClick={handleCancelConsultation}
+                      disabled={
+                        isCancellingConsultation || isSubmittingConsultation
+                      }
+                      style={{
+                        minWidth: "125px",
+                        height: "38px",
+                        padding: "0 16px",
+                        border: "1px solid #d8d8d2",
+                        borderRadius: "8px",
+                        background: "#ffffff",
+                        color: "#b42318",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        cursor:
+                          isCancellingConsultation || isSubmittingConsultation
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          isCancellingConsultation || isSubmittingConsultation
+                            ? 0.65
+                            : 1,
+                      }}
+                    >
+                      {isCancellingConsultation
+                        ? "Cancelling..."
+                        : "Cancel Request"}
+                    </button>
+                  )}
 
                 {/* ====================================================== */}
                 {/* SUBMIT REQUEST BUTTON                                   */}

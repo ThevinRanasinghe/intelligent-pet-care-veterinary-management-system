@@ -34,7 +34,6 @@ export async function apiRequest<T>(
     throw new Error(errorMsg);
   }
 
-  // Some endpoints may return empty response
   if (response.status === 204) {
     return undefined as T;
   }
@@ -95,77 +94,69 @@ export type UpdatePetPayload = Partial<CreatePetPayload>;
 
 export type ConsultationRequestApi = {
   id: string;
-
   petId: string;
-
   ownerId: string;
-
   petName?: string | null;
-
   symptoms: string;
-
   symptomPhotoUrl?: string | null;
-
   urgency: string;
-
   preferredDate?: string | null;
-
   preferredTime?: string | null;
-
   budget?: number | null;
-
   latitude?: number | null;
-
   longitude?: number | null;
-
   additionalNotes?: string | null;
-
   status: string;
-
   createdAt: string;
-
   updatedAt: string;
+};
+
+/* ========================================================================== */
+/* Consultation Status History Type                                           */
+/* ========================================================================== */
+
+export type ConsultationStatusHistoryApi = {
+  id: number;
+  consultationRequestId: string;
+  status: string;
+  comments?: string | null;
+  changedAt: string;
+};
+
+/* ========================================================================== */
+/* Nearest Clinic Type                                                        */
+/* ========================================================================== */
+
+export type NearestClinicApi = {
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  distanceKm: number;
 };
 
 export type CreateConsultationPayload = {
   petId: string;
-
   ownerId: string;
-
   symptoms: string;
-
   symptomPhotoUrl?: string | null;
-
   urgency?: string;
-
   preferredDate?: string | null;
-
   preferredTime?: string | null;
-
   budget?: number | null;
-
   latitude?: number | null;
-
   longitude?: number | null;
-
   additionalNotes?: string | null;
 };
 
 export type UpdateConsultationPayload = {
   symptoms: string;
-
   symptomPhotoUrl?: string | null;
-
   preferredDate?: string | null;
-
   preferredTime?: string | null;
-
   budget?: number | null;
-
   latitude?: number | null;
-
   longitude?: number | null;
-
   additionalNotes?: string | null;
 };
 
@@ -253,6 +244,26 @@ export const consultationService = {
     ),
 
   /**
+   * Get consultation status history
+   * GET /api/consultations/{id}/history
+   */
+  getStatusHistory: (id: string) =>
+    apiRequest<ConsultationStatusHistoryApi[]>(
+      `/consultations/${encodeURIComponent(id)}/history`,
+    ),
+
+  /**
+   * Find nearest clinic using GPS coordinates
+   * GET /api/consultations/nearest-clinic
+   */
+  getNearestClinic: (latitude: number, longitude: number) =>
+    apiRequest<NearestClinicApi>(
+      `/consultations/nearest-clinic?latitude=${encodeURIComponent(
+        latitude,
+      )}&longitude=${encodeURIComponent(longitude)}`,
+    ),
+
+  /**
    * Validate that a pet belongs to the selected owner
    * GET /api/consultations/validate-ownership
    */
@@ -298,6 +309,10 @@ export const consultationService = {
       },
     ),
 
+  /**
+   * Cancel a consultation request
+   * PATCH /api/consultations/{id}/cancel
+   */
   cancelConsultation: (id: string) =>
     apiRequest<{ message: string }>(
       `/consultations/${encodeURIComponent(id)}/cancel`,

@@ -374,6 +374,52 @@ public class ConsultationRequestService : IConsultationRequestService
 
 
     // =========================================================
+    // GET CONSULTATION STATUS HISTORY
+    // =========================================================
+    public async Task<List<ConsultationStatusHistoryDto>>
+        GetStatusHistoryAsync(string consultationId)
+    {
+        if (string.IsNullOrWhiteSpace(consultationId))
+        {
+            return new List<ConsultationStatusHistoryDto>();
+        }
+
+        var consultationExists =
+            await _context.ConsultationRequests
+                .AnyAsync(x => x.Id == consultationId.Trim());
+
+        if (!consultationExists)
+        {
+            throw new ArgumentException(
+                "Consultation request was not found.");
+        }
+
+        return await _context.ConsultationStatusHistories
+            .AsNoTracking()
+            .Where(x =>
+                x.ConsultationRequestId == consultationId.Trim())
+            .OrderBy(x => x.ChangedAt)
+            .Select(x => new ConsultationStatusHistoryDto
+            {
+                Id = x.Id,
+
+                ConsultationRequestId =
+                    x.ConsultationRequestId,
+
+                Status =
+                    x.Status,
+
+                Comments =
+                    x.Comments,
+
+                ChangedAt =
+                    x.ChangedAt
+            })
+            .ToListAsync();
+    }
+
+
+    // =========================================================
     // VALIDATE PET OWNERSHIP
     // =========================================================
     public async Task<bool> ValidateOwnershipAsync(

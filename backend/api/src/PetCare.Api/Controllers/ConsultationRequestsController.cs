@@ -116,6 +116,39 @@ public class ConsultationRequestsController : ControllerBase
     }
 
     // ============================================================
+    // GET CONSULTATION STATUS HISTORY
+    // GET: api/consultations/{id}/history
+    // ============================================================
+    [HttpGet("{id}/history")]
+    public async Task<ActionResult<List<ConsultationStatusHistoryDto>>>
+        GetStatusHistory(string id)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return BadRequest(new
+                {
+                    message = "Consultation ID is required."
+                });
+            }
+
+            var history =
+                await _consultationRequestService
+                    .GetStatusHistoryAsync(id);
+
+            return Ok(history);
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    // ============================================================
     // UPDATE CONSULTATION REQUEST
     // PUT: api/consultations/{id}
     // ============================================================
@@ -229,15 +262,117 @@ public class ConsultationRequestsController : ControllerBase
     }
 
     // ============================================================
+// FIND NEAREST CLINIC
+// GET: api/consultations/nearest-clinic
+// ============================================================
+[HttpGet("nearest-clinic")]
+public ActionResult<object> GetNearestClinic(
+    [FromQuery] double latitude,
+    [FromQuery] double longitude)
+{
+    if (latitude < -90 || latitude > 90)
+    {
+        return BadRequest(new
+        {
+            message = "Invalid latitude."
+        });
+    }
+
+    if (longitude < -180 || longitude > 180)
+    {
+        return BadRequest(new
+        {
+            message = "Invalid longitude."
+        });
+    }
+
+    var clinics = new[]
+    {
+        new
+        {
+            name = "Colombo 03 Central Clinic",
+            address = "Colombo 03",
+            latitude = 6.9044,
+            longitude = 79.8528
+        },
+        new
+        {
+            name = "Kandy Veterinary Hospital",
+            address = "Kandy",
+            latitude = 7.2906,
+            longitude = 80.6337
+        },
+        new
+        {
+            name = "Negombo Pet Care Clinic",
+            address = "Negombo",
+            latitude = 7.2083,
+            longitude = 79.8358
+        }
+    };
+
+    var nearestClinic = clinics
+        .Select(clinic => new
+        {
+            clinic.name,
+            clinic.address,
+            clinic.latitude,
+            clinic.longitude,
+            distanceKm = CalculateDistanceKm(
+                latitude,
+                longitude,
+                clinic.latitude,
+                clinic.longitude)
+        })
+        .OrderBy(x => x.distanceKm)
+        .First();
+
+    return Ok(nearestClinic);
+}
+
+// ============================================================
+// HAVERSINE DISTANCE CALCULATION
+// ============================================================
+private static double CalculateDistanceKm(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2)
+{
+    const double earthRadiusKm = 6371;
+
+    var dLat = DegreesToRadians(lat2 - lat1);
+    var dLon = DegreesToRadians(lon2 - lon1);
+
+    var a =
+        Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+        Math.Cos(DegreesToRadians(lat1)) *
+        Math.Cos(DegreesToRadians(lat2)) *
+        Math.Sin(dLon / 2) *
+        Math.Sin(dLon / 2);
+
+    var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+    return Math.Round(earthRadiusKm * c, 2);
+}
+
+private static double DegreesToRadians(double degrees)
+{
+    return degrees * Math.PI / 180;
+}
+
+
+    // ============================================================
     // VALIDATE PET OWNERSHIP
-    // GET: api/consultations/validate-ownership?petId={petId}&ownerId={ownerId}
+    // GET: api/consultations/validate-ownership
     // ============================================================
     [HttpGet("validate-ownership")]
     public async Task<ActionResult<object>> ValidateOwnership(
         [FromQuery] string petId,
         [FromQuery] string ownerId)
     {
-        if (string.IsNullOrWhiteSpace(petId) || string.IsNullOrWhiteSpace(ownerId))
+        if (string.IsNullOrWhiteSpace(petId) ||
+            string.IsNullOrWhiteSpace(ownerId))
         {
             return BadRequest(new
             {
@@ -246,7 +381,9 @@ public class ConsultationRequestsController : ControllerBase
             });
         }
 
-        var isValid = await _consultationRequestService.ValidateOwnershipAsync(petId, ownerId);
+        var isValid =
+            await _consultationRequestService
+                .ValidateOwnershipAsync(petId, ownerId);
 
         return Ok(new
         {
