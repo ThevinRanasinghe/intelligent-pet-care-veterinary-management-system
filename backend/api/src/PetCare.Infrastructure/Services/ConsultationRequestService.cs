@@ -34,7 +34,7 @@ public class ConsultationRequestService : IConsultationRequestService
 
         // Check whether owner exists
         var ownerExists = await _context.PetOwners
-            .AnyAsync(x => x.Id == dto.OwnerId);
+            .AnyAsync(x => x.Id == dto.OwnerId.Trim());
 
         if (!ownerExists)
             throw new ArgumentException("Pet owner was not found.");
@@ -42,8 +42,8 @@ public class ConsultationRequestService : IConsultationRequestService
         // Check whether pet exists and belongs to this owner
         var pet = await _context.Pets
             .FirstOrDefaultAsync(x =>
-                x.Id == dto.PetId &&
-                x.OwnerId == dto.OwnerId);
+                x.Id == dto.PetId.Trim() &&
+                x.OwnerId == dto.OwnerId.Trim());
 
         if (pet == null)
             throw new ArgumentException(
@@ -65,12 +65,15 @@ public class ConsultationRequestService : IConsultationRequestService
                 ? null
                 : dto.SymptomPhotoUrl.Trim(),
 
-            PreferredDate = dto.PreferredDate ?? DateTime.UtcNow,
+            // PostgreSQL timestamp with time zone requires UTC DateTime
+            PreferredDate = dto.PreferredDate.HasValue
+                ? DateTime.SpecifyKind(
+                    dto.PreferredDate.Value,
+                    DateTimeKind.Utc)
+                : DateTime.UtcNow,
 
             BudgetLimit = dto.Budget ?? 0,
 
-            // DTO = decimal?
-            // Entity = double?
             PreferredClinicLocationLat =
                 dto.Latitude.HasValue
                     ? (double?)dto.Latitude.Value
@@ -130,7 +133,7 @@ public class ConsultationRequestService : IConsultationRequestService
         return await _context.ConsultationRequests
             .AsNoTracking()
             .Include(x => x.Pet)
-            .Where(x => x.OwnerId == ownerId)
+            .Where(x => x.OwnerId == ownerId.Trim())
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => MapToDto(x))
             .ToListAsync();
@@ -149,7 +152,7 @@ public class ConsultationRequestService : IConsultationRequestService
         var consultation = await _context.ConsultationRequests
             .AsNoTracking()
             .Include(x => x.Pet)
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id.Trim());
 
         if (consultation == null)
             return null;
@@ -175,7 +178,7 @@ public class ConsultationRequestService : IConsultationRequestService
             throw new ArgumentException("Budget cannot be negative.");
 
         var consultation = await _context.ConsultationRequests
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id.Trim());
 
         if (consultation == null)
             return null;
@@ -199,8 +202,11 @@ public class ConsultationRequestService : IConsultationRequestService
 
         if (dto.PreferredDate.HasValue)
         {
+            // PostgreSQL timestamp with time zone requires UTC DateTime
             consultation.PreferredDate =
-                dto.PreferredDate.Value;
+                DateTime.SpecifyKind(
+                    dto.PreferredDate.Value,
+                    DateTimeKind.Utc);
         }
 
         if (dto.Budget.HasValue)
@@ -209,8 +215,6 @@ public class ConsultationRequestService : IConsultationRequestService
                 dto.Budget.Value;
         }
 
-        // DTO = decimal?
-        // Entity = double?
         consultation.PreferredClinicLocationLat =
             dto.Latitude.HasValue
                 ? (double?)dto.Latitude.Value
@@ -246,7 +250,7 @@ public class ConsultationRequestService : IConsultationRequestService
 
         var consultation = await _context.ConsultationRequests
             .Include(x => x.Pet)
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id.Trim());
 
         if (consultation == null)
             return null;
@@ -320,7 +324,7 @@ public class ConsultationRequestService : IConsultationRequestService
             return false;
 
         var consultation = await _context.ConsultationRequests
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id.Trim());
 
         if (consultation == null)
             return false;
@@ -370,6 +374,26 @@ public class ConsultationRequestService : IConsultationRequestService
 
 
     // =========================================================
+    // VALIDATE PET OWNERSHIP
+    // =========================================================
+    public async Task<bool> ValidateOwnershipAsync(
+        string petId,
+        string ownerId)
+    {
+        if (string.IsNullOrWhiteSpace(petId) ||
+            string.IsNullOrWhiteSpace(ownerId))
+        {
+            return false;
+        }
+
+        return await _context.Pets
+            .AnyAsync(x =>
+                x.Id == petId.Trim() &&
+                x.OwnerId == ownerId.Trim());
+    }
+
+
+    // =========================================================
     // MAP ENTITY TO DTO
     // =========================================================
     private static ConsultationRequestDto MapToDto(
@@ -406,8 +430,6 @@ public class ConsultationRequestService : IConsultationRequestService
             Budget =
                 consultation.BudgetLimit,
 
-            // Entity = double?
-            // DTO = decimal?
             Latitude =
                 consultation.PreferredClinicLocationLat.HasValue
                     ? (decimal?)consultation.PreferredClinicLocationLat.Value

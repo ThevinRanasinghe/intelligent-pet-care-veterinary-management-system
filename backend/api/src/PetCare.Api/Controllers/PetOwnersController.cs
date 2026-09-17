@@ -6,6 +6,7 @@ namespace PetCare.Api.Controllers;
 
 [ApiController]
 [Route("api/petowners")]
+[Route("api/owners")]
 public class PetOwnersController : ControllerBase
 {
     private readonly IPetOwnerService _petOwnerService;

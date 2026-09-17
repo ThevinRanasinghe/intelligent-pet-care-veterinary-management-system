@@ -227,4 +227,33 @@ public class ConsultationRequestsController : ControllerBase
             });
         }
     }
+
+    // ============================================================
+    // VALIDATE PET OWNERSHIP
+    // GET: api/consultations/validate-ownership?petId={petId}&ownerId={ownerId}
+    // ============================================================
+    [HttpGet("validate-ownership")]
+    public async Task<ActionResult<object>> ValidateOwnership(
+        [FromQuery] string petId,
+        [FromQuery] string ownerId)
+    {
+        if (string.IsNullOrWhiteSpace(petId) || string.IsNullOrWhiteSpace(ownerId))
+        {
+            return BadRequest(new
+            {
+                isValid = false,
+                message = "Pet ID and Owner ID are required."
+            });
+        }
+
+        var isValid = await _consultationRequestService.ValidateOwnershipAsync(petId, ownerId);
+
+        return Ok(new
+        {
+            isValid,
+            message = isValid
+                ? "Pet ownership validated successfully."
+                : "The selected pet does not belong to the selected owner."
+        });
+    }
 }

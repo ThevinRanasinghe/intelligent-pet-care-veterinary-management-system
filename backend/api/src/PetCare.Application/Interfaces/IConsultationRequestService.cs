@@ -24,4 +24,8 @@ public interface IConsultationRequestService
 
     Task<bool> CancelAsync(
         string id);
+
+    Task<bool> ValidateOwnershipAsync(
+        string petId,
+        string ownerId);
 }
