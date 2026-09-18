@@ -1,0 +1,24 @@
+# Build results
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+
+# VS Code / IDE
+.vs/
+.vscode/
+
+# NuGet
+*.nupkg
+project.lock.json
+
+# OS files
+.DS_Store
+Thumbs.
+
+
+
+# Node modules
+node_modules/
