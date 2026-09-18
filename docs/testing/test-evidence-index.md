@@ -79,4 +79,19 @@ This file is the single source of truth for test execution results across all im
 
 ---
 
+## Step 12 — Flutter
+
+- **flutter analyze:** PASS — No issues found
+- **flutter test:** 49 passed / 0 failed (8 test files)
+- **flutter build apk --debug:** PASS — `frontend/mobile/build/app/outputs/flutter-apk/app-debug.apk`
+- **Runtime Android:** PENDING — no emulator/device available
+- **Host-side API checks:** Login 200/401, slots 200 (3), appointments 200 (3) + details, quotations 200 (3) + details, pending approvals 200 (1) + detail/history, empty-filter 200 — performed from PowerShell, not Flutter on Android
+- **Evidence (captured):** _(none yet — screenshots will be captured once an Android device/emulator is available)_
+- **Planned evidence filenames:** `Step12-02-flutter-analyze.png`, `Step12-03-flutter-tests.png`, `Step12-04-flutter-apk-build.png`, `Step12-05-flutter-login.png`, `Step12-06-flutter-appointments.png`, `Step12-07-flutter-quotations.png`, `Step12-08-flutter-approvals.png`
+- **Commit:** _(not yet committed)_
+
+See `docs/testing/flutter-testing.md` for the full Flutter testing record.
+
+---
+
 *Add new entries below as additional steps are tested.*

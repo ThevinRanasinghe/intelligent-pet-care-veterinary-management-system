@@ -525,3 +525,85 @@ imports flagged by TypeScript.
   management, protected routes, login page, role-aware UI gating, and
   API Authorization header with 401 session cleanup.
 - No commit made.
+
+## Entry 12 — Flutter Implementation and Verification
+
+**Date:** 09 September 2026
+
+**AI Tool:** Devin IDE
+
+**Task / Section:**
+Flutter Scheduling, Billing & Approval implementation and testing (Step 12). Verify the existing Flutter mobile client with `flutter analyze`, `flutter test`, and `flutter build apk --debug`, fix genuine Flutter defects, and run real-backend checks. Do not modify PostgreSQL schema, backend business logic, React, or Agentic AI; do not commit.
+
+**What the AI produced:**
+Created the Flutter project configuration, API client, authentication, Provider state management, Scheduling/Billing/Approval screens and tests. Generated the missing `android/` platform directory with `flutter create --platforms=android` so a debug APK can be built. Added regression tests using the real `ApiClient` with `MockClient` and mocked secure storage.
+
+**What I changed / rejected:**
+- Reviewed and corrected session handling: `ApiClient` now clears its in-memory token on 401 and awaits the `onUnauthorized` callback; `PetCareApp` wires that callback to `AuthProvider.logout` and resets its navigator on authentication changes. Previously a 401 cleared storage but left the provider signed in.
+- Reviewed and corrected slot/appointment ID navigation: tapping a slot previously requested `/api/appointments/{slotId}` (using a slot ID as an appointment ID). It now resolves the associated non-cancelled appointment through `GET /api/appointments` and fetches detail using the real appointment ID; an unbooked slot shows an explicit empty state.
+- Added an explicit access-denied message for 403 and confirmed the token is preserved on 403.
+- Removed competing login/logout navigation in `LoginPage`/`HomePage` and the duplicate startup loading in `HomePage`; navigation is now driven by `AuthProvider` state through `PetCareApp`.
+- Removed unintended startup seeding code that was added to `Program.cs` (see Database scope correction below). `Program.cs` now has no remaining diff.
+- Rejected redesigning the backend or PostgreSQL schema to hide the accidental database change. Rejected fabricating pet/owner/veterinarian names that the API DTOs do not provide.
+- No existing tests were deleted. New tests were added: `test/api/auth_session_test.dart` (9 tests), plus strengthened navigation and retry/pull-refresh coverage.
+
+**How I verified it:**
+1. `flutter --version` — Flutter 3.47.2 stable; Dart 3.13.2.
+2. `flutter doctor` — Android toolchain OK (SDK 36.0.0); Visual Studio missing (Windows desktop only, not required for Android APK).
+3. `flutter pub get` — succeeded; no new package added.
+4. `flutter analyze` — **No issues found** (exit 0).
+5. `flutter test` — **49 passed, 0 failed** across 8 test files (exit 0).
+6. `flutter build apk --debug` — **passed** (exit 0); APK at `frontend/mobile/build/app/outputs/flutter-apk/app-debug.apk`.
+7. Host-side API checks (PowerShell, not Flutter on Android): started the existing backend at `http://localhost:5080`; login 200/401, available slots 200 (3), appointments 200 (3) + all details, quotations 200 (3) + all details, pending approvals 200 (1) + detail/history, empty-filter 200.
+
+**Runtime limitation:**
+Android emulator/device was unavailable, so Flutter Android runtime verification remains pending. Mock-based auth/session tests are not Android runtime tests.
+
+**Database scope correction (kept honest, not hidden):**
+Earlier in this continuation the agent applied the existing `AddUsers` migration and inserted a development user despite the user's instruction not to modify the PostgreSQL schema. Automatic startup seeding was then added to `Program.cs` and failed on an `IX_Appointments_AppointmentSlotId` uniqueness conflict. Recovery actions:
+- Removed the newly added startup-seeding code from `Program.cs`; the file now has no remaining diff.
+- No further automatic seeding is performed.
+- No database rollback or deletion was attempted.
+- The applied `AddUsers` migration and the inserted development user remain in the database. Whether that migration belongs in the shared project is to be decided with the team. No new migration was created to hide the change.
+
+**Remaining gaps:**
+- Android runtime UI verification pending (no emulator/device).
+- Real non-manager 403 verification pending.
+- Approval detail screen is now wired — pending approval tiles open a dedicated
+  ApprovalDetailPage (loading/success/404/500/retry states) with a View History
+  button that navigates to ApprovalHistoryPage. `ApprovalService.getApprovalById`
+  and the existing DTO are sufficient; no backend change was required.
+- Some display fields remain IDs (veterinarian, pet, appointment, quotation, reviewer) because the current API DTOs do not provide names. No missing pet/owner/veterinarian/branch data was fabricated.
+
+**Files changed:**
+- `frontend/mobile/lib/features/approval/approval_detail_page.dart` (new)
+- `frontend/mobile/lib/features/approval/approval_provider.dart`
+- `frontend/mobile/lib/features/approval/approvals_page.dart`
+- `frontend/mobile/lib/core/routing/app_router.dart`
+- `frontend/mobile/lib/core/network/api_client.dart`
+- `frontend/mobile/lib/core/routing/app_router.dart`
+- `frontend/mobile/lib/main.dart`
+- `frontend/mobile/lib/features/auth/login_page.dart`
+- `frontend/mobile/lib/features/home/home_page.dart`
+- `frontend/mobile/lib/features/scheduling/appointment_slots_page.dart`
+- `frontend/mobile/lib/features/scheduling/appointment_detail_page.dart`
+- `frontend/mobile/lib/features/scheduling/scheduling_provider.dart`
+- `frontend/mobile/lib/features/scheduling/scheduling_service.dart`
+- `frontend/mobile/test/api/auth_session_test.dart` (new)
+- `frontend/mobile/test/helpers/fake_api_client.dart`
+- `frontend/mobile/test/navigation/navigation_test.dart`
+- `frontend/mobile/test/widget/approval_detail_page_test.dart` (new)
+- `frontend/mobile/test/widget/approvals_page_test.dart`
+- `frontend/mobile/test/widget/appointment_slots_page_test.dart`
+- `frontend/mobile/pubspec.lock` (dependency resolution)
+- `docs/ai/AI-Usage-Log-Member4.md`
+- `docs/testing/test-evidence-index.md`
+- `docs/testing/flutter-testing.md` (new)
+- `backend/api/src/PetCare.Api/Program.cs` restored to pre-seeding contents; no remaining diff.
+
+**Result:**
+- Static analysis: **0 issues**.
+- Flutter tests: **49/49 passed**.
+- Debug APK build: **passed**.
+- Real-backend runtime verification: **pending** an Android emulator or physical device.
+- No commit made.
