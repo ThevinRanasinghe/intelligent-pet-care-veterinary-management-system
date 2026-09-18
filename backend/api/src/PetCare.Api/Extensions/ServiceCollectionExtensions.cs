@@ -102,7 +102,9 @@ public static class ServiceCollectionExtensions
         var jwtSection = configuration.GetSection("Jwt");
         var issuer = jwtSection["Issuer"] ?? "PetCareApi";
         var audience = jwtSection["Audience"] ?? "PetCareClient";
-        var key = jwtSection["Key"] ?? Environment.GetEnvironmentVariable("PETCARE_JWT_KEY");
+        var key = !string.IsNullOrWhiteSpace(jwtSection["Key"])
+            ? jwtSection["Key"]
+            : Environment.GetEnvironmentVariable("PETCARE_JWT_KEY");
 
         if (string.IsNullOrWhiteSpace(key))
         {
