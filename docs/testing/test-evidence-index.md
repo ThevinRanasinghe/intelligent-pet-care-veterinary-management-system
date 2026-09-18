@@ -94,4 +94,91 @@ See `docs/testing/flutter-testing.md` for the full Flutter testing record.
 
 ---
 
+## Step 13 — CI/CD & Final Verification
+
+Final verification and repository finalization for Scheduling, Billing & Approval Management. All results below were produced by running the real commands in the local environment on 2026-09-18. No screenshots were captured; no evidence IDs were invented. Where a verification could not be performed, it is explicitly marked as such.
+
+### Backend (verified locally)
+
+- **Command:** `dotnet test backend/api/PetCare.sln --configuration Release`
+- **Run from:** repository root
+- **Result:** **76 passed, 0 failed** — 67 `PetCare.Application.Tests` + 9 `PetCare.Infrastructure.Tests`
+- **Build:** `dotnet build backend/api/PetCare.sln --configuration Release` — 0 warnings, 0 errors
+
+### React tests (verified locally)
+
+- **Command:** `npm test -- --run`
+- **Run from:** `frontend/web`
+- **Result:** **59 passed, 0 failed** across 12 test files
+
+### React production build (verified locally)
+
+- **Command:** `npm run build`
+- **Run from:** `frontend/web`
+- **Result:** **Successful** — `dist/index.html`, `dist/assets/index-*.css` (21.20 kB), `dist/assets/index-*.js` (291.07 kB)
+
+### Flutter analyzer (verified locally)
+
+- **Command:** `flutter analyze`
+- **Run from:** `frontend/mobile`
+- **Result:** **No issues found** (ran in 24.0s)
+
+### Flutter tests (verified locally)
+
+- **Command:** `flutter test`
+- **Run from:** `frontend/mobile`
+- **Result:** **49 passed, 0 failed**
+
+### Flutter APK build (verified locally)
+
+- **Command:** `flutter build apk --debug`
+- **Run from:** `frontend/mobile`
+- **Result:** **Build successful**
+- **APK path:** `frontend/mobile/build/app/outputs/flutter-apk/app-debug.apk`
+
+### Android runtime (NOT performed)
+
+- **State:** Not performed because no Android emulator or physical Android device was available. `flutter devices` listed only Windows, Chrome, and Edge.
+- **No runtime verification is claimed.** Mock-based widget/unit tests are not Android runtime tests.
+
+### GitHub Actions workflow (verified by inspection and local execution only)
+
+- **Workflow file:** `.github/workflows/backend-ci.yml`
+- **Verification method:** Source/configuration inspection + local execution of the same `dotnet restore` / `dotnet build` / `dotnet test` commands the workflow runs. All three commands passed locally (see Backend section above).
+- **Configuration:**
+  - Triggers: `push` to `main`, `pull_request` to `main`
+  - Runner: `ubuntu-latest`
+  - .NET SDK: `8.0.x`
+  - `dotnet restore backend/api/PetCare.sln`
+  - `dotnet build backend/api/PetCare.sln --no-restore --configuration Release`
+  - `dotnet test backend/api/PetCare.sln --no-build --configuration Release --logger "console;verbosity=normal"`
+- **GitHub-hosted execution:** **NOT yet executed.** The workflow is configured to run on pushes or pull requests targeting `main`, but the branch was pushed to `Scheduling-Billing-Approval-Management`. No "GitHub Actions passed" or "workflow succeeded on GitHub" claim is made. Hosted execution remains pending integration (open a PR against `main` to trigger it).
+
+### Git commits (this branch)
+
+- `b70b82b` — `ci: add backend GitHub Actions workflow`
+- `f6ccdbe` — `feat: complete flutter scheduling billing approval workflow`
+- `caff493` — `fix: improve JWT key configuration fallback`
+
+### Git status
+
+- Branch: `Scheduling-Billing-Approval-Management`
+- Working tree: **clean** after the two finalization commits
+- Push: **successful** — `Scheduling-Billing-Approval-Management` pushed to `origin`
+
+### Database safety
+
+- Step 13 created **no migration**.
+- Step 13 performed **no rollback** of the existing `AddUsers` migration.
+- Step 13 added **no startup database seeding**. `Program.cs` was inspected and contains no `Seed`/`Migrate`/`EnsureCreated`/`DevelopmentSeeder` calls.
+
+### Evidence classification
+
+- **Verified locally:** Backend tests, React tests, React build, Flutter analyze, Flutter tests, Flutter APK build, GitHub Actions workflow commands.
+- **Verified by source/configuration inspection:** GitHub Actions workflow YAML structure and triggers; `Program.cs` absence of startup seeding.
+- **Not performed:** Android runtime verification (no emulator/device).
+- **Pending integration:** GitHub-hosted Actions run (requires a PR/push to `main`).
+
+---
+
 *Add new entries below as additional steps are tested.*

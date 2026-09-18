@@ -607,3 +607,83 @@ Earlier in this continuation the agent applied the existing `AddUsers` migration
 - Debug APK build: **passed**.
 - Real-backend runtime verification: **pending** an Android emulator or physical device.
 - No commit made.
+
+## Entry 13 — Final Verification and Repository Finalization (Step 13)
+
+**Date:**
+18 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Final verification and repository finalization for the Scheduling, Billing & Approval Management component (Step 13). Inspect staged/unstaged changes, separate the JWT configuration change from the Flutter/documentation work, verify all existing tests and builds, verify the GitHub Actions workflow configuration, split the work into two commits, verify commit contents, and push the feature branch. No database migration, rollback, or startup seeding.
+
+**What the AI produced (AI-assisted work actually performed):**
+- Inspected staged and unstaged changes (`git status`, `git diff --cached`) and found the Flutter/documentation work and the JWT configuration change staged together.
+- Separated the JWT configuration change from the Flutter/documentation work by unstaging `backend/api/src/PetCare.Api/Extensions/ServiceCollectionExtensions.cs` so it could be committed on its own.
+- Verified `Program.cs` had no unintended startup database seeding (no `Seed`/`Migrate`/`EnsureCreated`/`DevelopmentSeeder` calls present).
+- Ran backend verification: `dotnet restore`, `dotnet build --configuration Release`, `dotnet test --configuration Release`.
+- Ran React verification: `npm test -- --run` and `npm run build` from `frontend/web`.
+- Ran Flutter verification: `flutter pub get`, `flutter analyze`, `flutter test`, `flutter build apk --debug` from `frontend/mobile`.
+- Verified the GitHub Actions workflow configuration (`.github/workflows/backend-ci.yml`) by source inspection and by locally executing the same restore/build/test commands the workflow runs.
+- Separated the work into two commits and verified each commit's file list with `git show --stat`.
+- Pushed the feature branch to `origin`.
+
+**What I changed / rejected:**
+- Rejected combining the JWT configuration change with the Flutter/documentation commit. The JWT file was intentionally isolated into its own commit (`caff493`) so the Flutter/docs commit (`f6ccdbe`) contains only Flutter and documentation files.
+- Rejected modifying application business logic, tests, the database schema, migrations, the GitHub Actions workflow, or the project structure. The only source file touched in this step was `backend/api/src/PetCare.Api/Extensions/ServiceCollectionExtensions.cs`, and only for the JWT key fallback change already prepared in the prior step.
+- Rejected creating a new migration, rolling back the existing `AddUsers` migration, or adding startup database seeding. Confirmed `Program.cs` has no seeding code.
+- Rejected fabricating Android runtime results, GitHub Actions hosted-run results, screenshots, or evidence IDs.
+- Did not merge into `main` and did not create a pull request.
+
+**How I verified it:**
+
+*Backend (verified locally):*
+- `dotnet restore backend/api/PetCare.sln` — all projects up-to-date.
+- `dotnet build backend/api/PetCare.sln --configuration Release` — 0 warnings, 0 errors.
+- `dotnet test backend/api/PetCare.sln --configuration Release` — **76 passed, 0 failed** (67 Application.Tests + 9 Infrastructure.Tests).
+
+*React (verified locally):*
+- `npm test -- --run` in `frontend/web` — **59 passed, 0 failed** across 12 test files.
+- `npm run build` in `frontend/web` — successful (291.07 kB JS, 21.20 kB CSS).
+
+*Flutter (verified locally):*
+- `flutter pub get` in `frontend/mobile` — succeeded.
+- `flutter analyze` in `frontend/mobile` — **No issues found** (24.0s).
+- `flutter test` in `frontend/mobile` — **49 passed, 0 failed**.
+- `flutter build apk --debug` in `frontend/mobile` — **built** `frontend/mobile/build/app/outputs/flutter-apk/app-debug.apk`.
+
+*GitHub Actions workflow (verified by inspection + local execution):*
+- `.github/workflows/backend-ci.yml` triggers on `push` to `main` and `pull_request` to `main`, uses .NET `8.0.x`, and runs `dotnet restore` / `dotnet build --no-restore --configuration Release` / `dotnet test --no-build --configuration Release` against `backend/api/PetCare.sln`. The same three commands were executed locally and passed.
+
+*Git verification:*
+- `git show --stat HEAD~1` confirmed commit `f6ccdbe` contains 66 files (Flutter + docs only; no JWT file).
+- `git show --stat HEAD` confirmed commit `caff493` contains only `backend/api/src/PetCare.Api/Extensions/ServiceCollectionExtensions.cs`.
+- `git status` after both commits: working tree clean.
+
+**Actual verification results:**
+- Backend: **76/76 passed**.
+- React: **59/59 passed**.
+- Flutter: **49/49 passed**.
+- Flutter analyze: **no issues**.
+- Flutter APK: **built successfully**.
+- Working tree: **clean**.
+- Push: **successful**.
+
+**Commits:**
+- `f6ccdbe` — `feat: complete flutter scheduling billing approval workflow` (66 files: Flutter app, Flutter tests, `docs/testing/flutter-testing.md`, `docs/testing/test-evidence-index.md`, `docs/ai/AI-Usage-Log-Member4.md`)
+- `caff493` — `fix: improve JWT key configuration fallback` (1 file: `backend/api/src/PetCare.Api/Extensions/ServiceCollectionExtensions.cs`)
+
+**Notes:**
+- The CI workflow commit `b70b82b` (`ci: add backend GitHub Actions workflow`) already existed before this finalization step; it was not modified here.
+- The JWT file was intentionally isolated into its own commit so the Flutter/documentation commit stays focused.
+- No database migration or rollback was performed.
+- No startup database seeding was added; `Program.cs` was confirmed to contain no seeding code.
+- Android runtime testing was **not possible** because no Android emulator or physical device was available (`flutter devices` listed only Windows, Chrome, Edge). No Android runtime verification is claimed.
+- GitHub Actions hosted execution remains **pending** because the workflow targets `main` push/PR events, and the branch was pushed to `Scheduling-Billing-Approval-Management`. No "GitHub Actions passed" claim is made.
+
+**Result:**
+- All local verifications passed (backend 76/76, React 59/59, Flutter 49/49, analyzer clean, APK built, build clean).
+- Two clean commits pushed to `Scheduling-Billing-Approval-Management`.
+- Android runtime and GitHub-hosted Actions run remain pending (not fabricated).
