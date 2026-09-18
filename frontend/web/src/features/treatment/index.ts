@@ -1,0 +1,1 @@
+export { ExaminationsPage } from './pages/ExaminationsPage';

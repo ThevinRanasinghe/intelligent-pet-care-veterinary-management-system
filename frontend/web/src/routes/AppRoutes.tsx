@@ -1,0 +1,30 @@
+import { Routes, Route } from 'react-router-dom';
+import { AppLayout } from '../layouts/AppLayout';
+import { DashboardPage } from '../pages/DashboardPage';
+import { PlaceholderPage } from '../pages/PlaceholderPage';
+import { SchedulingPage } from '../features/scheduling/SchedulingPage';
+import { BillingPage } from '../features/billing/BillingPage';
+import { ApprovalPage } from '../features/approvals/ApprovalPage';
+import { AIWorkflowsPage } from '../features/ai-workflows/AIWorkflowsPage';
+import { TreatmentPage } from '../features/treatment/TreatmentPage';
+import { ExaminationsPage } from '../features/treatment/pages/ExaminationsPage';
+
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/consultations" element={<PlaceholderPage title="Consultation Requests" />} />
+        <Route path="/treatment" element={<TreatmentPage />} />
+        <Route path="/treatment/examinations" element={<ExaminationsPage />} />
+        <Route path="/inventory" element={<PlaceholderPage title="Medicine & Inventory" />} />
+        <Route path="/scheduling" element={<SchedulingPage />} />
+        <Route path="/billing" element={<BillingPage />} />
+        <Route path="/approvals" element={<ApprovalPage />} />
+        <Route path="/ai-workflows" element={<AIWorkflowsPage />} />
+        <Route path="/reports" element={<PlaceholderPage title="Reports & Analytics" />} />
+        <Route path="/settings" element={<PlaceholderPage title="Users & Settings" />} />
+      </Route>
+    </Routes>
+  );
+}
