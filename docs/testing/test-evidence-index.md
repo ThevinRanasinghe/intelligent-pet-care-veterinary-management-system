@@ -181,4 +181,78 @@ Final verification and repository finalization for Scheduling, Billing & Approva
 
 ---
 
+## Step 14 — Merge_1 Integration via Pull Request #5
+
+Integration of the completed `Scheduling-Billing-Approval-Management` feature branch into the team's `Merge_1` integration branch through a GitHub Pull Request. All results below were produced on 2026-09-19. No screenshots were captured; no evidence IDs were invented. Where a verification could not be performed, it is explicitly marked as such.
+
+### Pull Request
+
+- **PR number:** #5
+- **PR URL:** https://github.com/ThevinRanasinghe/intelligent-pet-care-veterinary-management-system/pull/5
+- **PR title:** Integrate Scheduling, Billing & Approval Management into Merge_1
+- **Base branch:** `Merge_1` (`4e585dd`)
+- **Compare (head) branch:** `Scheduling-Billing-Approval-Management` (`7189d49`)
+- **Commits in PR:** 15
+- **Files changed:** 253 (additions: 20,368; deletions: 0)
+
+### Mergeability / conflict status (verified via GitHub API)
+
+- **mergeable:** `true`
+- **mergeable_state:** `clean`
+- **Conflicts:** **None.** `Merge_1` (`4e585dd`) was an ancestor of the source branch tip (`7189d49`), so the merge applied cleanly with no file-level conflicts. No conflict resolution was required.
+
+### Pre-merge validation on simulated merged content (verified locally)
+
+Before merging, a temporary local branch was created from `origin/Merge_1`, the source branch was merged into it with `--no-ff` to simulate the GitHub merge commit, and the full test suite was run on the resulting tree:
+
+- **Backend:** `dotnet test backend/api/PetCare.sln --configuration Release` — **76 passed, 0 failed** (67 Application + 9 Infrastructure)
+- **React tests:** `npm test -- --run` in `frontend/web` — **59 passed, 0 failed** (12 test files)
+- **Flutter analyze:** `flutter analyze` in `frontend/mobile` — **No issues found**
+- **Flutter tests:** `flutter test` in `frontend/mobile` — **49 passed, 0 failed**
+
+The temporary validation branch was then deleted; no validation artifacts were pushed.
+
+### Merge (performed via GitHub PR merge API)
+
+- **Merge method:** `merge` (creates an explicit merge commit; preserves all 15 source-branch commits)
+- **Merge commit:** `0259a5b1d5132d3c0ae4326fd3b1fd596f99f6f7`
+- **Merged at:** 2026-09-19T05:28:26Z
+- **PR state after merge:** `closed` / `merged=true`
+
+### Post-merge verification on the integrated `Merge_1` (verified locally)
+
+After the merge, `origin/Merge_1` was fetched and checked out into a temporary local branch, and the test suite was re-run on the actual merged state:
+
+- **Backend:** `dotnet test backend/api/PetCare.sln --configuration Release` — **76 passed, 0 failed**
+- **React tests:** `npm test -- --run` in `frontend/web` — **59 passed, 0 failed**
+- **Flutter tests:** `flutter test` in `frontend/mobile` — **49 passed, 0 failed**
+
+### Branch state after integration
+
+- **`Merge_1`:** advanced from `4e585dd` to `0259a5b` (merge commit). Contains all source-branch changes.
+- **`Scheduling-Billing-Approval-Management`:** still exists at `7189d49` (not deleted).
+- **`main`:** unchanged at `4e585dd` — **not modified** by this integration.
+- **Source branch deleted:** No.
+
+### Conflict-resolution evidence
+
+- **Conflicted files:** None.
+- **Resolution actions:** None required. No "ours"/"theirs" choices were made; no other team member's work was overwritten.
+
+### Database safety
+
+- Step 14 created **no migration**.
+- Step 14 performed **no rollback**.
+- Step 14 added **no startup database seeding** and made no schema/data changes.
+
+### Evidence classification
+
+- **Verified locally (pre-merge simulation):** Backend, React, Flutter tests on the simulated merged tree.
+- **Verified locally (post-merge on integrated `Merge_1`):** Backend, React, Flutter tests on the actual merged `Merge_1` state.
+- **Verified via GitHub API:** PR creation, mergeability (`mergeable=true`, `clean`), merge success, branch existence, `main` unchanged.
+- **Not performed:** Android runtime verification (no emulator/device available).
+- **Not performed:** GitHub-hosted Actions run (the backend CI workflow targets `main` push/PR events; this PR targeted `Merge_1`, so it did not trigger the workflow).
+
+---
+
 *Add new entries below as additional steps are tested.*

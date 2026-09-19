@@ -687,3 +687,90 @@ Final verification and repository finalization for the Scheduling, Billing & App
 - All local verifications passed (backend 76/76, React 59/59, Flutter 49/49, analyzer clean, APK built, build clean).
 - Two clean commits pushed to `Scheduling-Billing-Approval-Management`.
 - Android runtime and GitHub-hosted Actions run remain pending (not fabricated).
+
+## Entry 14 — Merge_1 Integration via Pull Request #5 (Step 14)
+
+**Date:**
+19 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Integrate the completed `Scheduling-Billing-Approval-Management` feature branch into the team's `Merge_1` integration branch through a proper GitHub Pull Request, preserving PR/review/merge history. No merge into `main`. No source-branch deletion. No database schema/migration/data changes. No fabrication of screenshots, hosted-run results, or Android runtime evidence.
+
+**What the AI produced (AI-assisted work actually performed):**
+- Inspected the real repository state: current branch, working tree, remote URL, existence of `Merge_1` and `Scheduling-Billing-Approval-Management`, latest commit on both branches, and existing open PRs (none).
+- Confirmed the source branch was fully pushed to `origin` (local `7189d49` matched remote `7189d49`).
+- Computed the branch divergence: `Merge_1` was at `4e585dd` with 0 unique commits; the source branch was 15 commits ahead with 0 behind. The merge base was `4e585dd` itself (i.e., `Merge_1` was an ancestor of the source tip).
+- Created GitHub Pull Request #5 via the GitHub REST API with base=`Merge_1`, head=`Scheduling-Billing-Approval-Management`, using the requested title and description.
+- Reviewed the PR via the API: `mergeable=true`, `mergeable_state=clean`, 253 changed files, 15 commits, 20,368 additions, 0 deletions.
+- Performed pre-merge validation by creating a temporary local branch from `origin/Merge_1`, merging the source branch with `--no-ff` to simulate the GitHub merge commit, and running the full backend/React/Flutter test suite on the resulting tree. Deleted the temporary branch afterward.
+- Merged PR #5 into `Merge_1` via the GitHub PR merge API with `merge_method=merge`, creating an explicit merge commit (`0259a5b`) that preserves all 15 source-branch commits.
+- Fetched the updated `origin/Merge_1`, checked it out into a temporary local branch, and re-ran the backend/React/Flutter tests on the actual integrated state. Deleted the temporary branch afterward.
+- Verified post-merge state via the GitHub API: `Merge_1` advanced to `0259a5b`, source branch still exists at `7189d49`, `main` unchanged at `4e585dd`, PR state `closed`/`merged=true`.
+- Updated `docs/testing/test-evidence-index.md` and this file with a Step 14 / Entry 14 record of the actual integration events.
+
+**What I changed / rejected:**
+- Rejected merging into `main` under any circumstances. The PR base was set to `Merge_1`, not `main`.
+- Rejected deleting the source branch after merging. It remains at `7189d49`.
+- Rejected directly merging locally and pushing (which would hide the PR/review/merge process). The integration was performed through the GitHub Pull Request mechanism so the PR, commits, and merge history remain visible on GitHub.
+- Rejected fabricating conflict-resolution evidence. No conflicts occurred, so none were invented; the record explicitly states "Conflicts: None."
+- Rejected modifying source code, tests, migrations, the database schema/data, the GitHub Actions workflow, or the project structure. The only files modified in this step are the two documentation files (`docs/testing/test-evidence-index.md` and `docs/ai/AI-Usage-Log-Member4.md`).
+- Rejected claiming Android runtime verification or a GitHub-hosted Actions run. Neither was performed.
+
+**Conflict analysis performed:**
+- Computed `git merge-base origin/Scheduling-Billing-Approval-Management origin/Merge_1` → `4e585dd`, which is the tip of `Merge_1`.
+- Computed `git rev-list --left-right --count` → `15 0` (source 15 ahead, `Merge_1` 0 ahead).
+- Conclusion: `Merge_1` is a strict ancestor of the source branch, so the merge is conflict-free by construction. GitHub's API later confirmed `mergeable=true` / `mergeable_state=clean`.
+- No conflicted files. No "ours"/"theirs" decisions. No other team member's component was overwritten.
+
+**Human review / decision points:**
+- The PR was created and merged programmatically via the GitHub API on the user's explicit instruction to integrate into `Merge_1` through a Pull Request. The user authorized the merge in the task brief; no separate interactive approval step was required by the user's instructions. The merge method (`merge` commit, not squash/rebase) was chosen to preserve all 15 source-branch commits and the explicit merge commit, as the assignment requires meaningful commits and visible merge management.
+
+**How I verified it:**
+
+*Pre-merge (simulated merged tree, verified locally):*
+- `dotnet test backend/api/PetCare.sln --configuration Release` — **76 passed, 0 failed**.
+- `npm test -- --run` in `frontend/web` — **59 passed, 0 failed**.
+- `flutter analyze` in `frontend/mobile` — **No issues found**.
+- `flutter test` in `frontend/mobile` — **49 passed, 0 failed**.
+
+*Post-merge (actual integrated `Merge_1`, verified locally):*
+- `dotnet test backend/api/PetCare.sln --configuration Release` — **76 passed, 0 failed**.
+- `npm test -- --run` in `frontend/web` — **59 passed, 0 failed**.
+- `flutter test` in `frontend/mobile` — **49 passed, 0 failed**.
+
+*GitHub API verification:*
+- PR #5: `state=closed`, `merged=true`, `merge_commit_sha=0259a5b`.
+- `Merge_1` branch: `sha=0259a5b` (advanced from `4e585dd`).
+- `main` branch: `sha=4e585dd` (unchanged).
+- `Scheduling-Billing-Approval-Management` branch: `sha=7189d49` (still exists).
+
+**Actual verification results:**
+- Pre-merge backend: **76/76 passed**.
+- Pre-merge React: **59/59 passed**.
+- Pre-merge Flutter: **49/49 passed**; analyzer clean.
+- Post-merge backend: **76/76 passed**.
+- Post-merge React: **59/59 passed**.
+- Post-merge Flutter: **49/49 passed**.
+- `Merge_1`: **clean** at `0259a5b`.
+- `main`: **unchanged** at `4e585dd`.
+- Source branch: **still exists** at `7189d49`.
+
+**Commits:**
+- Merge commit: `0259a5b` — `Merge PR #5: Integrate Scheduling, Billing & Approval Management into Merge_1`
+- All 15 source-branch commits preserved in the merge history (`d61a0cf` through `7189d49`).
+
+**Notes:**
+- No conflicts occurred; `Merge_1` was a strict ancestor of the source branch tip.
+- No database migration, rollback, or startup seeding was performed in this step.
+- No source code, tests, migrations, the GitHub Actions workflow, or project structure were modified. Only the two documentation files were updated.
+- Android runtime testing was **not possible** because no Android emulator or physical device was available. No Android runtime verification is claimed.
+- The GitHub-hosted backend CI workflow was **not triggered** by this PR because the workflow targets `main` push/PR events and this PR targeted `Merge_1`. No "GitHub Actions passed" claim is made.
+- The GitHub API token used for PR creation/merge was obtained from the local Git credential manager and was used only in-memory for API calls; it was not written to any file, commit, or documentation.
+
+**Result:**
+- PR #5 created, reviewed, and merged into `Merge_1` (merge commit `0259a5b`).
+- All pre-merge and post-merge local tests passed (backend 76/76, React 59/59, Flutter 49/49).
+- `main` untouched; source branch preserved; no conflicts; no fabrication.
