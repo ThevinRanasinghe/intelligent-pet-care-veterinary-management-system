@@ -1,0 +1,37 @@
+name: backend-ci
+
+# Step 13 — GitHub Actions CI for the PetCare AI backend.
+# Owned component: Scheduling, Billing & Approval Management.
+# Scope: build and run the existing xUnit test projects in the backend
+# solution on every push to / pull request against the main branch.
+# The existing tests are pure unit tests (no DbContext, Npgsql, or
+# WebApplicationFactory usage), so no PostgreSQL service is required.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend restore / build / test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore backend/api/PetCare.sln
+
+      - name: Build solution
+        run: dotnet build backend/api/PetCare.sln --no-restore --configuration Release
+
+      - name: Run tests
+        run: dotnet test backend/api/PetCare.sln --no-build --configuration Release --logger "console;verbosity=normal"

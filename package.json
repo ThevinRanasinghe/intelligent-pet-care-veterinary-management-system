@@ -1,0 +1,12 @@
+{
+  "name": "petcare-ai",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["frontend/web"],
+  "scripts": {
+    "dev": "npm --workspace frontend/web run dev",
+    "build": "npm --workspace frontend/web run build",
+    "test": "npm --workspace frontend/web run test -- --run",
+    "lint": "npm --workspace frontend/web run lint"
+  }
+}
