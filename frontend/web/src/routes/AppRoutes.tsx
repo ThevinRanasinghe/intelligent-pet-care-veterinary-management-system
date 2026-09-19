@@ -6,6 +6,7 @@ import { SchedulingPage } from '../features/scheduling/SchedulingPage';
 import { BillingPage } from '../features/billing/BillingPage';
 import { ApprovalPage } from '../features/approvals/ApprovalPage';
 import { AIWorkflowsPage } from '../features/ai-workflows/AIWorkflowsPage';
+import { InventoryPage } from '../features/inventory/InventoryPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 import PetsPage from '../features/pets/PetsPage';
@@ -22,7 +23,7 @@ export function AppRoutes() {
       <Route path="/consultations" element={<ConsultationRequestsPage />} />
       <Route path="/treatment" element={<TreatmentPage />} />
       <Route path="/examinations" element={<ExaminationsPage />} />
-      <Route path="/inventory" element={<PlaceholderPage title="Medicine & Inventory" />} />
+      <Route path="/inventory" element={<InventoryPage />} />
       <Route path="/scheduling" element={<SchedulingPage />} />
       <Route path="/billing" element={<BillingPage />} />
       <Route path="/approvals" element={<ApprovalPage />} />

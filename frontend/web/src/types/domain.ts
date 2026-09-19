@@ -139,3 +139,71 @@ export interface Prescription {
   durationDays: number;
   createdAt: string;
 }
+
+export interface Medicine {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  dosageForm: string;
+  strength: string;
+  unitPrice: number;
+  manufacturer: string;
+  status: 'Active' | 'Discontinued';
+  reorderLevel: number;
+  totalQuantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MedicineBatch {
+  id: string;
+  medicineId: string;
+  batchNumber: string;
+  quantity: number;
+  expiryDate: string;
+  receivedDate?: string;
+  status?: string;
+  isExpired?: boolean;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
+  status: 'Active' | 'Inactive';
+}
+
+export interface InventoryTransaction {
+  id: string;
+  medicineId: string;
+  batchId?: string;
+  reservationId?: string;
+  type: string;
+  quantityChange: number;
+  performedByUserId: string;
+  notes?: string;
+  occurredAt: string;
+}
+
+export interface MedicineReservation {
+  id: string;
+  medicineId: string;
+  quantity: number;
+  status: 'Reserved' | 'Dispensed' | 'Cancelled' | 'Expired';
+  referenceType?: string;
+  referenceId?: string;
+  createdAt?: string;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}

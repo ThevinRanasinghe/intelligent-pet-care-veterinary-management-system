@@ -1,26 +1,31 @@
-# Component boundary — Scheduling, Billing & Approval Management
+# Component Boundaries
 
-Owned business scope on this branch:
-
+## 1. Scheduling, Billing & Approval Management Scope
 - Veterinarian availability and appointment slots
 - Conflict-free appointment slot validation
 - Quotations and line-item billing
 - Quote total and budget validation
 - Manager approval/reject/revision workflow
 - Approval validation summary UI
-- AI workflow monitoring UI only
+- AI workflow monitoring UI
 
-Not implemented here:
+## 2. Medicine & Inventory Management Scope
+- Pharmaceutical catalog and SKU management (Medicines)
+- Supplier management and procurement directory
+- Multi-batch tracking with expiration and receipt dates
+- First-Expiry-First-Out (FEFO) dispensing order
+- Atomic stock reservations with race condition protection (HTTP 409 Conflict)
+- Complete transaction ledger and audit trail (`InventoryTransactions`)
+- Role-based authorization (`InventoryOfficer`, `Veterinarian`, `ClinicManager`, `SuperAdmin`)
+- Production React dashboard for medicine catalog, low stock alerts, FEFO batch inspection, and supplier directory
 
-- Agent execution/orchestration
-- LLM calls or model prompts
-- ASP.NET Core persistence
-- PostgreSQL migrations
-- Flutter screens
-- Other team members' business components
+## 3. Excluded Scope (Deferred / External)
+- Background AI LLM generation agents
+- Flutter mobile screens
+- Direct cross-component database coupling (integration via clean service/API boundaries)
 
-Integration expectations for later:
+## 4. Integration Expectations
+- React consumes the ASP.NET Core API via `apiRequest` client with Bearer JWT tokens.
+- Backend remains authoritative for business validation, atomic concurrency control, and transactional persistence.
+- PostgreSQL database stores all normalized entities with check constraints, foreign keys, and indexes.
 
-- React consumes the ASP.NET Core API only.
-- Backend remains authoritative for business rules, authorization, persistence and transactions.
-- AI is an internal service behind ASP.NET Core, not directly called by React/Flutter.
