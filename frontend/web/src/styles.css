@@ -1010,3 +1010,12 @@ td strong { display:block;color:#293934;font-size:11px; }
         width: 100%;
       }
     }
+
+/* ==========================================================================
+   DIAGNOSIS & TREATMENT STYLES (integrated from Diagnosis-and-Treatment-Management)
+   ========================================================================== */
+.treatment-page {
+  --primary: #e9a73b;
+  --primary-deep: #b97f1e;
+  --primary-soft: #fdf3df;
+}

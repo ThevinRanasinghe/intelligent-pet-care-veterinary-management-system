@@ -10,6 +10,8 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 import PetsPage from '../features/pets/PetsPage';
 import { ConsultationRequestsPage } from '../features/consultations/ConsultationRequestsPage';
+import { TreatmentPage } from '../features/treatment/TreatmentPage';
+import { ExaminationsPage } from '../features/treatment/pages/ExaminationsPage';
 
 export function AppRoutes() {
   return <Routes>
@@ -18,7 +20,8 @@ export function AppRoutes() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/pets" element={<PetsPage />} />
       <Route path="/consultations" element={<ConsultationRequestsPage />} />
-      <Route path="/treatment" element={<PlaceholderPage title="Diagnosis & Treatment" />} />
+      <Route path="/treatment" element={<TreatmentPage />} />
+      <Route path="/examinations" element={<ExaminationsPage />} />
       <Route path="/inventory" element={<PlaceholderPage title="Medicine & Inventory" />} />
       <Route path="/scheduling" element={<SchedulingPage />} />
       <Route path="/billing" element={<BillingPage />} />

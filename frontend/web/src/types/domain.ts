@@ -1,4 +1,4 @@
-export type Role = 'PetOwner' | 'Veterinarian' | 'InventoryOfficer' | 'ClinicManager' | 'Administrator';
+﻿export type Role = 'PetOwner' | 'Veterinarian' | 'InventoryOfficer' | 'ClinicManager' | 'Administrator';
 
 export type AppointmentStatus = 'Available' | 'Reserved' | 'Confirmed' | 'Completed' | 'Cancelled';
 export type QuotationStatus = 'Draft' | 'PendingApproval' | 'Approved' | 'Rejected' | 'RevisionRequested' | 'Finalised';
@@ -97,4 +97,45 @@ export interface AIWorkflow {
   createdAt: string;
   steps: WorkflowStep[];
   note?: string;
+}
+
+export type DiagnosisSeverity = 'Low' | 'Moderate' | 'High' | 'Critical';
+export type TreatmentStatus = 'Planned' | 'InProgress' | 'Completed' | 'Cancelled';
+
+export interface Examination {
+  id: string;
+  petId: string;
+  veterinarianId: string;
+  symptoms: string;
+  notes: string;
+  examinationDate: string;
+  createdAt: string;
+}
+
+export interface Diagnosis {
+  id: string;
+  examinationId: string;
+  conditionName: string;
+  description: string;
+  severity: DiagnosisSeverity;
+  createdAt: string;
+}
+
+export interface TreatmentRecord {
+  id: string;
+  diagnosisId: string;
+  procedureName: string;
+  notes: string;
+  status: TreatmentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Prescription {
+  id: string;
+  treatmentRecordId: string;
+  medicineId: string;
+  dosage: string;
+  durationDays: number;
+  createdAt: string;
 }

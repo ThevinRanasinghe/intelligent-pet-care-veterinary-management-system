@@ -59,6 +59,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPetOwnerService, PetOwnerService>();
         services.AddScoped<IConsultationRequestService, ConsultationRequestService>();
 
+        // Diagnosis / Treatment services (from Diagnosis-and-Treatment-Management)
+        services.AddScoped<IExaminationService, ExaminationService>();
+        services.AddScoped<IDiagnosisService, DiagnosisService>();
+        services.AddScoped<ITreatmentRecordService, TreatmentRecordService>();
+        services.AddScoped<IPrescriptionService, PrescriptionService>();
+
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.Configure<JwtOptions>(configuration.GetSection("Jwt"));
