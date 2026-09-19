@@ -43,6 +43,17 @@ public class PetCareDbContext : DbContext, IPetCareDbContext
 
     public DbSet<ConsultationStatusHistory> ConsultationStatusHistories { get; set; } = null!;
 
+    // Diagnosis / Treatment entities
+    public DbSet<Examination> Examinations { get; set; } = null!;
+
+    public DbSet<Diagnosis> Diagnoses { get; set; } = null!;
+
+    public DbSet<TreatmentRecord> TreatmentRecords { get; set; } = null!;
+
+    public DbSet<Prescription> Prescriptions { get; set; } = null!;
+
+    public DbSet<Medicine> Medicines { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
