@@ -8,13 +8,16 @@ import { ApprovalPage } from '../features/approvals/ApprovalPage';
 import { AIWorkflowsPage } from '../features/ai-workflows/AIWorkflowsPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
+import PetsPage from '../features/pets/PetsPage';
+import { ConsultationRequestsPage } from '../features/consultations/ConsultationRequestsPage';
 
 export function AppRoutes() {
   return <Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
       <Route path="/" element={<DashboardPage />} />
-      <Route path="/consultations" element={<PlaceholderPage title="Consultation Requests" />} />
+      <Route path="/pets" element={<PetsPage />} />
+      <Route path="/consultations" element={<ConsultationRequestsPage />} />
       <Route path="/treatment" element={<PlaceholderPage title="Diagnosis & Treatment" />} />
       <Route path="/inventory" element={<PlaceholderPage title="Medicine & Inventory" />} />
       <Route path="/scheduling" element={<SchedulingPage />} />

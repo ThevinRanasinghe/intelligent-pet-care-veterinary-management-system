@@ -13,6 +13,7 @@ using PetCare.Application.Validators;
 using PetCare.Infrastructure;
 using PetCare.Infrastructure.Repositories;
 using PetCare.Infrastructure.Security;
+using PetCare.Infrastructure.Services;
 
 namespace PetCare.Api.Extensions;
 
@@ -51,6 +52,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IApprovalRepository, ApprovalRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // Pet / Consultation services (from Pet-and-Consultation-Request-Management-v2)
+        services.AddScoped<IPetCareDbContext>(provider => provider.GetRequiredService<PetCareDbContext>());
+        services.AddScoped<IPetService, PetService>();
+        services.AddScoped<IPetOwnerService, PetOwnerService>();
+        services.AddScoped<IConsultationRequestService, ConsultationRequestService>();
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
