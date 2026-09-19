@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using PetCare.Application.DTOs.Approval;
 using PetCare.Application.DTOs.Auth;
 using PetCare.Application.DTOs.Billing;
+using PetCare.Application.DTOs.Inventory;
 using PetCare.Application.DTOs.Scheduling;
 using PetCare.Application.Interfaces;
 using PetCare.Application.Services;
@@ -65,6 +66,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITreatmentRecordService, TreatmentRecordService>();
         services.AddScoped<IPrescriptionService, PrescriptionService>();
 
+        // Medicine & Inventory repositories (from Medicine-and-Inventory-Management)
+        services.AddScoped<ISupplierRepository, SupplierRepository>();
+        services.AddScoped<IMedicineRepository, MedicineRepository>();
+        services.AddScoped<IMedicineBatchRepository, MedicineBatchRepository>();
+        services.AddScoped<IMedicineReservationRepository, MedicineReservationRepository>();
+        services.AddScoped<IInventoryTransactionRepository, InventoryTransactionRepository>();
+
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         services.Configure<JwtOptions>(configuration.GetSection("Jwt"));
@@ -89,6 +97,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IBillingService, BillingService>();
         services.AddScoped<IApprovalService, ApprovalService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IInventoryService, InventoryService>();
 
         services.AddScoped<IValidator<CreateAppointmentRequest>, CreateAppointmentRequestValidator>();
         services.AddScoped<IValidator<UpdateAppointmentRequest>, UpdateAppointmentRequestValidator>();
@@ -98,6 +107,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IValidator<RejectRequest>, RejectRequestValidator>();
         services.AddScoped<IValidator<RequestRevisionRequest>, RequestRevisionRequestValidator>();
         services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
+        services.AddScoped<IValidator<CreateMedicineRequest>, CreateMedicineRequestValidator>();
+        services.AddScoped<IValidator<ReceiveStockRequest>, ReceiveStockRequestValidator>();
+        services.AddScoped<IValidator<ReserveMedicineRequest>, ReserveMedicineRequestValidator>();
+        services.AddScoped<IValidator<CreateSupplierRequest>, CreateSupplierRequestValidator>();
 
         return services;
     }

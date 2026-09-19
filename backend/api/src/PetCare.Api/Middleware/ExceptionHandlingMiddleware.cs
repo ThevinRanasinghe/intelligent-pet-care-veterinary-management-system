@@ -68,6 +68,11 @@ public class ExceptionHandlingMiddleware
                 "Invalid email or password.",
                 null),
 
+            InventoryConflictException inventoryConflict => (
+                HttpStatusCode.Conflict,
+                "The request conflicts with an existing inventory business rule.",
+                null),
+
             ValidationException validation => (
                 HttpStatusCode.BadRequest,
                 "One or more validation errors occurred.",

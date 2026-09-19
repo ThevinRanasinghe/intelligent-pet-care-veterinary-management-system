@@ -17,8 +17,15 @@ export interface StoredAuth {
 
 const STORAGE_KEY = 'petcare.auth';
 
+function getStorage() {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  }
+  return typeof localStorage !== 'undefined' ? localStorage : undefined;
+}
+
 export function getStoredAuth(): StoredAuth | null {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = getStorage()?.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredAuth;
@@ -28,11 +35,11 @@ export function getStoredAuth(): StoredAuth | null {
 }
 
 export function setStoredAuth(auth: StoredAuth): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(auth));
+  getStorage()?.setItem(STORAGE_KEY, JSON.stringify(auth));
 }
 
 export function clearStoredAuth(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  getStorage()?.removeItem(STORAGE_KEY);
 }
 
 export function isAuthValid(auth: StoredAuth | null): boolean {

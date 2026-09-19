@@ -54,6 +54,15 @@ public class PetCareDbContext : DbContext, IPetCareDbContext
 
     public DbSet<Medicine> Medicines { get; set; } = null!;
 
+    // Medicine & Inventory entities
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+
+    public DbSet<MedicineBatch> MedicineBatches => Set<MedicineBatch>();
+
+    public DbSet<MedicineReservation> MedicineReservations => Set<MedicineReservation>();
+
+    public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
