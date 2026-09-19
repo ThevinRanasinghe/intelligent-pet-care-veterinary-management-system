@@ -1,20 +1,23 @@
 using Microsoft.EntityFrameworkCore;
+using PetCare.Application.Interfaces;
 using PetCare.Domain.Common;
 using PetCare.Domain.Entities;
 
 namespace PetCare.Infrastructure;
 
 /// <summary>
-/// EF Core DbContext for the Scheduling, Billing and Approval modules.
+/// EF Core DbContext for the Scheduling, Billing, Approval, Pet, and
+/// Consultation modules.
 /// See docs/database/scheduling-billing-approval-domain-model.md.
 /// </summary>
-public class PetCareDbContext : DbContext
+public class PetCareDbContext : DbContext, IPetCareDbContext
 {
     public PetCareDbContext(DbContextOptions<PetCareDbContext> options)
         : base(options)
     {
     }
 
+    // Scheduling / Billing / Approval entities
     public DbSet<Veterinarian> Veterinarians => Set<Veterinarian>();
 
     public DbSet<AppointmentSlot> AppointmentSlots => Set<AppointmentSlot>();
@@ -30,6 +33,15 @@ public class PetCareDbContext : DbContext
     public DbSet<ApprovalHistory> ApprovalHistories => Set<ApprovalHistory>();
 
     public DbSet<User> Users => Set<User>();
+
+    // Pet / Consultation entities
+    public DbSet<PetOwner> PetOwners { get; set; } = null!;
+
+    public DbSet<Pet> Pets { get; set; } = null!;
+
+    public DbSet<ConsultationRequest> ConsultationRequests { get; set; } = null!;
+
+    public DbSet<ConsultationStatusHistory> ConsultationStatusHistories { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
