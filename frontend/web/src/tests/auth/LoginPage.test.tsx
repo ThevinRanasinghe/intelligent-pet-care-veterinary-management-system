@@ -40,7 +40,7 @@ describe('LoginPage', () => {
   it('renders email, password and sign-in button', () => {
     renderLogin();
     expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
@@ -51,7 +51,7 @@ describe('LoginPage', () => {
 
     renderLogin();
     await user.type(screen.getByRole('textbox', { name: /email/i }), 'manager@petcare.lk');
-    await user.type(screen.getByLabelText(/password/i), 'password');
+    await user.type(screen.getByPlaceholderText('Enter your password'), 'password');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     const [url] = fetchMock.mock.calls[0];
@@ -68,7 +68,7 @@ describe('LoginPage', () => {
 
     renderLogin();
     await user.type(screen.getByRole('textbox', { name: /email/i }), 'manager@petcare.lk');
-    await user.type(screen.getByLabelText(/password/i), 'wrong');
+    await user.type(screen.getByPlaceholderText('Enter your password'), 'wrong');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => expect(screen.getByText('Invalid credentials')).toBeInTheDocument());
@@ -84,7 +84,7 @@ describe('LoginPage', () => {
 
     renderLogin();
     await user.type(screen.getByRole('textbox', { name: /email/i }), 'manager@petcare.lk');
-    await user.type(screen.getByLabelText(/password/i), 'password');
+    await user.type(screen.getByPlaceholderText('Enter your password'), 'password');
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /signing in/i })).toBeDisabled());

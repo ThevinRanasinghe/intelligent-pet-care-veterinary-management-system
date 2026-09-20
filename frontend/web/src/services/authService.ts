@@ -51,3 +51,54 @@ export function isAuthenticated(): boolean {
 export function hasRole(role: Role): boolean {
   return getCurrentUser()?.role === role;
 }
+
+/* Registration                                                                */
+/* ========================================================================== */
+
+export interface RegisterPetOwnerRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface RegisterOrganizationRequest {
+  organizationName: string;
+  registrationNumber?: string | null;
+  organizationEmail: string;
+  organizationPhone: string;
+  address: string;
+  city: string;
+  country: string;
+  managerFirstName: string;
+  managerLastName: string;
+  managerEmail: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface CurrentUserResponse {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: Role;
+  fullName: string;
+  mustChangePassword: boolean;
+  organization?: { id: string; name: string; status: string } | null;
+}
+
+export async function registerPetOwner(request: RegisterPetOwnerRequest): Promise<CurrentUserResponse> {
+  return apiRequest<CurrentUserResponse>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function registerOrganization(request: RegisterOrganizationRequest): Promise<CurrentUserResponse> {
+  return apiRequest<CurrentUserResponse>('/auth/register/organization', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
