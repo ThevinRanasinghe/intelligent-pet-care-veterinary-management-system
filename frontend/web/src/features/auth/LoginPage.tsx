@@ -1,19 +1,57 @@
 import { useState } from 'react';
-import type { FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { LogIn, PawPrint } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
-import { messageFrom } from '../../utils/errors';
+import type { ChangeEvent, FocusEvent, FormEvent } from 'react';
+import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
+import { AlertCircle } from 'lucide-react';
+import AuthLayout from './components/AuthLayout';
+import AuthInput from './components/AuthInput';
+import PasswordInput from './components/PasswordInput';
 import { useAuth } from './AuthContext';
+import { getCurrentUser } from '../../services/authService';
+import { messageFrom } from '../../utils/errors';
+import type { Role } from '../../types/domain';
 
+const ROLE_ROUTES: Record<Role, string> = {
+  Administrator: '/super-admin',
+  ClinicManager: '/manager',
+  Veterinarian: '/vet',
+  InventoryOfficer: '/inventory-dashboard',
+  PetOwner: '/pet-owner',
+};
+
+interface FormState {
+  email: string;
+  password: string;
+}
+
+function validateForm({ email, password }: FormState) {
+  const errors: Partial<Record<keyof FormState, string>> = {};
+
+  if (!email.trim()) {
+    errors.email = 'Email is required.';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = 'Please enter a valid email address.';
+  }
+
+  if (!password) {
+    errors.password = 'Password is required.';
+  }
+
+  return errors;
+}
+
+/**
+ * Login page — split-screen PetCare branded layout.
+ * Handles email/password auth, loading/error states, role-based navigation.
+ * Connects to the existing Merge_1 AuthContext (not the source Zustand store).
+ */
 export function LoginPage() {
-  const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const { isAuthenticated, login } = useAuth();
+
+  const [form, setForm] = useState<FormState>({ email: '', password: '' });
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [apiError, setApiError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   if (isAuthenticated) {
@@ -21,36 +59,113 @@ export function LoginPage() {
     return <Navigate to={redirectTo} replace />;
   }
 
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    setError('');
+  const handleChange = (field: keyof FormState) => (e: ChangeEvent<HTMLInputElement>) => {
+    setForm((f) => ({ ...f, [field]: e.target.value }));
+    if (errors[field]) setErrors((err) => ({ ...err, [field]: undefined }));
+    if (apiError) setApiError('');
+  };
+
+  const handleBlur = (field: keyof FormState) => () => {
+    const fieldErrors = validateForm(form);
+    if (fieldErrors[field]) {
+      setErrors((e) => ({ ...e, [field]: fieldErrors[field] }));
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setApiError('');
+
+    const validationErrors = validateForm(form);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await login(email, password);
-      const redirectTo = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/';
-      navigate(redirectTo, { replace: true });
+      await login(form.email, form.password);
+      const redirectTo = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
+      if (redirectTo) {
+        navigate(redirectTo, { replace: true });
+      } else {
+        // Read the user from auth state via a fresh getCurrentUser call,
+        // since login() returns void in the existing Merge_1 AuthContext.
+        const currentUser = getCurrentUser();
+        const route = currentUser ? (ROLE_ROUTES[currentUser.role] ?? '/') : '/';
+        navigate(route, { replace: true });
+      }
     } catch (err) {
-      setError(messageFrom(err));
+      setApiError(messageFrom(err));
     } finally {
       setSubmitting(false);
     }
   };
 
-  return <div className="login-page">
-    <Card className="login-card">
-      <div className="login-brand"><span className="brand-mark"><PawPrint size={23} /></span><div><strong>PetCare AI</strong><small>Clinic operations console</small></div></div>
-      <h2>Sign in</h2>
-      <p className="login-subtitle">Use your staff account to access scheduling, billing and approvals.</p>
-      {error && <div className="error-banner">{error}</div>}
-      <form onSubmit={onSubmit} className="login-form">
-        <label>Email
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@petcare.lk" autoComplete="username" />
-        </label>
-        <label>Password
-          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
-        </label>
-        <Button type="submit" disabled={submitting} icon={<LogIn size={16} />}>{submitting ? 'Signing in...' : 'Sign in'}</Button>
+  return (
+    <AuthLayout
+      title="Welcome Back"
+      subtitle="Sign in to your Beacon Pet Health account."
+    >
+      <form onSubmit={handleSubmit} noValidate aria-label="Login form">
+
+        {/* API / server error */}
+        {apiError && (
+          <div className="alert alert-error" role="alert">
+            <AlertCircle size={18} aria-hidden="true" />
+            <span>{apiError}</span>
+          </div>
+        )}
+
+        <AuthInput
+          id="login-email"
+          label="Email address"
+          type="email"
+          value={form.email}
+          onChange={handleChange('email')}
+          onBlur={handleBlur('email')}
+          placeholder="you@example.com"
+          error={errors.email}
+          autoComplete="email"
+          required
+          disabled={submitting}
+        />
+
+        <PasswordInput
+          id="login-password"
+          label="Password"
+          value={form.password}
+          onChange={handleChange('password')}
+          onBlur={handleBlur('password')}
+          placeholder="Enter your password"
+          error={errors.password}
+          autoComplete="current-password"
+          required
+          disabled={submitting}
+        />
+
+        <button
+          id="login-submit-btn"
+          type="submit"
+          className="btn btn-primary"
+          disabled={submitting}
+          aria-busy={submitting}
+        >
+          {submitting
+            ? <><span className="btn-spinner" aria-hidden="true" /> Signing in…</>
+            : 'Sign In'
+          }
+        </button>
+
+        <div className="auth-footer" style={{ marginTop: '1.5rem' }}>
+          Don't have an account?{' '}
+          <Link to="/register" className="auth-footer-link">
+            Create an account
+          </Link>
+        </div>
       </form>
-    </Card>
-  </div>;
+    </AuthLayout>
+  );
 }
+
+export default LoginPage;

@@ -37,6 +37,15 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(150);
 
+        builder.Property(u => u.FirstName)
+            .HasMaxLength(100);
+
+        builder.Property(u => u.LastName)
+            .HasMaxLength(100);
+
+        builder.Property(u => u.PhoneNumber)
+            .HasMaxLength(50);
+
         builder.Property(u => u.Role)
             .IsRequired()
             .HasMaxLength(50);
@@ -44,6 +53,15 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Active)
             .IsRequired()
             .HasDefaultValue(true);
+
+        builder.Property(u => u.MustChangePassword)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(u => u.OrganizationId)
+            .HasDefaultValue(null);
+
+        builder.HasIndex(u => u.OrganizationId);
 
         builder.Property(u => u.CreatedAt)
             .IsRequired()

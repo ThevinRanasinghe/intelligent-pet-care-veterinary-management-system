@@ -34,6 +34,8 @@ public class PetCareDbContext : DbContext, IPetCareDbContext
 
     public DbSet<User> Users => Set<User>();
 
+    public DbSet<Organization> Organizations => Set<Organization>();
+
     // Pet / Consultation entities
     public DbSet<PetOwner> PetOwners { get; set; } = null!;
 

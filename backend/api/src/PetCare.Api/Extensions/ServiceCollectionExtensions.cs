@@ -52,6 +52,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IQuotationRepository, QuotationRepository>();
         services.AddScoped<IApprovalRepository, ApprovalRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Pet / Consultation services (from Pet-and-Consultation-Request-Management-v2)
@@ -107,6 +108,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IValidator<RejectRequest>, RejectRequestValidator>();
         services.AddScoped<IValidator<RequestRevisionRequest>, RequestRevisionRequestValidator>();
         services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
+        services.AddScoped<IValidator<RegisterPetOwnerRequest>, RegisterPetOwnerRequestValidator>();
+        services.AddScoped<IValidator<RegisterOrganizationRequest>, RegisterOrganizationRequestValidator>();
         services.AddScoped<IValidator<CreateMedicineRequest>, CreateMedicineRequestValidator>();
         services.AddScoped<IValidator<ReceiveStockRequest>, ReceiveStockRequestValidator>();
         services.AddScoped<IValidator<ReserveMedicineRequest>, ReserveMedicineRequestValidator>();

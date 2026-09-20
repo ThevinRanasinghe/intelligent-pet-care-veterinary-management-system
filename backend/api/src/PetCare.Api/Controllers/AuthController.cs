@@ -6,8 +6,9 @@ namespace PetCare.Api.Controllers;
 
 /// <summary>
 /// Shared authentication endpoints. All business rules (credential
-/// validation, JWT issuance) are enforced by <see cref="IAuthService"/> in
-/// PetCare.Application; this controller only handles HTTP concerns.
+/// validation, JWT issuance, registration) are enforced by
+/// <see cref="IAuthService"/> in PetCare.Application; this controller only
+/// handles HTTP concerns.
 /// </summary>
 [ApiController]
 [Route("api/auth")]
@@ -34,5 +35,34 @@ public class AuthController : ControllerBase
     {
         var response = await _authService.LoginAsync(request, cancellationToken);
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Registers a new PetOwner account. Role is always PetOwner and
+    /// cannot be overridden by the caller. Returns 201 on success.
+    /// </summary>
+    [HttpPost("register")]
+    [HttpPost("register/pet-owner")]
+    [ProducesResponseType(typeof(CurrentUserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CurrentUserResponse>> RegisterPetOwner([FromBody] RegisterPetOwnerRequest request, CancellationToken cancellationToken)
+    {
+        var user = await _authService.RegisterPetOwnerAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(RegisterPetOwner), user);
+    }
+
+    /// <summary>
+    /// Registers a new veterinary organization and its initial
+    /// ClinicManager administrator. The organization starts in Pending
+    /// status and must be verified by a SuperAdmin before staff can log
+    /// in. Returns 201 on success.
+    /// </summary>
+    [HttpPost("register/organization")]
+    [ProducesResponseType(typeof(CurrentUserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CurrentUserResponse>> RegisterOrganization([FromBody] RegisterOrganizationRequest request, CancellationToken cancellationToken)
+    {
+        var user = await _authService.RegisterOrganizationAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(RegisterOrganization), user);
     }
 }
