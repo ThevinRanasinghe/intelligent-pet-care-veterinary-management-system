@@ -9,6 +9,7 @@ import { AIWorkflowsPage } from '../features/ai-workflows/AIWorkflowsPage';
 import { InventoryPage } from '../features/inventory/InventoryPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { RegisterPage } from '../features/auth/RegisterPage';
+import { ChangePasswordPage } from '../features/auth/ChangePasswordPage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 import RoleRoute from '../features/auth/components/RoleRoute';
 import { UnauthorizedPage } from '../features/shared/UnauthorizedPage';
@@ -28,7 +29,7 @@ const ROLE_HOMES: Record<Role, string> = {
   Administrator: '/super-admin',
   ClinicManager: '/manager',
   Veterinarian: '/vet',
-  InventoryOfficer: '/inventory',
+  InventoryOfficer: '/inventory-dashboard',
   PetOwner: '/pet-owner',
 };
 
@@ -45,6 +46,9 @@ export function AppRoutes() {
     <Route path="/" element={<HomeRedirect />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
+    <Route path="/change-password" element={
+      <ProtectedRoute><ChangePasswordPage /></ProtectedRoute>
+    } />
     <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
     {/* Protected role-based dashboards */}

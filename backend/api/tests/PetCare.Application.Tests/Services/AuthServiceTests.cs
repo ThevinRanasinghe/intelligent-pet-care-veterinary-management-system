@@ -7,6 +7,7 @@ using PetCare.Application.Interfaces;
 using PetCare.Application.Services;
 using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
+using PetCare.Domain.Enums;
 using Xunit;
 
 namespace PetCare.Application.Tests.Services;
@@ -128,6 +129,121 @@ public class AuthServiceTests
             () => service.LoginAsync(new LoginRequest { Email = Email, Password = Password }));
 
         _jwtTokenGenerator.Verify(g => g.GenerateToken(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithClinicManagerInPendingOrganization_ThrowsOrganizationPendingException()
+    {
+        var orgId = Guid.NewGuid();
+        var user = ActiveManager();
+        user.OrganizationId = orgId;
+        _userRepository.Setup(r => r.GetByEmailAsync(Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.VerifyPassword(Password, PasswordHash)).Returns(true);
+        _organizationRepository.Setup(r => r.GetByIdAsync(orgId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Organization { Id = orgId, Status = OrganizationStatus.Pending, IsActive = false });
+
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<OrganizationPendingException>(
+            () => service.LoginAsync(new LoginRequest { Email = Email, Password = Password }));
+
+        _jwtTokenGenerator.Verify(g => g.GenerateToken(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithClinicManagerInActiveOrganization_ReturnsToken()
+    {
+        var orgId = Guid.NewGuid();
+        var user = ActiveManager();
+        user.OrganizationId = orgId;
+        _userRepository.Setup(r => r.GetByEmailAsync(Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.VerifyPassword(Password, PasswordHash)).Returns(true);
+        _organizationRepository.Setup(r => r.GetByIdAsync(orgId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Organization { Id = orgId, Status = OrganizationStatus.Active, IsActive = true });
+
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(1);
+        _jwtTokenGenerator.Setup(g => g.GenerateToken(user)).Returns(new GeneratedToken("signed-jwt", expiresAt));
+
+        var service = CreateService();
+        var response = await service.LoginAsync(new LoginRequest { Email = Email, Password = Password });
+
+        Assert.Equal("signed-jwt", response.Token);
+        Assert.Equal(Roles.ClinicManager, response.Role);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithClinicManagerAndMissingOrganization_ThrowsOrganizationPendingException()
+    {
+        var orgId = Guid.NewGuid();
+        var user = ActiveManager();
+        user.OrganizationId = orgId;
+        _userRepository.Setup(r => r.GetByEmailAsync(Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.VerifyPassword(Password, PasswordHash)).Returns(true);
+        // Organization lookup returns null (organization row missing)
+        _organizationRepository.Setup(r => r.GetByIdAsync(orgId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Organization?)null);
+
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<OrganizationPendingException>(
+            () => service.LoginAsync(new LoginRequest { Email = Email, Password = Password }));
+
+        _jwtTokenGenerator.Verify(g => g.GenerateToken(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithPetOwnerAndNoOrganization_LogsInNormally()
+    {
+        var user = new User
+        {
+            Id = UserId,
+            Email = Email,
+            PasswordHash = PasswordHash,
+            Name = "John Doe",
+            Role = Roles.PetOwner,
+            Active = true,
+            OrganizationId = null,
+        };
+        _userRepository.Setup(r => r.GetByEmailAsync(Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.VerifyPassword(Password, PasswordHash)).Returns(true);
+
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(1);
+        _jwtTokenGenerator.Setup(g => g.GenerateToken(user)).Returns(new GeneratedToken("signed-jwt", expiresAt));
+
+        var service = CreateService();
+        var response = await service.LoginAsync(new LoginRequest { Email = Email, Password = Password });
+
+        Assert.Equal("signed-jwt", response.Token);
+        Assert.Equal(Roles.PetOwner, response.Role);
+        // Organization repository should not be called for users without an organization
+        _organizationRepository.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_WithSuperAdminAndNoOrganization_LogsInNormally()
+    {
+        var user = new User
+        {
+            Id = UserId,
+            Email = Email,
+            PasswordHash = PasswordHash,
+            Name = "Super Admin",
+            Role = Roles.SuperAdmin,
+            Active = true,
+            OrganizationId = null,
+        };
+        _userRepository.Setup(r => r.GetByEmailAsync(Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _passwordHasher.Setup(h => h.VerifyPassword(Password, PasswordHash)).Returns(true);
+
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(1);
+        _jwtTokenGenerator.Setup(g => g.GenerateToken(user)).Returns(new GeneratedToken("signed-jwt", expiresAt));
+
+        var service = CreateService();
+        var response = await service.LoginAsync(new LoginRequest { Email = Email, Password = Password });
+
+        Assert.Equal("signed-jwt", response.Token);
+        Assert.Equal(Roles.SuperAdmin, response.Role);
+        _organizationRepository.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

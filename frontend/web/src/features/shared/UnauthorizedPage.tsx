@@ -7,7 +7,7 @@ const ROLE_HOMES: Record<Role, string> = {
   Administrator: '/super-admin',
   ClinicManager: '/manager',
   Veterinarian: '/vet',
-  InventoryOfficer: '/inventory',
+  InventoryOfficer: '/inventory-dashboard',
   PetOwner: '/pet-owner',
 };
 

@@ -51,6 +51,22 @@ public class AuthService : IAuthService
             throw new InvalidCredentialsException("Invalid email or password.");
         }
 
+        // Enforce organization approval: a ClinicManager (or any staff
+        // member) belonging to a Pending/inactive organization cannot log
+        // in until a SuperAdmin activates the organization. PetOwner and
+        // SuperAdmin accounts are not affiliated with an organization and
+        // are unaffected by this check.
+        if (user.OrganizationId is not null)
+        {
+            var organization = await _organizationRepository.GetByIdAsync(user.OrganizationId.Value, cancellationToken);
+            if (organization is null || !organization.IsActive || organization.Status != OrganizationStatus.Active)
+            {
+                throw new OrganizationPendingException(
+                    "Your organization is pending verification. " +
+                    "Please wait for a Beacon administrator to approve your registration.");
+            }
+        }
+
         var token = _jwtTokenGenerator.GenerateToken(user);
 
         return new LoginResponse

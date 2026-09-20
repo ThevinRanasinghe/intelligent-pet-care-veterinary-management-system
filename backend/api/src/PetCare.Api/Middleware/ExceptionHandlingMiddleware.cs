@@ -68,6 +68,11 @@ public class ExceptionHandlingMiddleware
                 "Invalid email or password.",
                 null),
 
+            OrganizationPendingException orgPending => (
+                HttpStatusCode.Forbidden,
+                "Organization pending verification.",
+                null),
+
             InventoryConflictException inventoryConflict => (
                 HttpStatusCode.Conflict,
                 "The request conflicts with an existing inventory business rule.",
