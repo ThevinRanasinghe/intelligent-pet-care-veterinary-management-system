@@ -1,47 +1,10 @@
-import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, PawPrint, Calendar, Stethoscope } from 'lucide-react';
-import DashboardLayout from '../shared/DashboardLayout';
-
 /**
  * Pet Owner landing/dashboard — pet owner's view of their pets and consultations.
- * Navigation points to existing Merge_1 pages.
+ * Renders inside the shared DashboardLayout shell.
  */
 export function PetOwnerDashboard() {
-  const navigate = useNavigate();
-
-  const navItems = [
-    {
-      label: 'My Pets',
-      icon: <PawPrint size={18} />,
-      active: false,
-      onClick: () => navigate('/pets'),
-    },
-    {
-      label: 'Consultation Requests',
-      icon: <LayoutDashboard size={18} />,
-      active: false,
-      onClick: () => navigate('/consultations'),
-    },
-    {
-      label: 'Treatment Records',
-      icon: <Stethoscope size={18} />,
-      active: false,
-      onClick: () => navigate('/treatment'),
-    },
-    {
-      label: 'Appointments',
-      icon: <Calendar size={18} />,
-      active: false,
-      onClick: () => navigate('/scheduling'),
-    },
-  ];
-
   return (
-    <DashboardLayout
-      pageTitle="My Pet Care"
-      pageSubtitle="Manage your pets, consultation requests, and treatment history"
-      navItems={navItems}
-    >
+    <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
         <div style={{ backgroundColor: '#ffffff', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb' }}>
           <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>My Pets</div>
@@ -66,7 +29,7 @@ export function PetOwnerDashboard() {
           Manage your pets, request consultations, and review treatment records through the sidebar navigation. Your veterinary care team is here to help.
         </p>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 

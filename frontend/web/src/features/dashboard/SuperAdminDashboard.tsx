@@ -1,55 +1,50 @@
 import { useState } from 'react';
 import { Building2, Server, Shield, Users } from 'lucide-react';
-import DashboardLayout from '../shared/DashboardLayout';
+
+const TABS = [
+  { key: 'overview', label: 'Platform Overview', icon: <Server size={16} /> },
+  { key: 'organizations', label: 'Organizations', icon: <Building2 size={16} /> },
+  { key: 'staff', label: 'Staff & Users', icon: <Users size={16} /> },
+  { key: 'audit', label: 'Security & Governance', icon: <Shield size={16} /> },
+];
 
 /**
  * Super Admin dashboard — platform governance view.
- * Navigation points to existing Merge_1 pages where available.
+ * Renders inside the shared DashboardLayout shell.
  */
 export function SuperAdminDashboard() {
   const [activeSection, setActiveSection] = useState('overview');
 
-  const navItems = [
-    {
-      label: 'Platform Overview',
-      icon: <Server size={18} />,
-      active: activeSection === 'overview',
-      onClick: () => setActiveSection('overview'),
-    },
-    {
-      label: 'Organizations',
-      icon: <Building2 size={18} />,
-      active: activeSection === 'organizations',
-      onClick: () => setActiveSection('organizations'),
-    },
-    {
-      label: 'Staff & Users',
-      icon: <Users size={18} />,
-      active: activeSection === 'staff',
-      onClick: () => setActiveSection('staff'),
-    },
-    {
-      label: 'Security & Governance',
-      icon: <Shield size={18} />,
-      active: activeSection === 'audit',
-      onClick: () => setActiveSection('audit'),
-    },
-  ];
-
   return (
-    <DashboardLayout
-      pageTitle={
-        activeSection === 'organizations'
-          ? 'Veterinary Organization Governance'
-          : activeSection === 'staff'
-          ? 'Staff Verification & Governance'
-          : activeSection === 'overview'
-          ? 'Platform Overview'
-          : 'Security & Governance'
-      }
-      pageSubtitle="Review registrations, verify clinics, manage lifecycle states, and monitor platform multi-tenancy"
-      navItems={navItems}
-    >
+    <>
+      {/* Internal section tabs */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveSection(tab.key)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.5rem 1rem',
+              borderRadius: '9999px',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              border: '1px solid',
+              cursor: 'pointer',
+              transition: 'all 150ms',
+              borderColor: activeSection === tab.key ? 'var(--petcare-black, #111111)' : '#e5e7eb',
+              background: activeSection === tab.key ? 'var(--petcare-black, #111111)' : '#ffffff',
+              color: activeSection === tab.key ? 'var(--petcare-yellow, #FFBE00)' : '#6b7280',
+            }}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {activeSection === 'overview' && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
@@ -102,7 +97,7 @@ export function SuperAdminDashboard() {
           </p>
         </div>
       )}
-    </DashboardLayout>
+    </>
   );
 }
 

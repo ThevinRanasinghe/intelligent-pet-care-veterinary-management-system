@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AppLayout } from '../layouts/AppLayout';
+import { DashboardLayout } from '../features/shared/DashboardLayout';
 import { DashboardPage } from '../pages/DashboardPage';
 import { PlaceholderPage } from '../pages/PlaceholderPage';
 import { SchedulingPage } from '../features/scheduling/SchedulingPage';
@@ -51,25 +51,27 @@ export function AppRoutes() {
     } />
     <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-    {/* Protected role-based dashboards */}
-    <Route path="/super-admin" element={
-      <ProtectedRoute><RoleRoute allowedRoles={['Administrator']}><SuperAdminDashboard /></RoleRoute></ProtectedRoute>
-    } />
-    <Route path="/manager" element={
-      <ProtectedRoute><RoleRoute allowedRoles={['ClinicManager', 'Administrator']}><ClinicManagerDashboard /></RoleRoute></ProtectedRoute>
-    } />
-    <Route path="/vet" element={
-      <ProtectedRoute><RoleRoute allowedRoles={['Veterinarian', 'Administrator']}><VeterinarianDashboard /></RoleRoute></ProtectedRoute>
-    } />
-    <Route path="/inventory-dashboard" element={
-      <ProtectedRoute><RoleRoute allowedRoles={['InventoryOfficer', 'Administrator']}><InventoryDashboard /></RoleRoute></ProtectedRoute>
-    } />
-    <Route path="/pet-owner" element={
-      <ProtectedRoute><RoleRoute allowedRoles={['PetOwner', 'Administrator']}><PetOwnerDashboard /></RoleRoute></ProtectedRoute>
-    } />
+    {/* All authenticated pages share the same DashboardLayout shell */}
+    <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
 
-    {/* Existing Merge_1 feature routes (preserved) */}
-    <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+      {/* Role-based dashboards */}
+      <Route path="/super-admin" element={
+        <RoleRoute allowedRoles={['Administrator']}><SuperAdminDashboard /></RoleRoute>
+      } />
+      <Route path="/manager" element={
+        <RoleRoute allowedRoles={['ClinicManager', 'Administrator']}><ClinicManagerDashboard /></RoleRoute>
+      } />
+      <Route path="/vet" element={
+        <RoleRoute allowedRoles={['Veterinarian', 'Administrator']}><VeterinarianDashboard /></RoleRoute>
+      } />
+      <Route path="/inventory-dashboard" element={
+        <RoleRoute allowedRoles={['InventoryOfficer', 'Administrator']}><InventoryDashboard /></RoleRoute>
+      } />
+      <Route path="/pet-owner" element={
+        <RoleRoute allowedRoles={['PetOwner', 'Administrator']}><PetOwnerDashboard /></RoleRoute>
+      } />
+
+      {/* Feature pages */}
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/pets" element={<PetsPage />} />
       <Route path="/consultations" element={<ConsultationRequestsPage />} />

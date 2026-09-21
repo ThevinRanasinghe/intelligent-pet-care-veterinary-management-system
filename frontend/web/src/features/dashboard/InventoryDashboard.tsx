@@ -1,47 +1,10 @@
-import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, AlertTriangle, Calendar } from 'lucide-react';
-import DashboardLayout from '../shared/DashboardLayout';
-
 /**
  * Inventory Officer dashboard — medicine/inventory focused view.
- * Navigation points to the existing Merge_1 InventoryPage.
+ * Renders inside the shared DashboardLayout shell.
  */
 export function InventoryDashboard() {
-  const navigate = useNavigate();
-
-  const navItems = [
-    {
-      label: 'Inventory Overview',
-      icon: <LayoutDashboard size={18} />,
-      active: false,
-      onClick: () => navigate('/'),
-    },
-    {
-      label: 'Medicine & Inventory',
-      icon: <Package size={18} />,
-      active: false,
-      onClick: () => navigate('/inventory'),
-    },
-    {
-      label: 'Low Stock Alerts',
-      icon: <AlertTriangle size={18} />,
-      active: false,
-      onClick: () => navigate('/inventory'),
-    },
-    {
-      label: 'Scheduling',
-      icon: <Calendar size={18} />,
-      active: false,
-      onClick: () => navigate('/scheduling'),
-    },
-  ];
-
   return (
-    <DashboardLayout
-      pageTitle="Inventory Officer Dashboard"
-      pageSubtitle="Pharmaceutical stock tracking, FEFO batch dispensing, and supplier directory"
-      navItems={navItems}
-    >
+    <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
         <div style={{ backgroundColor: '#ffffff', padding: '1.5rem', borderRadius: '0.75rem', border: '1px solid #e5e7eb' }}>
           <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>Total Medicines</div>
@@ -66,7 +29,7 @@ export function InventoryDashboard() {
           Use the Medicine & Inventory link in the sidebar to access the full inventory management interface — medicine catalog, batch tracking, reservations, stock-in, and supplier management.
         </p>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
 
