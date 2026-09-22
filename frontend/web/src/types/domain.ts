@@ -161,6 +161,7 @@ export interface Medicine {
 export interface MedicineBatch {
   id: string;
   medicineId: string;
+  supplierId: string;
   batchNumber: string;
   quantity: number;
   expiryDate: string;
@@ -194,10 +195,12 @@ export interface InventoryTransaction {
 export interface MedicineReservation {
   id: string;
   medicineId: string;
+  medicineName?: string;
   quantity: number;
   status: 'Reserved' | 'Dispensed' | 'Cancelled' | 'Expired';
   referenceType?: string;
   referenceId?: string;
+  requestedByUserId?: string;
   createdAt?: string;
 }
 

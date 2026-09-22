@@ -28,6 +28,8 @@ public class AuthServiceTests
     private readonly Mock<IValidator<LoginRequest>> _loginValidator = new();
     private readonly Mock<IValidator<RegisterPetOwnerRequest>> _registerPetOwnerValidator = new();
     private readonly Mock<IValidator<RegisterOrganizationRequest>> _registerOrganizationValidator = new();
+    private readonly Mock<IValidator<ChangePasswordRequest>> _changePasswordValidator = new();
+    private readonly Mock<IValidator<UpdateProfileRequest>> _updateProfileValidator = new();
 
     private static readonly Guid UserId = Guid.NewGuid();
     private const string Email = "manager@petcare.lk";
@@ -45,6 +47,12 @@ public class AuthServiceTests
         _registerOrganizationValidator
             .Setup(v => v.ValidateAsync(It.IsAny<RegisterOrganizationRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ValidationResult());
+        _changePasswordValidator
+            .Setup(v => v.ValidateAsync(It.IsAny<ChangePasswordRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult());
+        _updateProfileValidator
+            .Setup(v => v.ValidateAsync(It.IsAny<UpdateProfileRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult());
     }
 
     private AuthService CreateService() => new(
@@ -54,7 +62,9 @@ public class AuthServiceTests
         _jwtTokenGenerator.Object,
         _loginValidator.Object,
         _registerPetOwnerValidator.Object,
-        _registerOrganizationValidator.Object);
+        _registerOrganizationValidator.Object,
+        _changePasswordValidator.Object,
+        _updateProfileValidator.Object);
 
     private static User ActiveManager() => new()
     {

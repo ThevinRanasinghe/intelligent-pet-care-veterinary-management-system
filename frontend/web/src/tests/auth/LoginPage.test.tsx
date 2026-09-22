@@ -27,6 +27,8 @@ function renderLogin(route = '/login') {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<div data-testid="dashboard">Dashboard</div>} />
+          {/* Role home for the ClinicManager test login */}
+          <Route path="/manager" element={<div data-testid="dashboard">Dashboard</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
@@ -44,7 +46,7 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
-  it('calls the API, stores the session, and redirects to / on success', async () => {
+  it('calls the API, stores the session, and redirects to the role dashboard on success', async () => {
     const user = userEvent.setup();
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValueOnce(jsonResponse(loginResponse));
@@ -93,7 +95,7 @@ describe('LoginPage', () => {
     await waitFor(() => expect(screen.getByTestId('dashboard')).toBeInTheDocument());
   });
 
-  it('redirects to / when the user is already authenticated', () => {
+  it('redirects to the role dashboard when the user is already authenticated', () => {
     seedAuth('ClinicManager');
     renderLogin();
     expect(screen.getByTestId('dashboard')).toBeInTheDocument();

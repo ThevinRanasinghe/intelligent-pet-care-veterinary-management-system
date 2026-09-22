@@ -20,6 +20,20 @@ public class MedicineReservationsController : ControllerBase
     }
 
     /// <summary>
+    /// Lists all medicine reservations, newest first.
+    /// </summary>
+    [Authorize(Roles = $"{Roles.Veterinarian},{Roles.InventoryOfficer},{Roles.ClinicManager},{Roles.SuperAdmin}")]
+    [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyList<ReservationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<ReservationResponse>>> GetAll(CancellationToken cancellationToken)
+    {
+        var reservations = await _inventoryService.GetReservationsAsync(cancellationToken);
+        return Ok(reservations);
+    }
+
+    /// <summary>
     /// Creates a reservation for a quantity of medicine.
     /// Concurrency-safe atomic reservation against available inventory.
     /// </summary>

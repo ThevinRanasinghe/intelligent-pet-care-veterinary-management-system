@@ -13,6 +13,14 @@ public class UserRepository : IUserRepository
         _context = context;
     }
 
+    public Task<List<User>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        return _context.Users
+            .Include(u => u.Organization)
+            .OrderBy(u => u.Name)
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         return _context.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);

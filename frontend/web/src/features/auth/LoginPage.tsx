@@ -6,17 +6,8 @@ import AuthLayout from './components/AuthLayout';
 import AuthInput from './components/AuthInput';
 import PasswordInput from './components/PasswordInput';
 import { useAuth } from './AuthContext';
-import { getCurrentUser } from '../../services/authService';
+import { ROLE_HOMES, safeRedirectPath } from './roleAccess';
 import { messageFrom } from '../../utils/errors';
-import type { Role } from '../../types/domain';
-
-const ROLE_ROUTES: Record<Role, string> = {
-  Administrator: '/super-admin',
-  ClinicManager: '/manager',
-  Veterinarian: '/vet',
-  InventoryOfficer: '/inventory-dashboard',
-  PetOwner: '/pet-owner',
-};
 
 interface FormState {
   email: string;
@@ -47,7 +38,7 @@ function validateForm({ email, password }: FormState) {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login, user } = useAuth();
 
   const [form, setForm] = useState<FormState>({ email: '', password: '' });
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
@@ -55,8 +46,8 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (isAuthenticated) {
-    const redirectTo = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/';
-    return <Navigate to={redirectTo} replace />;
+    const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
+    return <Navigate to={safeRedirectPath(user?.role, from)} replace />;
   }
 
   const handleChange = (field: keyof FormState) => (e: ChangeEvent<HTMLInputElement>) => {
@@ -84,17 +75,9 @@ export function LoginPage() {
 
     setSubmitting(true);
     try {
-      await login(form.email, form.password);
-      const redirectTo = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
-      if (redirectTo) {
-        navigate(redirectTo, { replace: true });
-      } else {
-        // Read the user from auth state via a fresh getCurrentUser call,
-        // since login() returns void in the existing Merge_1 AuthContext.
-        const currentUser = getCurrentUser();
-        const route = currentUser ? (ROLE_ROUTES[currentUser.role] ?? '/') : '/';
-        navigate(route, { replace: true });
-      }
+      const auth = await login(form.email, form.password);
+      const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
+      navigate(safeRedirectPath(auth.role, from), { replace: true });
     } catch (err) {
       setApiError(messageFrom(err));
     } finally {

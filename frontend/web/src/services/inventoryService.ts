@@ -93,7 +93,11 @@ export async function getLowStock(): Promise<Medicine[]> {
 }
 
 export async function getExpiring(days: number = 30): Promise<MedicineBatch[]> {
-  return apiRequest<MedicineBatch[]>(`/medicines/expiring?days=${days}`);
+  return apiRequest<MedicineBatch[]>(`/medicines/expiring?withinDays=${days}`);
+}
+
+export async function getReservations(): Promise<MedicineReservation[]> {
+  return apiRequest<MedicineReservation[]>('/medicine-reservations');
 }
 
 export async function reserveMedicine(data: ReserveMedicineRequest): Promise<MedicineReservation> {

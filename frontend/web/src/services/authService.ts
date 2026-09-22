@@ -102,3 +102,16 @@ export async function registerOrganization(request: RegisterOrganizationRequest)
     body: JSON.stringify(request),
   });
 }
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
+}
+
+export async function changePassword(request: ChangePasswordRequest): Promise<void> {
+  return apiRequest<void>('/auth/change-password', {
+    method: 'PUT',
+    body: JSON.stringify(request),
+  });
+}

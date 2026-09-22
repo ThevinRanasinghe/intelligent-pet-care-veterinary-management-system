@@ -84,7 +84,7 @@ public class MedicinesController : ControllerBase
     }
 
     /// <summary>Creates a new medicine in the catalogue.</summary>
-    [Authorize(Roles = $"{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
+    [Authorize(Roles = $"{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
     [HttpPost]
     [ProducesResponseType(typeof(MedicineResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -99,7 +99,7 @@ public class MedicinesController : ControllerBase
     }
 
     /// <summary>Receives a new batch of stock for a medicine.</summary>
-    [Authorize(Roles = $"{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
+    [Authorize(Roles = $"{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
     [HttpPost("{id:guid}/stock-in")]
     [ProducesResponseType(typeof(MedicineBatchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

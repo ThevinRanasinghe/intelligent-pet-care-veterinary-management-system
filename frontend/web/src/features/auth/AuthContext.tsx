@@ -6,7 +6,7 @@ import type { StoredAuth } from '../../utils/authStorage';
 interface AuthContextValue {
   user: StoredAuth | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<StoredAuth>;
   logout: () => void;
   hasRole: (role: Role) => boolean;
 }
@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login: async (email: string, password: string) => {
       const auth = await authService.login(email, password);
       setUser(auth);
+      return auth;
     },
     logout: () => {
       authService.logout();

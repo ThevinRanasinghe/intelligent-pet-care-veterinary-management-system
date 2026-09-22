@@ -44,7 +44,7 @@ public class SuppliersController : ControllerBase
     }
 
     /// <summary>Creates a new supplier.</summary>
-    [Authorize(Roles = $"{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
+    [Authorize(Roles = $"{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
     [HttpPost]
     [ProducesResponseType(typeof(SupplierResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

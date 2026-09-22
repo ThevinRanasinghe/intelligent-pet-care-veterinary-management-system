@@ -11,11 +11,13 @@ import {
 
 import {
   petService,
+  ownerService,
   consultationService,
   Pet,
   ConsultationRequestApi,
   NearestClinicApi,
 } from "../../services/api";
+import { useAuth } from "../auth/AuthContext";
 
 /* ============================================================
    FORM TYPE
@@ -66,6 +68,7 @@ export function NewConsultationModal({
   onClose,
   onSubmit,
 }: NewConsultationModalProps) {
+  const { user } = useAuth();
   const [form, setForm] = useState<NewConsultationForm>(initialForm);
 
   const [pets, setPets] = useState<Pet[]>([]);
@@ -102,7 +105,22 @@ export function NewConsultationModal({
         setLoadingPets(true);
         setError("");
 
-        const data = await petService.getAllPets();
+        const isPetOwner = user?.role === "PetOwner";
+        let data: Pet[];
+
+        if (isPetOwner) {
+          const owners = await ownerService.getAllOwners();
+          const owner = owners.find((candidate) =>
+            candidate.email.trim().toLowerCase() === user?.email.trim().toLowerCase(),
+          );
+          data = owner ? await petService.getPetsByOwner(owner.id) : [];
+
+          if (!owner && mounted) {
+            setError("Your account is not linked to a pet-owner profile yet.");
+          }
+        } else {
+          data = await petService.getAllPets();
+        }
 
         if (mounted) {
           setPets(Array.isArray(data) ? data : []);
@@ -126,7 +144,7 @@ export function NewConsultationModal({
     return () => {
       mounted = false;
     };
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   /* ============================================================
      ESC KEY
@@ -885,7 +903,7 @@ export function NewConsultationModal({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))",
                   gap: "14px",
                 }}
               >
@@ -1050,7 +1068,7 @@ export function NewConsultationModal({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))",
                   gap: "14px",
                 }}
               >

@@ -18,7 +18,11 @@ public class InventoryIntegrationTests : IClassFixture<WebApplicationFactory<Pro
     private readonly JwtTokenGenerator _tokenGenerator;
 
     private static readonly string TestJwtKey = "integration-test-signing-key-at-least-32-bytes-long-super-secret";
-    private static readonly string DbConnection = "Host=localhost;Port=5432;Database=Pet Care Management System;Username=thevin;Password=thevin123";
+    private static readonly string DbConnection =
+        Environment.GetEnvironmentVariable("PETCARE_TEST_DB_CONNECTION")
+        ?? Environment.GetEnvironmentVariable("PETCARE_DB_CONNECTION")
+        ?? throw new InvalidOperationException(
+            "Set PETCARE_TEST_DB_CONNECTION or PETCARE_DB_CONNECTION to a PostgreSQL database for integration tests.");
 
     public InventoryIntegrationTests(WebApplicationFactory<Program> factory)
     {

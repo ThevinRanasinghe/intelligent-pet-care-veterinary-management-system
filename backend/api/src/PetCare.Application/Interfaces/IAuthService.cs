@@ -32,4 +32,15 @@ public interface IAuthService
     /// organization name/email or duplicate manager email.
     /// </summary>
     Task<CurrentUserResponse> RegisterOrganizationAsync(RegisterOrganizationRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Changes the authenticated user's password. Verifies the current
+    /// password before applying the new one. Throws
+    /// <see cref="PetCare.Application.Exceptions.InvalidCredentialsException"/>
+    /// when the current password is incorrect.
+    /// </summary>
+    Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Updates the signed-in user's editable account information.</summary>
+    Task<CurrentUserResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default);
 }

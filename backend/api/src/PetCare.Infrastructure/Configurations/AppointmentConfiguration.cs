@@ -42,8 +42,7 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.Property(a => a.Status)
             .IsRequired()
             .HasMaxLength(20)
-            .HasConversion<string>()
-            .HasDefaultValue(Domain.Enums.AppointmentStatus.Reserved);
+            .HasConversion<string>();
 
         builder.Property(a => a.Notes)
             .HasColumnType("text");

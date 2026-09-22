@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs.Consultations;
 using PetCare.Application.Interfaces;
@@ -6,14 +7,18 @@ namespace PetCare.Api.Controllers;
 
 [ApiController]
 [Route("api/consultations")]
+[Authorize]
 public class ConsultationRequestsController : ControllerBase
 {
     private readonly IConsultationRequestService _consultationRequestService;
+    private readonly IOwnerAccessService _ownerAccess;
 
     public ConsultationRequestsController(
-        IConsultationRequestService consultationRequestService)
+        IConsultationRequestService consultationRequestService,
+        IOwnerAccessService ownerAccess)
     {
         _consultationRequestService = consultationRequestService;
+        _ownerAccess = ownerAccess;
     }
 
     // ============================================================
@@ -24,6 +29,18 @@ public class ConsultationRequestsController : ControllerBase
     public async Task<ActionResult<ConsultationRequestDto>> Create(
         [FromBody] CreateConsultationRequestDto dto)
     {
+        if (_ownerAccess.IsPetOwner)
+        {
+            var ownerId = await _ownerAccess.GetOwnerIdAsync();
+            if (ownerId == null || !await _ownerAccess.OwnsPetAsync(dto.PetId))
+            {
+                return Forbid();
+            }
+
+            // A pet owner can only file requests under their own profile.
+            dto.OwnerId = ownerId;
+        }
+
         try
         {
             var consultation =
@@ -57,6 +74,16 @@ public class ConsultationRequestsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<ConsultationRequestDto>>> GetAll()
     {
+        if (_ownerAccess.IsPetOwner)
+        {
+            var ownerId = await _ownerAccess.GetOwnerIdAsync();
+            var ownConsultations = ownerId == null
+                ? new List<ConsultationRequestDto>()
+                : await _consultationRequestService.GetByOwnerIdAsync(ownerId);
+
+            return Ok(ownConsultations);
+        }
+
         var consultations =
             await _consultationRequestService.GetAllAsync();
 
@@ -79,6 +106,11 @@ public class ConsultationRequestsController : ControllerBase
             });
         }
 
+        if (_ownerAccess.IsPetOwner && ownerId != await _ownerAccess.GetOwnerIdAsync())
+        {
+            return Forbid();
+        }
+
         var consultations =
             await _consultationRequestService.GetByOwnerIdAsync(ownerId);
 
@@ -98,6 +130,14 @@ public class ConsultationRequestsController : ControllerBase
             return BadRequest(new
             {
                 message = "Consultation ID is required."
+            });
+        }
+
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsConsultationAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Consultation request was not found."
             });
         }
 
@@ -133,6 +173,14 @@ public class ConsultationRequestsController : ControllerBase
                 });
             }
 
+            if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsConsultationAsync(id))
+            {
+                return NotFound(new
+                {
+                    message = "Consultation request was not found."
+                });
+            }
+
             var history =
                 await _consultationRequestService
                     .GetStatusHistoryAsync(id);
@@ -157,6 +205,14 @@ public class ConsultationRequestsController : ControllerBase
         string id,
         [FromBody] UpdateConsultationRequestDto dto)
     {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsConsultationAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Consultation request was not found."
+            });
+        }
+
         try
         {
             var consultation =
@@ -196,6 +252,14 @@ public class ConsultationRequestsController : ControllerBase
     public async Task<ActionResult<ConsultationRequestDto>> Submit(
         string id)
     {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsConsultationAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Consultation request was not found."
+            });
+        }
+
         try
         {
             var consultation =
@@ -234,6 +298,14 @@ public class ConsultationRequestsController : ControllerBase
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(string id)
     {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsConsultationAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Consultation request was not found."
+            });
+        }
+
         try
         {
             var cancelled =
@@ -379,6 +451,11 @@ private static double DegreesToRadians(double degrees)
                 isValid = false,
                 message = "Pet ID and Owner ID are required."
             });
+        }
+
+        if (_ownerAccess.IsPetOwner && ownerId != await _ownerAccess.GetOwnerIdAsync())
+        {
+            return Forbid();
         }
 
         var isValid =

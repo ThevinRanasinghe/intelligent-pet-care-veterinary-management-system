@@ -90,6 +90,10 @@ export function deleteExamination(id: string) {
 
 // ---- Diagnoses ----
 
+export function getAllDiagnoses() {
+    return apiRequest<Diagnosis[]>('/diagnoses');
+}
+
 export function getDiagnosisByExamination(examinationId: string) {
     return apiRequest<Diagnosis>(`/diagnoses/examination/${examinationId}`);
 }
@@ -102,6 +106,10 @@ export function createDiagnosis(input: CreateDiagnosisInput) {
 }
 
 // ---- Treatment Records ----
+
+export function getAllTreatmentRecords() {
+    return apiRequest<TreatmentRecord[]>('/treatmentrecords');
+}
 
 export function getTreatmentRecordsByDiagnosis(diagnosisId: string) {
     return apiRequest<TreatmentRecord[]>(`/treatmentrecords/diagnosis/${diagnosisId}`);
@@ -122,6 +130,10 @@ export function updateTreatmentStatus(id: string, status: TreatmentStatus) {
 }
 
 // ---- Prescriptions ----
+
+export function getAllPrescriptions() {
+    return apiRequest<Prescription[]>('/prescriptions');
+}
 
 export function getPrescriptionsByTreatment(treatmentRecordId: string) {
     return apiRequest<Prescription[]>(`/prescriptions/treatment/${treatmentRecordId}`);

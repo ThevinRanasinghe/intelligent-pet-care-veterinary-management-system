@@ -13,6 +13,14 @@ public class OrganizationRepository : IOrganizationRepository
         _context = context;
     }
 
+    public Task<List<Organization>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        return _context.Organizations
+            .Include(o => o.Users)
+            .OrderBy(o => o.Name)
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return _context.Organizations.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);

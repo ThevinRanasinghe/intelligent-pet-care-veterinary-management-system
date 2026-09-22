@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PetCare.Api.Extensions;
 using PetCare.Application.DTOs.Auth;
 using PetCare.Application.Interfaces;
 
@@ -64,5 +66,34 @@ public class AuthController : ControllerBase
     {
         var user = await _authService.RegisterOrganizationAsync(request, cancellationToken);
         return CreatedAtAction(nameof(RegisterOrganization), user);
+    }
+
+    /// <summary>
+    /// Changes the authenticated user's password. Requires a valid JWT.
+    /// The current password must match before the new one is applied.
+    /// Returns 204 on success, 401 for wrong current password.
+    /// </summary>
+    [HttpPut("change-password")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        var userId = User.GetUserId();
+        await _authService.ChangePasswordAsync(userId, request, cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>Updates the authenticated user's own account details.</summary>
+    [HttpPut("profile")]
+    [Authorize]
+    [ProducesResponseType(typeof(CurrentUserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<CurrentUserResponse>> UpdateProfile([FromBody] UpdateProfileRequest request, CancellationToken cancellationToken)
+    {
+        var profile = await _authService.UpdateProfileAsync(User.GetUserId(), request, cancellationToken);
+        return Ok(profile);
     }
 }

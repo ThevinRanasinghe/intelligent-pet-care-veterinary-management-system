@@ -21,6 +21,8 @@ public class AuthService : IAuthService
     private readonly IValidator<LoginRequest> _loginValidator;
     private readonly IValidator<RegisterPetOwnerRequest> _registerPetOwnerValidator;
     private readonly IValidator<RegisterOrganizationRequest> _registerOrganizationValidator;
+    private readonly IValidator<ChangePasswordRequest> _changePasswordValidator;
+    private readonly IValidator<UpdateProfileRequest> _updateProfileValidator;
 
     public AuthService(
         IUserRepository userRepository,
@@ -29,7 +31,9 @@ public class AuthService : IAuthService
         IJwtTokenGenerator jwtTokenGenerator,
         IValidator<LoginRequest> loginValidator,
         IValidator<RegisterPetOwnerRequest> registerPetOwnerValidator,
-        IValidator<RegisterOrganizationRequest> registerOrganizationValidator)
+        IValidator<RegisterOrganizationRequest> registerOrganizationValidator,
+        IValidator<ChangePasswordRequest> changePasswordValidator,
+        IValidator<UpdateProfileRequest> updateProfileValidator)
     {
         _userRepository = userRepository;
         _organizationRepository = organizationRepository;
@@ -38,6 +42,8 @@ public class AuthService : IAuthService
         _loginValidator = loginValidator;
         _registerPetOwnerValidator = registerPetOwnerValidator;
         _registerOrganizationValidator = registerOrganizationValidator;
+        _changePasswordValidator = changePasswordValidator;
+        _updateProfileValidator = updateProfileValidator;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -172,6 +178,40 @@ public class AuthService : IAuthService
         await _userRepository.SaveChangesAsync(cancellationToken);
 
         return MapToCurrentUser(manager, organization);
+    }
+
+    public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        await _changePasswordValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException($"User '{userId}' not found.");
+
+        if (!_passwordHasher.VerifyPassword(request.CurrentPassword, user.PasswordHash))
+        {
+            throw new InvalidCredentialsException("Current password is incorrect.");
+        }
+
+        user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+        user.MustChangePassword = false;
+
+        await _userRepository.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<CurrentUserResponse> UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        await _updateProfileValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken)
+            ?? throw new NotFoundException($"User '{userId}' not found.");
+
+        user.FirstName = request.FirstName.Trim();
+        user.LastName = request.LastName.Trim();
+        user.Name = $"{user.FirstName} {user.LastName}";
+        user.PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim();
+
+        await _userRepository.SaveChangesAsync(cancellationToken);
+        return MapToCurrentUser(user, null);
     }
 
     private static CurrentUserResponse MapToCurrentUser(User user, Organization? organization)

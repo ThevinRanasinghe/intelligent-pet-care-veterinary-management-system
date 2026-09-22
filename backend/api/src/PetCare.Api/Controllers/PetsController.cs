@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs.Pets;
 using PetCare.Application.Interfaces;
@@ -6,13 +7,16 @@ namespace PetCare.Api.Controllers;
 
 [ApiController]
 [Route("api/pets")]
+[Authorize]
 public class PetsController : ControllerBase
 {
     private readonly IPetService _petService;
+    private readonly IOwnerAccessService _ownerAccess;
 
-    public PetsController(IPetService petService)
+    public PetsController(IPetService petService, IOwnerAccessService ownerAccess)
     {
         _petService = petService;
+        _ownerAccess = ownerAccess;
     }
 
     // POST: api/pets
@@ -20,6 +24,18 @@ public class PetsController : ControllerBase
     public async Task<ActionResult<PetDto>> Create(
         [FromBody] CreatePetDto dto)
     {
+        if (_ownerAccess.IsPetOwner)
+        {
+            var ownerId = await _ownerAccess.GetOwnerIdAsync();
+            if (ownerId == null)
+            {
+                return Forbid();
+            }
+
+            // A pet owner can only register pets under their own profile.
+            dto.OwnerId = ownerId;
+        }
+
         try
         {
             var pet = await _petService.CreateAsync(dto);
@@ -42,6 +58,16 @@ public class PetsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<PetDto>>> GetAll()
     {
+        if (_ownerAccess.IsPetOwner)
+        {
+            var ownerId = await _ownerAccess.GetOwnerIdAsync();
+            var ownPets = ownerId == null
+                ? new List<PetDto>()
+                : await _petService.GetByOwnerIdAsync(ownerId);
+
+            return Ok(ownPets);
+        }
+
         var pets = await _petService.GetAllAsync();
 
         return Ok(pets);
@@ -51,6 +77,14 @@ public class PetsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<PetDto>> GetById(string id)
     {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Pet not found."
+            });
+        }
+
         var pet = await _petService.GetByIdAsync(id);
 
         if (pet == null)
@@ -69,6 +103,11 @@ public class PetsController : ControllerBase
     public async Task<ActionResult<List<PetDto>>> GetByOwner(
         string ownerId)
     {
+        if (_ownerAccess.IsPetOwner && ownerId != await _ownerAccess.GetOwnerIdAsync())
+        {
+            return Forbid();
+        }
+
         var pets = await _petService.GetByOwnerIdAsync(ownerId);
 
         return Ok(pets);
@@ -80,6 +119,14 @@ public class PetsController : ControllerBase
         string id,
         [FromBody] UpdatePetDto dto)
     {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Pet not found."
+            });
+        }
+
         try
         {
             var pet = await _petService.UpdateAsync(id, dto);
@@ -107,6 +154,14 @@ public class PetsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Pet not found."
+            });
+        }
+
         try
         {
             var deleted = await _petService.DeleteAsync(id);

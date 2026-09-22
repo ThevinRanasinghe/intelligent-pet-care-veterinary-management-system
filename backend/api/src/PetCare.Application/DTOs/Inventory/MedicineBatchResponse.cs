@@ -11,4 +11,5 @@ public class MedicineBatchResponse
     public DateOnly ExpiryDate { get; set; }
     public DateOnly ReceivedDate { get; set; }
     public string Status { get; set; } = string.Empty;
+    public bool IsExpired { get; set; }
 }

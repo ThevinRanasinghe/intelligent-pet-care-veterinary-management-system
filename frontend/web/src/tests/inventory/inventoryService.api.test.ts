@@ -144,7 +144,7 @@ describe('inventoryService API client', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 'b-exp', batchNumber: 'EXP-1' }]));
     const expiring = await getExpiring(14);
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/medicines/expiring?days=14'),
+      expect.stringContaining('/medicines/expiring?withinDays=14'),
       expect.any(Object)
     );
     expect(expiring).toHaveLength(1);

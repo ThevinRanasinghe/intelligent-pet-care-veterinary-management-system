@@ -17,4 +17,6 @@ public class MedicineResponse
     public int ReservedQuantity { get; set; }
     public int AvailableQuantity { get; set; }
     public bool IsLowStock { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }

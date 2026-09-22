@@ -8,6 +8,8 @@ namespace PetCare.Application.Interfaces;
 /// </summary>
 public interface IOrganizationRepository
 {
+    Task<List<Organization>> GetAllAsync(CancellationToken cancellationToken = default);
+
     Task<Organization?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<bool> NameOrEmailExistsAsync(string name, string email, CancellationToken cancellationToken = default);

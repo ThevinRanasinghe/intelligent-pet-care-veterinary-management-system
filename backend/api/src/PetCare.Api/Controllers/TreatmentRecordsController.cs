@@ -1,21 +1,35 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 
 namespace PetCare.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class TreatmentRecordsController : ControllerBase
 {
-    private readonly ITreatmentRecordService _treatmentRecordService;
+    private const string StaffRoles =
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}";
 
-    public TreatmentRecordsController(ITreatmentRecordService treatmentRecordService)
+    private const string ClinicalWriteRoles =
+        $"{Roles.Veterinarian},{Roles.SuperAdmin}";
+
+    private readonly ITreatmentRecordService _treatmentRecordService;
+    private readonly IOwnerAccessService _ownerAccess;
+
+    public TreatmentRecordsController(
+        ITreatmentRecordService treatmentRecordService,
+        IOwnerAccessService ownerAccess)
     {
         _treatmentRecordService = treatmentRecordService;
+        _ownerAccess = ownerAccess;
     }
 
     [HttpGet]
+    [Authorize(Roles = StaffRoles)]
     public async Task<ActionResult<IEnumerable<TreatmentRecordResponseDto>>> GetAll()
     {
         var records = await _treatmentRecordService.GetAllAsync();
@@ -25,6 +39,11 @@ public class TreatmentRecordsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<TreatmentRecordResponseDto>> GetById(Guid id)
     {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsTreatmentRecordAsync(id))
+        {
+            return NotFound(new { message = $"Treatment record with ID {id} not found." });
+        }
+
         var record = await _treatmentRecordService.GetByIdAsync(id);
         if (record == null)
             return NotFound(new { message = $"Treatment record with ID {id} not found." });
@@ -35,11 +54,17 @@ public class TreatmentRecordsController : ControllerBase
     [HttpGet("diagnosis/{diagnosisId}")]
     public async Task<ActionResult<IEnumerable<TreatmentRecordResponseDto>>> GetByDiagnosisId(Guid diagnosisId)
     {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsDiagnosisAsync(diagnosisId))
+        {
+            return Forbid();
+        }
+
         var records = await _treatmentRecordService.GetByDiagnosisIdAsync(diagnosisId);
         return Ok(records);
     }
 
     [HttpPost]
+    [Authorize(Roles = ClinicalWriteRoles)]
     public async Task<ActionResult<TreatmentRecordResponseDto>> Create(CreateTreatmentRecordDto dto)
     {
         var createdRecord = await _treatmentRecordService.CreateAsync(dto);
@@ -47,6 +72,7 @@ public class TreatmentRecordsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = ClinicalWriteRoles)]
     public async Task<IActionResult> Update(Guid id, UpdateTreatmentRecordDto dto)
     {
         var updatedRecord = await _treatmentRecordService.UpdateAsync(id, dto);
@@ -57,6 +83,7 @@ public class TreatmentRecordsController : ControllerBase
     }
 
     [HttpPatch("{id}/status")]
+    [Authorize(Roles = ClinicalWriteRoles)]
     public async Task<IActionResult> UpdateStatus(Guid id, UpdateTreatmentStatusDto dto)
     {
         var updatedRecord = await _treatmentRecordService.UpdateStatusAsync(id, dto);
@@ -67,6 +94,7 @@ public class TreatmentRecordsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = ClinicalWriteRoles)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var result = await _treatmentRecordService.DeleteAsync(id);

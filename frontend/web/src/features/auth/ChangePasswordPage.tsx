@@ -3,12 +3,12 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertCircle, ArrowLeft, Lock } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { changePassword } from '../../services/authService';
+import { messageFrom } from '../../utils/errors';
 
 /**
  * Standalone Change Password page.
- * The password change API is not yet available in Merge_1, so this page
- * displays an informational message. The ProfileModal also provides a
- * password change tab with the same behavior.
+ * Calls PUT /api/auth/change-password to update the authenticated user's password.
  */
 export function ChangePasswordPage() {
   const navigate = useNavigate();
@@ -18,15 +18,31 @@ export function ChangePasswordPage() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setSuccess('');
     setError('');
-    setTimeout(() => {
+
+    if (form.newPassword !== form.confirmNewPassword) {
+      setError('New passwords do not match.');
       setSubmitting(false);
-      setSuccess('Password changes are managed by your system administrator in this release.');
-    }, 500);
+      return;
+    }
+
+    try {
+      await changePassword({
+        currentPassword: form.currentPassword,
+        newPassword: form.newPassword,
+        confirmNewPassword: form.confirmNewPassword,
+      });
+      setSuccess('Password changed successfully.');
+      setForm({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+    } catch (err) {
+      setError(messageFrom(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

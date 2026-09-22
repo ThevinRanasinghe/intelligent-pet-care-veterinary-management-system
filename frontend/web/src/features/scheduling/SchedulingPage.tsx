@@ -194,7 +194,7 @@ export function SchedulingPage() {
       </div>
     </div>
     <div className='filter-bar'>
-      <div className='search-input' style={{ minWidth: '280px' }}>
+      <div className='search-input' style={{ minWidth: 'min(280px, 100%)' }}>
         <Search size={17} />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder='Search vet, pet or owner' />
       </div>
@@ -282,7 +282,7 @@ export function SchedulingPage() {
     {bookingSlot && (
       <Modal title='Book appointment' onClose={() => setBookingSlot(null)}>
         <form onSubmit={handleBook} className='form-grid' style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div className='detail-block' style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div className='detail-block' style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px' }}>
             <div><span>Date</span><strong>{formatDate(bookingSlot.date)}</strong></div>
             <div><span>Time</span><strong>{bookingSlot.startTime.slice(0, 5)}–{bookingSlot.endTime.slice(0, 5)}</strong></div>
             <div><span>Branch</span><strong>{bookingSlot.branch}</strong></div>
@@ -307,7 +307,7 @@ export function SchedulingPage() {
 
     {viewing && (
       <Modal title='Appointment details' onClose={() => setViewing(null)}>
-        <div className='proposal-grid' style={{ marginTop: '6px', gridTemplateColumns: '1fr 1fr' }}>
+        <div className='proposal-grid' style={{ marginTop: '6px', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))' }}>
           <div className='detail-block'>
             <span>Appointment ID</span>
             <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{viewing.appointmentId ?? 'Open slot'}</strong>
@@ -341,7 +341,7 @@ export function SchedulingPage() {
     {editing && (
       <Modal title='Edit appointment' onClose={() => setEditing(null)}>
         <form onSubmit={handleEdit} className='form-grid' style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div className='detail-block' style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '6px' }}>
+          <div className='detail-block' style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px', marginBottom: '6px' }}>
             <div>
               <span>Pet ID</span>
               <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{editing.petId}</strong>

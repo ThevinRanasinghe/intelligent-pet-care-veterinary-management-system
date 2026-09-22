@@ -85,9 +85,31 @@ public class InventoryService : IInventoryService
         {
             Id = reservation.Id,
             MedicineId = medicine.Id,
+            MedicineName = medicine.Name,
             Quantity = reservation.Quantity,
-            Status = reservation.Status.ToString()
+            Status = reservation.Status.ToString(),
+            ReferenceType = reservation.ReferenceType,
+            ReferenceId = reservation.ReferenceId,
+            RequestedByUserId = reservation.RequestedByUserId,
+            CreatedAt = reservation.CreatedAt
         };
+    }
+
+    public async Task<IReadOnlyList<ReservationResponse>> GetReservationsAsync(CancellationToken ct = default)
+    {
+        var reservations = await _reservations.GetAllAsync(ct);
+        return reservations.Select(r => new ReservationResponse
+        {
+            Id = r.Id,
+            MedicineId = r.MedicineId,
+            MedicineName = r.Medicine?.Name,
+            Quantity = r.Quantity,
+            Status = r.Status.ToString(),
+            ReferenceType = r.ReferenceType,
+            ReferenceId = r.ReferenceId,
+            RequestedByUserId = r.RequestedByUserId,
+            CreatedAt = r.CreatedAt
+        }).ToList();
     }
 
     public async Task CancelReservationAsync(Guid reservationId, Guid cancelledByUserId, CancellationToken ct = default)
@@ -352,7 +374,9 @@ private static MedicineResponse ToResponse(Medicine m) => new()
     TotalQuantity = m.TotalQuantity,
     ReservedQuantity = m.ReservedQuantity,
     AvailableQuantity = m.AvailableQuantity,
-    IsLowStock = m.IsLowStock
+    IsLowStock = m.IsLowStock,
+    CreatedAt = m.CreatedAt,
+    UpdatedAt = m.UpdatedAt
 };
 
 private static MedicineBatchResponse ToResponse(MedicineBatch b) => new()
@@ -364,7 +388,8 @@ private static MedicineBatchResponse ToResponse(MedicineBatch b) => new()
     Quantity = b.Quantity,
     ExpiryDate = b.ExpiryDate,
     ReceivedDate = b.ReceivedDate,
-    Status = b.Status.ToString()
+    Status = b.Status.ToString(),
+    IsExpired = b.ExpiryDate <= DateOnly.FromDateTime(DateTime.UtcNow)
 };
 
 private static SupplierResponse ToResponse(Supplier s) => new()

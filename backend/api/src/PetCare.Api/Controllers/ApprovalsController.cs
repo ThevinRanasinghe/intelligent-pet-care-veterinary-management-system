@@ -23,6 +23,9 @@ namespace PetCare.Api.Controllers;
 [Produces("application/json")]
 public class ApprovalsController : ControllerBase
 {
+    private const string StaffRoles =
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}";
+
     private readonly IApprovalService _approvalService;
 
     public ApprovalsController(IApprovalService approvalService)
@@ -34,6 +37,7 @@ public class ApprovalsController : ControllerBase
     /// Gets all approvals currently awaiting a Clinic Manager decision.
     /// </summary>
     [HttpGet("pending")]
+    [Authorize(Roles = StaffRoles)]
     [ProducesResponseType(typeof(IReadOnlyList<ApprovalResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ApprovalResponse>>> GetPendingApprovals(CancellationToken cancellationToken)
     {
@@ -43,6 +47,7 @@ public class ApprovalsController : ControllerBase
 
     /// <summary>Gets a single approval by id.</summary>
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = StaffRoles)]
     [ProducesResponseType(typeof(ApprovalResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApprovalResponse>> GetApprovalById(Guid id, CancellationToken cancellationToken)
@@ -124,6 +129,7 @@ public class ApprovalsController : ControllerBase
     /// chronological order.
     /// </summary>
     [HttpGet("{id:guid}/history")]
+    [Authorize(Roles = StaffRoles)]
     [ProducesResponseType(typeof(IReadOnlyList<ApprovalHistoryResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<IReadOnlyList<ApprovalHistoryResponse>>> GetApprovalHistory(Guid id, CancellationToken cancellationToken)

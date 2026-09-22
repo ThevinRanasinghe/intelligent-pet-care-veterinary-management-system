@@ -1,23 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import type { Role } from '../../types/domain';
-
-const ROLE_HOMES: Record<Role, string> = {
-  Administrator: '/super-admin',
-  ClinicManager: '/manager',
-  Veterinarian: '/vet',
-  InventoryOfficer: '/inventory-dashboard',
-  PetOwner: '/pet-owner',
-};
+import { homeForRole } from '../auth/roleAccess';
 
 export function UnauthorizedPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
   const handleReturn = () => {
-    const home = user ? (ROLE_HOMES[user.role] ?? '/') : '/login';
-    navigate(home, { replace: true });
+    navigate(user ? homeForRole(user.role) : '/login', { replace: true });
   };
 
   return (

@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs.Billing;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 
 namespace PetCare.Api.Controllers;
 
@@ -14,6 +16,7 @@ namespace PetCare.Api.Controllers;
 [ApiController]
 [Route("api/quotations")]
 [Produces("application/json")]
+[Authorize(Roles = $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
 public class QuotationsController : ControllerBase
 {
     private readonly IBillingService _billingService;

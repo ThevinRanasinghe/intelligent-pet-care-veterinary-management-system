@@ -52,16 +52,17 @@ import type {
 import { messageFrom } from '../../utils/errors';
 import { formatDate, formatLkr } from '../../utils/format';
 
-type InventoryTab = 'catalog' | 'lowStock' | 'expiring' | 'suppliers';
+export type InventoryTab = 'catalog' | 'lowStock' | 'expiring' | 'suppliers';
 
-export function InventoryPage() {
+export function InventoryPage({ initialTab = 'catalog' }: { initialTab?: InventoryTab }) {
   const { hasRole, user } = useAuth();
 
-  const isOfficerOrManager =
-    hasRole('InventoryOfficer') || hasRole('ClinicManager') || hasRole('Administrator');
-  const isVet = hasRole('Veterinarian') || isOfficerOrManager;
+  // Mirror backend roles: stock/supplier management is InventoryOfficer +
+  // Administrator only; reservations can also be created by Veterinarians.
+  const canManageInventory = hasRole('InventoryOfficer') || hasRole('Administrator');
+  const canReserve = hasRole('Veterinarian') || canManageInventory;
 
-  const [activeTab, setActiveTab] = useState<InventoryTab>('catalog');
+  const [activeTab, setActiveTab] = useState<InventoryTab>(initialTab);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -393,7 +394,7 @@ export function InventoryPage() {
           <Button variant="secondary" onClick={loadData} icon={<RefreshCw size={14} />}>
             Refresh
           </Button>
-          {isOfficerOrManager && (
+          {canManageInventory && (
             <>
               <Button
                 variant="secondary"
@@ -572,7 +573,7 @@ export function InventoryPage() {
             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
               <Pill size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
               <p>No medicines found matching the current search criteria.</p>
-              {isOfficerOrManager && (
+              {canManageInventory && (
                 <Button
                   variant="secondary"
                   onClick={() => setIsAddMedicineOpen(true)}
@@ -641,7 +642,7 @@ export function InventoryPage() {
                               justifyContent: 'flex-end',
                             }}
                           >
-                            {isOfficerOrManager && (
+                            {canManageInventory && (
                               <Button
                                 variant="secondary"
                                 onClick={() => handleOpenStockIn(med)}
@@ -650,7 +651,7 @@ export function InventoryPage() {
                                 <PackagePlus size={13} style={{ marginRight: '4px' }} /> Stock-In
                               </Button>
                             )}
-                            {isVet && (
+                            {canReserve && (
                               <Button
                                 variant="secondary"
                                 onClick={() => handleOpenReserve(med)}
@@ -771,7 +772,7 @@ export function InventoryPage() {
                           </span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          {isOfficerOrManager && (
+                          {canManageInventory && (
                             <Button
                               variant="primary"
                               onClick={() => handleOpenStockIn(med)}
@@ -861,7 +862,7 @@ export function InventoryPage() {
               <div className="eyebrow">Procurement Directory</div>
               <h3>Pharmaceutical & Medical Suppliers</h3>
             </div>
-            {isOfficerOrManager && (
+            {canManageInventory && (
               <Button
                 variant="primary"
                 onClick={() => setIsAddSupplierOpen(true)}
@@ -1244,7 +1245,7 @@ export function InventoryPage() {
                 >
                   Cancel Reservation
                 </Button>
-                {isOfficerOrManager && (
+                {canManageInventory && (
                   <Button
                     variant="primary"
                     onClick={() => handleDispenseReservation(lastCreatedReservation.id)}

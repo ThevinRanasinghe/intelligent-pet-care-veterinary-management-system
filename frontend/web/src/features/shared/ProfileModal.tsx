@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { X, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { changePassword } from '../../services/authService';
+import { messageFrom } from '../../utils/errors';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -55,16 +57,31 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }, 500);
   };
 
-  const handleChangePassword = (e: FormEvent) => {
+  const handleChangePassword = async (e: FormEvent) => {
     e.preventDefault();
     setPasswordSaving(true);
     setPasswordSuccess('');
     setPasswordError('');
-    // Password change API not yet available in Merge_1 — show informational message
-    setTimeout(() => {
+
+    if (passwordForm.newPassword !== passwordForm.confirmNewPassword) {
+      setPasswordError('New passwords do not match.');
       setPasswordSaving(false);
-      setPasswordSuccess('Password changes are managed by your system administrator in this release.');
-    }, 500);
+      return;
+    }
+
+    try {
+      await changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmNewPassword: passwordForm.confirmNewPassword,
+      });
+      setPasswordSuccess('Password changed successfully.');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+    } catch (err) {
+      setPasswordError(messageFrom(err));
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   return (
@@ -144,7 +161,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             </div>
 
             <form onSubmit={handleUpdateProfile}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#374151', marginBottom: '0.25rem' }}>
                     First Name

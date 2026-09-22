@@ -1,11 +1,14 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
 using PetCare.Infrastructure;
 
 namespace PetCare.Api.Controllers;
 
 [ApiController]
+[Authorize(Roles = $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
 [Route("api/[controller]")]
 public class LookupsController : ControllerBase
 {

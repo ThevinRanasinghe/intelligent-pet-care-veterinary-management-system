@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs.Scheduling;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 
 namespace PetCare.Api.Controllers;
 
@@ -13,6 +15,7 @@ namespace PetCare.Api.Controllers;
 [ApiController]
 [Route("api/appointments")]
 [Produces("application/json")]
+[Authorize(Roles = $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
 public class AppointmentsController : ControllerBase
 {
     private readonly ISchedulingService _schedulingService;

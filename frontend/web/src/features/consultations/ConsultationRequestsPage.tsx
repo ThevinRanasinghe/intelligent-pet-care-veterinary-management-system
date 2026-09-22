@@ -22,6 +22,7 @@ import {
   Pet,
   PetOwner,
 } from "../../services/api";
+import { useAuth } from "../auth/AuthContext";
 
 /* ========================================================================== */
 /* Types                                                                      */
@@ -152,6 +153,7 @@ function getUrgencyClass(urgency: string): string {
 /* ========================================================================== */
 
 export function ConsultationRequestsPage() {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
 
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -216,12 +218,25 @@ export function ConsultationRequestsPage() {
       setIsLoading(true);
       setErrorNotice("");
 
-      const [apiConsultations, petsData, ownersData] = await Promise.all([
-        consultationService.getAllConsultations(),
+      const ownersData = await ownerService.getAllOwners().catch(() => [] as PetOwner[]);
+      const isPetOwner = user?.role === "PetOwner";
+      const currentOwner = isPetOwner
+        ? ownersData.find((owner) => owner.email.trim().toLowerCase() === user?.email.trim().toLowerCase())
+        : undefined;
 
-        petService.getAllPets().catch(() => [] as Pet[]),
+      if (isPetOwner && !currentOwner) {
+        setRequests([]);
+        setErrorNotice("Your account is not linked to a pet-owner profile yet.");
+        return;
+      }
 
-        ownerService.getAllOwners().catch(() => [] as PetOwner[]),
+      const [apiConsultations, petsData] = await Promise.all([
+        isPetOwner
+          ? consultationService.getConsultationsByOwner(currentOwner!.id)
+          : consultationService.getAllConsultations(),
+        isPetOwner
+          ? petService.getPetsByOwner(currentOwner!.id).catch(() => [] as Pet[])
+          : petService.getAllPets().catch(() => [] as Pet[]),
       ]);
 
       if (!Array.isArray(apiConsultations)) {
@@ -307,7 +322,7 @@ export function ConsultationRequestsPage() {
 
   useEffect(() => {
     loadConsultations();
-  }, []);
+  }, [user]);
 
   /* ======================================================================== */
   /* Search + Filter                                                          */
@@ -1221,7 +1236,7 @@ export function ConsultationRequestsPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))",
                       gap: "14px",
                       marginBottom: "18px",
                     }}
@@ -1358,7 +1373,7 @@ export function ConsultationRequestsPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))",
                       gap: "14px",
                       marginBottom: "18px",
                     }}
@@ -1641,7 +1656,7 @@ export function ConsultationRequestsPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))",
                       gap: "14px",
                     }}
                   >
