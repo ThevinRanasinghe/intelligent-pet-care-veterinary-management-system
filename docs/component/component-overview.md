@@ -80,7 +80,8 @@ Controllers are intentionally thin: they delegate all business logic to the Appl
 | `SchedulingService` | Appointment CRUD, slot availability, veterinarian overlap conflict detection |
 | `BillingService` | Quotation CRUD, server-side subtotal/total computation, budget check on submission, status-transition rules |
 | `ApprovalService` | Pending approval listing, approve/reject/request-revision, `ApprovalHistory` persistence, lazy approval-row provisioning |
-| `AuthService` | Credential validation, JWT issuance |
+| `AuthService` | Credential validation, JWT issuance, PetOwner/organization registration |
+| `AdminService` | Platform administration — user/organization listing and status transitions, role catalog, system stats, and Administrator-only staff account creation (Veterinarian / InventoryOfficer into an Active organization, `MustChangePassword = true`, one-time temporary password) |
 
 ### Repositories (`PetCare.Infrastructure/Repositories/`)
 

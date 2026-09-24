@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Users } from 'lucide-react';
+import { RefreshCw, UserPlus, Users } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { getUsers, setUserActive, type AdminUser } from '../../services/adminService';
+import { Modal } from '../../components/ui/Modal';
+import {
+  createInventoryOfficer,
+  createVeterinarian,
+  getOrganizations,
+  getUsers,
+  setUserActive,
+  type AdminOrganization,
+  type AdminUser,
+  type CreatedStaffUser,
+} from '../../services/adminService';
 import { messageFrom } from '../../utils/errors';
 import { formatDate } from '../../utils/format';
 
@@ -23,6 +33,49 @@ export function AdminUsersPage() {
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const [createRole, setCreateRole] = useState<'Veterinarian' | 'InventoryOfficer' | null>(null);
+  const [activeOrgs, setActiveOrgs] = useState<AdminOrganization[]>([]);
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phoneNumber: '', organizationId: '' });
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<CreatedStaffUser | null>(null);
+
+  const openCreateModal = async (role: 'Veterinarian' | 'InventoryOfficer') => {
+    setCreateRole(role);
+    setCreated(null);
+    setError('');
+    setForm({ firstName: '', lastName: '', email: '', phoneNumber: '', organizationId: '' });
+    try {
+      const orgs = await getOrganizations();
+      setActiveOrgs(orgs.filter((o) => o.status === 'Active'));
+    } catch (err) {
+      setError(messageFrom(err));
+    }
+  };
+
+  const submitCreate = async () => {
+    if (!createRole) return;
+    setCreating(true);
+    setError('');
+    try {
+      const request = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim(),
+        phoneNumber: form.phoneNumber.trim() || undefined,
+        organizationId: form.organizationId,
+      };
+      const result = createRole === 'Veterinarian'
+        ? await createVeterinarian(request)
+        : await createInventoryOfficer(request);
+      setCreated(result);
+      await load();
+    } catch (err) {
+      setError(messageFrom(err));
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -89,6 +142,8 @@ export function AdminUsersPage() {
             {roles.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
           <Button variant="secondary" onClick={() => void load()} icon={<RefreshCw size={14} />}>Refresh</Button>
+          <Button variant="secondary" onClick={() => void openCreateModal('Veterinarian')} icon={<UserPlus size={14} />}>Create Veterinarian</Button>
+          <Button variant="secondary" onClick={() => void openCreateModal('InventoryOfficer')} icon={<UserPlus size={14} />}>Create Inventory Officer</Button>
         </div>
       </div>
 
@@ -146,6 +201,51 @@ export function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {createRole && (
+        <Modal title={`Create ${createRole === 'Veterinarian' ? 'Veterinarian' : 'Inventory Officer'}`} onClose={() => setCreateRole(null)}>
+          {created ? (
+            <div>
+              <div className="info-strip" style={{ borderColor: 'var(--success)', background: 'var(--success-soft)', color: 'var(--success)' }}>
+                <strong>Account created.</strong> <span>{created.email} — {created.role}</span>
+              </div>
+              <p style={{ marginTop: '12px' }}>
+                Temporary password (shown once — give it to the staff member; they must change it on first login):
+              </p>
+              <code style={{ display: 'block', padding: '10px', marginTop: '8px', background: 'var(--surface-muted, #f4f4f4)', borderRadius: '6px', fontSize: '1rem', userSelect: 'all' }}>
+                {created.temporaryPassword}
+              </code>
+              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                <Button variant="secondary" onClick={() => setCreateRole(null)}>Done</Button>
+              </div>
+            </div>
+          ) : (
+            <form
+              onSubmit={(e) => { e.preventDefault(); void submitCreate(); }}
+              style={{ display: 'grid', gap: '10px', minWidth: '320px' }}
+            >
+              <input required placeholder="First name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} aria-label="First name" />
+              <input required placeholder="Last name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} aria-label="Last name" />
+              <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} aria-label="Email" />
+              <input placeholder="Phone number (optional)" value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} aria-label="Phone number" />
+              <select required value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })} aria-label="Organization">
+                <option value="" disabled>Select organization…</option>
+                {activeOrgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+              {activeOrgs.length === 0 && (
+                <p className="muted" style={{ fontSize: '0.8rem' }}>No active organizations — approve one under Organizations first.</p>
+              )}
+              {error && <div className="form-error"><strong>Error:</strong> {error}</div>}
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <Button variant="ghost" type="button" onClick={() => setCreateRole(null)}>Cancel</Button>
+                <Button type="submit" disabled={creating || !form.organizationId}>
+                  {creating ? 'Creating…' : 'Create account'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </Modal>
       )}
     </div>
   );

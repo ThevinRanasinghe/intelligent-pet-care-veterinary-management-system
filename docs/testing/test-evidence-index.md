@@ -324,7 +324,29 @@ Backend design + API corrections on the working branch `backend/pre-migration-co
 
 ### Commit
 
-- _(not committed — working tree on `backend/pre-migration-corrections`, 65 changed files)_
+- `1047e78` — `feat: complete backend pre-migration corrections` (81 files)
+
+---
+
+## Step 17 — Consolidated Domain Model Migration (Applied to Supabase)
+
+- **Test command:** `dotnet ef migrations add ConsolidatedDomainModel` + `dotnet ef migrations script` (review only) + `dotnet ef database update` (target: Supabase `postgres` db via `PETCARE_DB_CONNECTION` injected from User Secrets)
+- **Result:** all 3 migrations applied — `InitialSchedulingBillingApproval`, `AddUsers`, `ConsolidatedDomainModel`
+- **Verification:** 23 tables (22 domain + `__EFMigrationsHistory`), 32 FKs, 9 unique indexes, 19 check constraints; `Appointments.PetId` = `varchar(30)`+FK→Pets; `PetOwners.UserId` unique FK→Users; `OrganizationId` on Users/Veterinarians/Medicines/Suppliers; `Approvals.ReviewedBy`/`ApprovalHistories.ChangedBy` nullable FK→Users
+- **API smoke test:** register-pet-owner 201 (User+PetOwner atomic), login 200, `POST /api/pets` with bogus client `OwnerId` correctly overwritten server-side, `GET /api/pets` returns own pet only
+- **Commit:** `a897604` — `feat: add consolidated domain model migration`
+
+---
+
+## Step 18 — Administrator Staff Account Creation
+
+Admin-only staff provisioning (Veterinarian / InventoryOfficer) — no schema change required (`User.Role`, `User.OrganizationId`, `User.MustChangePassword` already exist).
+
+- **Endpoints:** `POST /api/admin/users/veterinarians`, `POST /api/admin/users/inventory-officers` — Administrator-only; role fixed server-side; org must exist and be Active; `MustChangePassword=true`; one-time random temporary password returned in the response (documented dev handoff mechanism)
+- **Test command:** `dotnet test` + live API verification
+- **Result:** `PetCare.Application.Tests` **107/107 passed** (8 new `AdminServiceTests`); live checks — 401 unauthenticated, 403 for ClinicManager and Veterinarian callers, 201 for Administrator, 400 duplicate email, 404 unknown org, temp-password login works
+- **UI:** `AdminUsersPage` — "Create Veterinarian" / "Create Inventory Officer" buttons, modal with active-organizations-only dropdown, one-time temp-password display
+- **Commit:** _(pending)_
 
 ---
 

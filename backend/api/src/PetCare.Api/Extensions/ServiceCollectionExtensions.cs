@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PetCare.Api.Services;
+using PetCare.Application.DTOs.Admin;
 using PetCare.Application.DTOs.Approval;
 using PetCare.Application.DTOs.Auth;
 using PetCare.Application.DTOs.Billing;
@@ -127,6 +128,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IValidator<ReceiveStockRequest>, ReceiveStockRequestValidator>();
         services.AddScoped<IValidator<ReserveMedicineRequest>, ReserveMedicineRequestValidator>();
         services.AddScoped<IValidator<CreateSupplierRequest>, CreateSupplierRequestValidator>();
+        services.AddScoped<IValidator<CreateStaffUserRequest>, CreateStaffUserRequestValidator>();
 
         return services;
     }

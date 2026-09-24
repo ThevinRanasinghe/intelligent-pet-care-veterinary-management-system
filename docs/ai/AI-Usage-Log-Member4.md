@@ -854,3 +854,35 @@ Backend design + API corrections on the working branch `backend/pre-migration-co
 
 **Result:**
 - The corrected domain model, EF configurations, authorization matrix, tenant isolation, ownership enforcement, and atomic registrations are verified and ready for the final EF Core migration task.
+
+---
+
+## Entry 17 — Administrator Staff Account Creation (Step 18)
+
+**Date:**
+24 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Administrator-only staff account provisioning on `backend/pre-migration-corrections`, filling the gap where Veterinarian and InventoryOfficer accounts had no creation path. Explicit constraints: no generic create-user endpoint, no arbitrary role assignment, no admin-created PetOwner/ClinicManager/Administrator, no EF migration (existing schema already supports `Role`/`OrganizationId`/`MustChangePassword`).
+
+**What the AI produced (AI-assisted work actually performed):**
+- `POST /api/admin/users/veterinarians` and `POST /api/admin/users/inventory-officers` on `AdminController` (class-level `[Authorize(Roles = Roles.SuperAdmin)]` — the request body has no role field; the endpoint fixes the role).
+- `AdminService.CreateStaffAccountAsync`: FluentValidation ? duplicate-email check ? organization must exist and be `Active` ? PBKDF2-hashed cryptographically-random temporary password ? `Active = true`, `MustChangePassword = true`, `OrganizationId` set server-side ? single `SaveChangesAsync`.
+- `CreateStaffUserRequest`/`CreateStaffUserResponse` DTOs (response carries the one-time `temporaryPassword` — documented dev handoff since no email/SMS channel exists) and `CreateStaffUserRequestValidator`.
+- `AdminUsersPage` UI: "Create Veterinarian" / "Create Inventory Officer" buttons, modal form, Active-organizations-only dropdown, one-time temp-password display.
+- `AdminServiceTests` (8 tests): role/org/flags on both roles, duplicate email, unknown org (404 path), pending org, suspended org, validation failures.
+
+**What I changed / rejected:**
+- Rejected a generic `POST /api/admin/users` with a client role field — split into two role-fixed endpoints per the required account model.
+- Rejected returning anything but the raw temporary password once — no password hash, no reuse, no logging.
+- Left the PetOwner self-registration and Organization+ClinicManager registration flows untouched.
+
+**How I verified it:**
+- `dotnet build` — 0 warnings, 0 errors; `dotnet test` — **107/107** Application tests pass.
+- Live API checks on Supabase: 401 unauthenticated, 403 for ClinicManager and Veterinarian tokens, 201 for Administrator, 400 duplicate email, 404 unknown org, temp-password login works end-to-end.
+
+**Result:**
+- All five roles are now provisionable through their correct lifecycle; Administrator remains system-level with no creation endpoint.

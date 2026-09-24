@@ -149,6 +149,43 @@ All authorization attributes reference the `Roles` constants — no role strings
 
 The InventoryOfficer role is excluded from all pet/consultation/clinical/scheduling/billing data. The PetOwner role is excluded from all inventory, supplier, scheduling, billing, approval, and administration endpoints.
 
+### Account lifecycle (who creates which account)
+
+| Role | Creation path |
+|---|---|
+| PetOwner | Self-registration — `POST /api/auth/register/pet-owner` (creates `User` + linked `PetOwner` atomically; never created by an Administrator) |
+| ClinicManager | Created as part of `POST /api/auth/register/organization` alongside the Organization (Pending until an Administrator approves it) |
+| Veterinarian | Administrator-only — `POST /api/admin/users/veterinarians` |
+| InventoryOfficer | Administrator-only — `POST /api/admin/users/inventory-officers` |
+| Administrator | System-level role; no API creation path |
+
+Staff creation rules (`AdminService.CreateStaffAccountAsync`):
+
+- Role is fixed by the endpoint — the request body has no role field, so a caller cannot choose it.
+- `OrganizationId` is validated server-side: the organization must exist and be `Active`; pending/rejected/suspended organizations are rejected with 400, unknown ids with 404.
+- Duplicate emails are rejected (400).
+- New staff start `Active = true` with `MustChangePassword = true`.
+- The project has no email/SMS delivery, so the service generates a cryptographically random temporary password (PBKDF2-hashed in storage) returned **once** in the `CreateStaffUserResponse` — the administrator hands it to the staff member out-of-band. This one-time admin-visible value is the documented development/demo handoff mechanism; production deployments should replace it with a real invitation channel.
+- 401 unauthenticated, 403 for every non-Administrator role — enforced by the class-level `[Authorize(Roles = Roles.SuperAdmin)]`.
+
+### Staff-creation endpoints
+
+`POST /api/admin/users/veterinarians` and `POST /api/admin/users/inventory-officers` — identical contract, different server-assigned role.
+
+| Field | Notes |
+|---|---|
+| `firstName` (required, ≤100) | |
+| `lastName` (required, ≤100) | |
+| `email` (required, valid, ≤256) | must be unique — 400 on duplicate |
+| `phoneNumber` (optional, ≤50) | |
+| `organizationId` (required) | must be an existing **Active** organization — 404 unknown, 400 non-active |
+
+**Response:** `201 Created` → `CreateStaffUserResponse` — the created user's public fields plus `temporaryPassword` (returned once; never stored or logged in plaintext).
+
+**Errors:** 400 validation/duplicate-email/inactive-org · 401 unauthenticated · 403 non-Administrator · 404 unknown organization.
+
+There is intentionally **no** `POST /api/admin/users` and no role field — a client cannot create a PetOwner, ClinicManager, or Administrator, and cannot pick an arbitrary role.
+
 ---
 
 ## 6. PetOwner ownership enforcement
