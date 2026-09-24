@@ -14,17 +14,20 @@ namespace PetCare.Api.Controllers;
 /// only handles HTTP concerns (routing, status codes, model binding). See
 /// docs/api/scheduling-billing-approval-api-contract.md#approval.
 /// Approve/Reject/RequestRevision require the Clinic Manager role (see
-/// <see cref="Roles.ClinicManager"/>); ReviewedBy is still accepted as
-/// part of the request body (unchanged business logic) rather than derived
-/// from the token, to keep this change scoped to authorization only.
+/// <see cref="Roles.ClinicManager"/>). The reviewer identity is bound to the
+/// authenticated user by <see cref="IApprovalService"/>; the ReviewedBy field
+/// in the request body is kept for contract compatibility but is ignored for
+/// authenticated callers.
 /// </summary>
 [ApiController]
 [Route("api/approvals")]
 [Produces("application/json")]
 public class ApprovalsController : ControllerBase
 {
+    // Approval queue visibility: clinical staff + management. Approval
+    // decisions themselves are ClinicManager-only (per action attributes).
     private const string StaffRoles =
-        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}";
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
 
     private readonly IApprovalService _approvalService;
 

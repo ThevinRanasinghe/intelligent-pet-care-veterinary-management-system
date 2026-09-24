@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs.Consultations;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 
 namespace PetCare.Api.Controllers;
 
@@ -10,6 +11,17 @@ namespace PetCare.Api.Controllers;
 [Authorize]
 public class ConsultationRequestsController : ControllerBase
 {
+    // Consultation visibility: the owning PetOwner (scoped inside each
+    // action) plus clinical staff and management. The Inventory Officer
+    // has no consultation-domain responsibility.
+    private const string ReadRoles =
+        $"{Roles.PetOwner},{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
+    // Requests are filed/managed by their owner or clinic management
+    // (e.g. front-desk intake); veterinarians work from examinations.
+    private const string ManageRoles =
+        $"{Roles.PetOwner},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
     private readonly IConsultationRequestService _consultationRequestService;
     private readonly IOwnerAccessService _ownerAccess;
 
@@ -26,6 +38,7 @@ public class ConsultationRequestsController : ControllerBase
     // POST: api/consultations
     // ============================================================
     [HttpPost]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<ConsultationRequestDto>> Create(
         [FromBody] CreateConsultationRequestDto dto)
     {
@@ -72,6 +85,7 @@ public class ConsultationRequestsController : ControllerBase
     // GET: api/consultations
     // ============================================================
     [HttpGet]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<List<ConsultationRequestDto>>> GetAll()
     {
         if (_ownerAccess.IsPetOwner)
@@ -95,6 +109,7 @@ public class ConsultationRequestsController : ControllerBase
     // GET: api/consultations/owner/{ownerId}
     // ============================================================
     [HttpGet("owner/{ownerId}")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<List<ConsultationRequestDto>>> GetByOwnerId(
         string ownerId)
     {
@@ -122,6 +137,7 @@ public class ConsultationRequestsController : ControllerBase
     // GET: api/consultations/{id}
     // ============================================================
     [HttpGet("{id}")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<ConsultationRequestDto>> GetById(
         string id)
     {
@@ -160,6 +176,7 @@ public class ConsultationRequestsController : ControllerBase
     // GET: api/consultations/{id}/history
     // ============================================================
     [HttpGet("{id}/history")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<List<ConsultationStatusHistoryDto>>>
         GetStatusHistory(string id)
     {
@@ -201,6 +218,7 @@ public class ConsultationRequestsController : ControllerBase
     // PUT: api/consultations/{id}
     // ============================================================
     [HttpPut("{id}")]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<ConsultationRequestDto>> Update(
         string id,
         [FromBody] UpdateConsultationRequestDto dto)
@@ -249,6 +267,7 @@ public class ConsultationRequestsController : ControllerBase
     // POST: api/consultations/{id}/submit
     // ============================================================
     [HttpPost("{id}/submit")]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<ConsultationRequestDto>> Submit(
         string id)
     {
@@ -296,6 +315,7 @@ public class ConsultationRequestsController : ControllerBase
     // PATCH: api/consultations/{id}/cancel
     // ============================================================
     [HttpPatch("{id}/cancel")]
+    [Authorize(Roles = ManageRoles)]
     public async Task<IActionResult> Cancel(string id)
     {
         if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsConsultationAsync(id))
@@ -439,6 +459,7 @@ private static double DegreesToRadians(double degrees)
     // GET: api/consultations/validate-ownership
     // ============================================================
     [HttpGet("validate-ownership")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<object>> ValidateOwnership(
         [FromQuery] string petId,
         [FromQuery] string ownerId)

@@ -16,9 +16,18 @@ namespace PetCare.Api.Controllers;
 [ApiController]
 [Route("api/quotations")]
 [Produces("application/json")]
-[Authorize(Roles = $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
+[Authorize]
 public class QuotationsController : ControllerBase
 {
+    // Billing visibility: clinical staff and management (Inventory Officer
+    // has no billing responsibility).
+    private const string ReadRoles =
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
+    // Quotations/billing are managed by the Clinic Manager.
+    private const string ManageRoles =
+        $"{Roles.ClinicManager},{Roles.SuperAdmin}";
+
     private readonly IBillingService _billingService;
 
     public QuotationsController(IBillingService billingService)
@@ -28,6 +37,7 @@ public class QuotationsController : ControllerBase
 
     /// <summary>Gets all quotations.</summary>
     [HttpGet]
+    [Authorize(Roles = ReadRoles)]
     [ProducesResponseType(typeof(IReadOnlyList<QuotationResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<QuotationResponse>>> GetQuotations(CancellationToken cancellationToken)
     {
@@ -37,6 +47,7 @@ public class QuotationsController : ControllerBase
 
     /// <summary>Gets a single quotation by id.</summary>
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = ReadRoles)]
     [ProducesResponseType(typeof(QuotationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<QuotationResponse>> GetQuotationById(Guid id, CancellationToken cancellationToken)
@@ -51,6 +62,7 @@ public class QuotationsController : ControllerBase
     /// server-side from the submitted line items.
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(QuotationResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -68,6 +80,7 @@ public class QuotationsController : ControllerBase
     /// Subtotal/Total. Rejected for Approved/Finalised quotations.
     /// </summary>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(QuotationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -86,6 +99,7 @@ public class QuotationsController : ControllerBase
     /// reports whether Total is within Budget.
     /// </summary>
     [HttpPost("{id:guid}/calculate")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(QuotationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<QuotationResponse>> CalculateQuotation(Guid id, CancellationToken cancellationToken)
@@ -99,6 +113,7 @@ public class QuotationsController : ControllerBase
     /// approval. Blocked if Total exceeds Budget.
     /// </summary>
     [HttpPost("{id:guid}/submit")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(QuotationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -112,6 +127,7 @@ public class QuotationsController : ControllerBase
     /// Locks an Approved quotation as Finalised so it can no longer be edited.
     /// </summary>
     [HttpPost("{id:guid}/finalize")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(QuotationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

@@ -54,6 +54,53 @@ public class AdminController : ControllerBase
         }
     }
 
+    // POST: api/admin/users/veterinarians
+    /// <summary>
+    /// Creates a Veterinarian account inside the selected organization.
+    /// The role is fixed server-side; only Active organizations are
+    /// selectable and the account requires a password change on first login.
+    /// The response contains a one-time temporary password.
+    /// </summary>
+    [HttpPost("users/veterinarians")]
+    public async Task<ActionResult<CreateStaffUserResponse>> CreateVeterinarian(
+        [FromBody] CreateStaffUserRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var created = await _adminService.CreateVeterinarianAsync(request, cancellationToken);
+            return CreatedAtAction(nameof(GetUsers), new { id = created.Id }, created);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // POST: api/admin/users/inventory-officers
+    /// <summary>Same as CreateVeterinarian but assigns the InventoryOfficer role.</summary>
+    [HttpPost("users/inventory-officers")]
+    public async Task<ActionResult<CreateStaffUserResponse>> CreateInventoryOfficer(
+        [FromBody] CreateStaffUserRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var created = await _adminService.CreateInventoryOfficerAsync(request, cancellationToken);
+            return CreatedAtAction(nameof(GetUsers), new { id = created.Id }, created);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     // GET: api/admin/organizations
     [HttpGet("organizations")]
     public async Task<ActionResult<List<AdminOrganizationResponse>>> GetOrganizations(CancellationToken cancellationToken)

@@ -17,19 +17,40 @@ public class InventoryServiceTests
     private readonly Mock<IInventoryTransactionRepository> _transactionRepository = new();
     private readonly Mock<ISupplierRepository> _supplierRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<ITenantContext> _tenant = new();
 
     private static readonly Guid MedicineId = Guid.NewGuid();
     private static readonly Guid SupplierId = Guid.NewGuid();
     private static readonly Guid ReservationId = Guid.NewGuid();
     private static readonly Guid UserId = Guid.NewGuid();
+    private static readonly Guid OrganizationId = Guid.NewGuid();
 
-    private InventoryService CreateService() => new(
-        _medicineRepository.Object,
-        _batchRepository.Object,
-        _reservationRepository.Object,
-        _transactionRepository.Object,
-        _supplierRepository.Object,
-        _unitOfWork.Object);
+    public InventoryServiceTests()
+    {
+        // Default: the atomic Reserved→Cancelled/Dispensed transition wins.
+        // Conflict tests override this per-test with ReturnsAsync(0) to
+        // simulate a concurrent transition having already succeeded.
+        _reservationRepository.Setup(r => r.TryTransitionAsync(
+                It.IsAny<Guid>(), It.IsAny<ReservationStatus>(), It.IsAny<ReservationStatus>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+    }
+
+    private InventoryService CreateService()
+    {
+        _tenant.Setup(t => t.GetOrganizationIdAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OrganizationId);
+        _tenant.Setup(t => t.IsOrganizationScoped).Returns(true);
+
+        return new InventoryService(
+            _medicineRepository.Object,
+            _batchRepository.Object,
+            _reservationRepository.Object,
+            _transactionRepository.Object,
+            _supplierRepository.Object,
+            _unitOfWork.Object,
+            _tenant.Object);
+    }
 
     #region Reservation Tests
 
@@ -201,6 +222,10 @@ public class InventoryServiceTests
 
         _reservationRepository.Setup(r => r.GetByIdAsync(ReservationId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(reservation);
+        _reservationRepository.Setup(r => r.TryTransitionAsync(
+                ReservationId, ReservationStatus.Reserved, ReservationStatus.Cancelled,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
 
         var service = CreateService();
         var ex = await Assert.ThrowsAsync<InventoryConflictException>(() => service.CancelReservationAsync(ReservationId, UserId));
@@ -220,6 +245,10 @@ public class InventoryServiceTests
 
         _reservationRepository.Setup(r => r.GetByIdAsync(ReservationId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(reservation);
+        _reservationRepository.Setup(r => r.TryTransitionAsync(
+                ReservationId, ReservationStatus.Reserved, ReservationStatus.Cancelled,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
 
         var service = CreateService();
         await Assert.ThrowsAsync<InventoryConflictException>(() => service.CancelReservationAsync(ReservationId, UserId));
@@ -393,6 +422,10 @@ public class InventoryServiceTests
 
         _reservationRepository.Setup(r => r.GetByIdAsync(ReservationId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(reservation);
+        _reservationRepository.Setup(r => r.TryTransitionAsync(
+                ReservationId, ReservationStatus.Reserved, ReservationStatus.Dispensed,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
 
         var service = CreateService();
         await Assert.ThrowsAsync<InventoryConflictException>(() => service.DispenseReservationAsync(ReservationId, UserId));

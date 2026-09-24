@@ -8,15 +8,19 @@ namespace PetCare.Infrastructure.Repositories;
 public class AppointmentSlotRepository : IAppointmentSlotRepository
 {
     private readonly PetCareDbContext _context;
+    private readonly ITenantContext _tenant;
 
-    public AppointmentSlotRepository(PetCareDbContext context)
+    public AppointmentSlotRepository(PetCareDbContext context, ITenantContext tenant)
     {
         _context = context;
+        _tenant = tenant;
     }
 
-    public Task<AppointmentSlot?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<AppointmentSlot?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return _context.AppointmentSlots.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        var query = await _context.AppointmentSlots
+            .ScopeToOrganizationAsync(_tenant, s => s.Veterinarian.OrganizationId, cancellationToken);
+        return await query.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
     }
 
     public async Task<IReadOnlyList<AppointmentSlot>> GetAvailableAsync(
@@ -26,6 +30,8 @@ public class AppointmentSlotRepository : IAppointmentSlotRepository
     {
         var query = _context.AppointmentSlots
             .Where(s => s.Status == AppointmentSlotStatus.Available);
+
+        query = await query.ScopeToOrganizationAsync(_tenant, s => s.Veterinarian.OrganizationId, cancellationToken);
 
         if (veterinarianId is not null)
         {

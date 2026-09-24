@@ -38,6 +38,15 @@ public class ExaminationConfiguration : IEntityTypeConfiguration<Examination>
         builder.Property(e => e.CreatedAt);
         builder.Property(e => e.UpdatedAt);
 
+        // Examination -> Veterinarian (many-to-1); carries org scope.
+        builder.HasOne(e => e.Veterinarian)
+            .WithMany()
+            .HasForeignKey(e => e.VeterinarianId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(e => e.VeterinarianId)
+            .HasDatabaseName("IX_Examinations_VeterinarianId");
+
         // Examination -> Pet (many-to-1)
         builder.HasOne(e => e.Pet)
             .WithMany()

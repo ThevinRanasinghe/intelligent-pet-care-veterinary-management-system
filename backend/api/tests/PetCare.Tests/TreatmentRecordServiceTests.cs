@@ -26,10 +26,14 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
+        var diagnosisId = Guid.NewGuid();
+        context.Diagnoses.Add(new Diagnosis { Id = diagnosisId, ExaminationId = Guid.NewGuid(), ConditionName = "Flu" });
+        await context.SaveChangesAsync();
+
         var dto = new CreateTreatmentRecordDto
         {
-            DiagnosisId = Guid.NewGuid(),
+            DiagnosisId = diagnosisId,
             ProcedureName = "Surgery",
             Notes = "Routine"
         };
@@ -52,7 +56,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
         
         var record = new TreatmentRecord
         {
@@ -78,7 +82,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
 
         // Act
         var result = await service.GetByIdAsync(Guid.NewGuid());
@@ -92,7 +96,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
         
         var diagnosisId1 = Guid.NewGuid();
         var diagnosisId2 = Guid.NewGuid();
@@ -117,7 +121,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
         
         var record = new TreatmentRecord
         {
@@ -151,7 +155,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
         
         var updateDto = new UpdateTreatmentRecordDto { ProcedureName = "P" };
 
@@ -167,7 +171,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
         
         var record = new TreatmentRecord
         {
@@ -197,7 +201,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
         
         var record = new TreatmentRecord { Id = Guid.NewGuid(), DiagnosisId = Guid.NewGuid(), ProcedureName = "P", Status = TreatmentStatus.Planned };
         context.TreatmentRecords.Add(record);
@@ -216,7 +220,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
 
         // Act
         var result = await service.DeleteAsync(Guid.NewGuid());
@@ -231,7 +235,7 @@ public class TreatmentRecordServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new TreatmentRecordService(context);
+        var service = new TreatmentRecordService(context, TestTenantContext.Unscoped);
         
         var record = new TreatmentRecord { Id = Guid.NewGuid(), DiagnosisId = Guid.NewGuid(), ProcedureName = "P", Status = TreatmentStatus.Planned };
         context.TreatmentRecords.Add(record);

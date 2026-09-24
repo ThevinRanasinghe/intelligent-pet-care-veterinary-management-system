@@ -53,4 +53,11 @@ public class User : AuditableEntity
     public Guid? OrganizationId { get; set; }
 
     public Organization? Organization { get; set; }
+
+    /// <summary>
+    /// Linked PetOwner domain profile for accounts with Role = PetOwner.
+    /// Ownership of pets/consultations is resolved through this link
+    /// (PetOwner.UserId), not by matching email addresses.
+    /// </summary>
+    public PetOwner? PetOwner { get; set; }
 }

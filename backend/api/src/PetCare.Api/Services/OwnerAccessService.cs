@@ -8,9 +8,9 @@ namespace PetCare.Api.Services;
 
 /// <summary>
 /// Resolves the PetOwner profile linked to the authenticated caller via the
-/// JWT email claim, then verifies ownership of pets and the clinical graph
-/// that hangs off them (consultation requests, examinations, diagnoses,
-/// treatment records, prescriptions).
+/// PetOwner.UserId foreign key (JWT sub claim), then verifies ownership of
+/// pets and the clinical graph that hangs off them (consultation requests,
+/// examinations, diagnoses, treatment records, prescriptions).
 /// </summary>
 public class OwnerAccessService : IOwnerAccessService
 {
@@ -32,6 +32,18 @@ public class OwnerAccessService : IOwnerAccessService
     public string? CallerEmail =>
         _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.Email);
 
+    public Guid? CallerUserId
+    {
+        get
+        {
+            var idValue = _httpContextAccessor.HttpContext?.User
+                .FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? _httpContextAccessor.HttpContext?.User.FindFirstValue("sub");
+
+            return Guid.TryParse(idValue, out var id) ? id : null;
+        }
+    }
+
     public async Task<string?> GetOwnerIdAsync(CancellationToken cancellationToken = default)
     {
         if (!IsPetOwner)
@@ -44,8 +56,8 @@ public class OwnerAccessService : IOwnerAccessService
             return _ownerId;
         }
 
-        var email = CallerEmail;
-        if (string.IsNullOrWhiteSpace(email))
+        var userId = CallerUserId;
+        if (userId is null)
         {
             _ownerIdResolved = true;
             return null;
@@ -53,7 +65,7 @@ public class OwnerAccessService : IOwnerAccessService
 
         _ownerId = await _db.PetOwners
             .AsNoTracking()
-            .Where(owner => owner.Email == email)
+            .Where(owner => owner.UserId == userId)
             .Select(owner => owner.Id)
             .FirstOrDefaultAsync(cancellationToken);
 

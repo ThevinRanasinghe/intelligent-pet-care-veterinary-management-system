@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PetCare.Api.Services;
+using PetCare.Application.DTOs.Admin;
 using PetCare.Application.DTOs.Approval;
 using PetCare.Application.DTOs.Auth;
 using PetCare.Application.DTOs.Billing;
@@ -53,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IQuotationRepository, QuotationRepository>();
         services.AddScoped<IApprovalRepository, ApprovalRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IPetOwnerRepository, PetOwnerRepository>();
         services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
@@ -66,6 +68,9 @@ public static class ServiceCollectionExtensions
         // resource-ownership questions for controller-level authorization.
         services.AddHttpContextAccessor();
         services.AddScoped<IOwnerAccessService, OwnerAccessService>();
+        // Resolves the caller's organization (User.OrganizationId) for
+        // tenant scoping of org-owned data in repositories/services.
+        services.AddScoped<ITenantContext, TenantContext>();
 
         // Diagnosis / Treatment services (from Diagnosis-and-Treatment-Management)
         services.AddScoped<IExaminationService, ExaminationService>();
@@ -123,6 +128,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IValidator<ReceiveStockRequest>, ReceiveStockRequestValidator>();
         services.AddScoped<IValidator<ReserveMedicineRequest>, ReserveMedicineRequestValidator>();
         services.AddScoped<IValidator<CreateSupplierRequest>, CreateSupplierRequestValidator>();
+        services.AddScoped<IValidator<CreateStaffUserRequest>, CreateStaffUserRequestValidator>();
 
         return services;
     }

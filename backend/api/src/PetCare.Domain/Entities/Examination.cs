@@ -8,7 +8,10 @@ public class Examination
     public string PetId { get; set; } = string.Empty;
     public Pet? Pet { get; set; }
 
+    // FK to the Veterinarian entity; carries the organization scope of the
+    // examination transitively (Veterinarian.OrganizationId).
     public Guid VeterinarianId { get; set; }
+    public Veterinarian? Veterinarian { get; set; }
 
     // FK to canonical Merge_1 ConsultationRequest entity (string Id, optional)
     public string? ConsultationRequestId { get; set; }

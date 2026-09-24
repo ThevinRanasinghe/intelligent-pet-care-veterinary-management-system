@@ -14,7 +14,7 @@ public class PetOwnerService : IPetOwnerService
         _context = context;
     }
 
-    public async Task<PetOwnerDto> CreateAsync(CreatePetOwnerDto dto)
+    public async Task<PetOwnerDto> CreateAsync(CreatePetOwnerDto dto, Guid? userId = null)
     {
         if (string.IsNullOrWhiteSpace(dto.FullName))
             throw new ArgumentException("Full name is required.");
@@ -22,18 +22,18 @@ public class PetOwnerService : IPetOwnerService
         if (string.IsNullOrWhiteSpace(dto.Email))
             throw new ArgumentException("Email is required.");
 
-        if (string.IsNullOrWhiteSpace(dto.PhoneNumber))
-            throw new ArgumentException("Phone number is required.");
-
         var owner = new PetOwner
         {
             Id = $"OWN-{Guid.NewGuid():N}".Substring(0, 12).ToUpper(),
             FullName = dto.FullName.Trim(),
             Email = dto.Email.Trim(),
-            PhoneNumber = dto.PhoneNumber.Trim(),
+            PhoneNumber = string.IsNullOrWhiteSpace(dto.PhoneNumber)
+                ? null
+                : dto.PhoneNumber.Trim(),
             Address = string.IsNullOrWhiteSpace(dto.Address)
                 ? null
                 : dto.Address.Trim(),
+            UserId = userId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -56,7 +56,8 @@ public class PetOwnerService : IPetOwnerService
                 FullName = x.FullName,
                 Email = x.Email,
                 PhoneNumber = x.PhoneNumber,
-                Address = x.Address
+                Address = x.Address,
+                UserId = x.UserId
             })
             .ToListAsync();
     }
@@ -81,7 +82,8 @@ public class PetOwnerService : IPetOwnerService
             FullName = owner.FullName,
             Email = owner.Email,
             PhoneNumber = owner.PhoneNumber,
-            Address = owner.Address
+            Address = owner.Address,
+            UserId = owner.UserId
         };
     }
 }

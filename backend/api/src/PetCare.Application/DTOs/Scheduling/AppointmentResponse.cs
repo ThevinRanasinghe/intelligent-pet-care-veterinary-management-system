@@ -4,7 +4,7 @@ public class AppointmentResponse
 {
     public Guid Id { get; set; }
 
-    public Guid PetId { get; set; }
+    public string PetId { get; set; } = string.Empty;
 
     public Guid VeterinarianId { get; set; }
 

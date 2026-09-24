@@ -26,6 +26,18 @@ public interface IAdminService
     Task<AdminOrganizationResponse> SetOrganizationStatusAsync(
         Guid organizationId, string status, string? reason, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates a Veterinarian account inside the selected (Active)
+    /// organization. Role is fixed server-side; the account starts Active
+    /// with MustChangePassword = true and a one-time temporary password.
+    /// </summary>
+    Task<CreateStaffUserResponse> CreateVeterinarianAsync(
+        CreateStaffUserRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Same as <see cref="CreateVeterinarianAsync"/> but for InventoryOfficer.</summary>
+    Task<CreateStaffUserResponse> CreateInventoryOfficerAsync(
+        CreateStaffUserRequest request, CancellationToken cancellationToken = default);
+
     /// <summary>Role catalog — the canonical role names used by the platform.</summary>
     IReadOnlyList<string> GetRoles();
 

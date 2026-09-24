@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs.PetOwners;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 
 namespace PetCare.Api.Controllers;
 
@@ -11,6 +12,16 @@ namespace PetCare.Api.Controllers;
 [Authorize]
 public class PetOwnersController : ControllerBase
 {
+    // Owner-profile visibility: the owner themselves (scoped inside each
+    // action) plus clinical staff and management.
+    private const string ReadRoles =
+        $"{Roles.PetOwner},{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
+    // Profile creation: self-service for PetOwner accounts, or clinic
+    // management registering an owner profile.
+    private const string CreateRoles =
+        $"{Roles.PetOwner},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
     private readonly IPetOwnerService _petOwnerService;
     private readonly IOwnerAccessService _ownerAccess;
 
@@ -22,19 +33,37 @@ public class PetOwnersController : ControllerBase
 
     // POST: api/petowners
     [HttpPost]
+    [Authorize(Roles = CreateRoles)]
     public async Task<ActionResult<PetOwnerDto>> Create(
         [FromBody] CreatePetOwnerDto dto)
     {
-        // A pet owner may only create an owner profile for their own account.
-        if (_ownerAccess.IsPetOwner &&
-            !string.Equals(dto.Email, _ownerAccess.CallerEmail, StringComparison.OrdinalIgnoreCase))
+        Guid? userId = null;
+
+        if (_ownerAccess.IsPetOwner)
         {
-            return Forbid();
+            // A pet owner may only create an owner profile for their own
+            // account: the email must match the account email, the profile
+            // is linked via PetOwner.UserId, and an account can only ever
+            // have one owner profile.
+            if (!string.Equals(dto.Email, _ownerAccess.CallerEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                return Forbid();
+            }
+
+            if (await _ownerAccess.GetOwnerIdAsync() != null)
+            {
+                return Conflict(new
+                {
+                    message = "This account already has a pet owner profile."
+                });
+            }
+
+            userId = _ownerAccess.CallerUserId;
         }
 
         try
         {
-            var owner = await _petOwnerService.CreateAsync(dto);
+            var owner = await _petOwnerService.CreateAsync(dto, userId);
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -52,6 +81,7 @@ public class PetOwnersController : ControllerBase
 
     // GET: api/petowners
     [HttpGet]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<List<PetOwnerDto>>> GetAll()
     {
         if (_ownerAccess.IsPetOwner)
@@ -69,6 +99,7 @@ public class PetOwnersController : ControllerBase
 
     // GET: api/petowners/{id}
     [HttpGet("{id}")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<PetOwnerDto>> GetById(string id)
     {
         if (_ownerAccess.IsPetOwner && id != await _ownerAccess.GetOwnerIdAsync())

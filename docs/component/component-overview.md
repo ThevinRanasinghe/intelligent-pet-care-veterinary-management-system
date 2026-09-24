@@ -80,7 +80,8 @@ Controllers are intentionally thin: they delegate all business logic to the Appl
 | `SchedulingService` | Appointment CRUD, slot availability, veterinarian overlap conflict detection |
 | `BillingService` | Quotation CRUD, server-side subtotal/total computation, budget check on submission, status-transition rules |
 | `ApprovalService` | Pending approval listing, approve/reject/request-revision, `ApprovalHistory` persistence, lazy approval-row provisioning |
-| `AuthService` | Credential validation, JWT issuance |
+| `AuthService` | Credential validation, JWT issuance, PetOwner/organization registration |
+| `AdminService` | Platform administration — user/organization listing and status transitions, role catalog, system stats, and Administrator-only staff account creation (Veterinarian / InventoryOfficer into an Active organization, `MustChangePassword = true`, one-time temporary password) |
 
 ### Repositories (`PetCare.Infrastructure/Repositories/`)
 
@@ -136,16 +137,16 @@ All entities below are confirmed in `PetCare.Domain/Entities/` and mapped via EF
 
 | Entity | Table | Key attributes | Relationships |
 |---|---|---|---|
-| `Veterinarian` | `Veterinarians` | Name, Specialisation, Branch, Active | 1→many `AppointmentSlot`, 1→many `Appointment` |
+| `Veterinarian` | `Veterinarians` | Name, Specialisation, Branch, Active, OrganizationId | 1→many `AppointmentSlot`, 1→many `Appointment`; belongs to `Organization` |
 | `AppointmentSlot` | `AppointmentSlots` | VeterinarianId, Date, StartTime, EndTime, Branch, Status | belongs to `Veterinarian`; 1:1 with `Appointment` |
-| `Appointment` | `Appointments` | PetId, VeterinarianId, AppointmentSlotId, Date, StartTime, EndTime, Status, Notes | belongs to `Veterinarian`; consumes 1 `AppointmentSlot`; 1:1 with `Quotation` |
+| `Appointment` | `Appointments` | PetId (string), VeterinarianId, AppointmentSlotId, Date, StartTime, EndTime, Status, Notes | belongs to `Pet` (FK); belongs to `Veterinarian`; consumes 1 `AppointmentSlot`; 1:1 with `Quotation` |
 | `Quotation` | `Quotations` | AppointmentId, Budget, Subtotal, Total, Status | 1:1 with `Appointment`; 1→many `QuotationItem`; 1:1 with `Approval` |
 | `QuotationItem` | `QuotationItems` | QuotationId, Category, Description, Quantity, UnitPrice, TotalPrice | belongs to `Quotation` |
 | `Approval` | `Approvals` | QuotationId, Status, ReviewedBy, ReviewedAt, Comment | 1:1 with `Quotation`; 1→many `ApprovalHistory` |
 | `ApprovalHistory` | `ApprovalHistories` | ApprovalId, PreviousStatus, NewStatus, ChangedBy, Reason, ChangedAt | belongs to `Approval` |
-| `User` | `Users` | Email, PasswordHash, Name, Role, Active | Referenced by `Approval.ReviewedBy` and `ApprovalHistory.ChangedBy` |
+| `User` | `Users` | Email, PasswordHash, Name, Role, Active, OrganizationId | belongs to `Organization`; 1:1 with `PetOwner`; referenced by `Approval.ReviewedBy` and `ApprovalHistory.ChangedBy` |
 
-`PetId` on `Appointment` is a `Guid` referencing the Pet entity owned by another team member's module; it is stored as a NOT NULL column but no cross-module FK constraint is created in this component's schema.
+`PetId` on `Appointment` is a `string` FK → `Pets.Id` (corrected in the pre-migration work — it was a `Guid` placeholder with no constraint). `OrganizationId` on `Veterinarian` carries tenant ownership: `Appointment`, `AppointmentSlot`, `Quotation`, `Approval`, and `ApprovalHistory` derive their organization transitively through `Veterinarian`.
 
 ---
 
@@ -180,8 +181,9 @@ All entities below are confirmed in `PetCare.Domain/Entities/` and mapped via EF
 ## 8. Security boundary
 
 - **Authentication:** JWT bearer. `POST /api/auth/login` validates credentials via `IPasswordHasher` (PBKDF2) and issues a signed JWT through `IJwtTokenGenerator` (HMAC-SHA256).
-- **Authorization:** `ApprovalsController` approve/reject/revision endpoints are decorated with `[Authorize(Roles = Roles.ClinicManager)]`. The role name `ClinicManager` is defined in `PetCare.Domain/Constants/Roles.cs`. All other endpoints are currently accessible to any authenticated caller.
-- **Frontend protection (React):** `ProtectedRoute` redirects unauthenticated users to `/login`. Role-specific gating (e.g. Clinic Manager-only approval buttons) is handled at the component level in `ApprovalPage`.
+- **Authorization:** Action-level `[Authorize(Roles = ...)]` using `Roles` constants: appointment reads → Veterinarian + ClinicManager + Administrator, appointment mutations → ClinicManager + Administrator; quotation reads → Veterinarian + ClinicManager + Administrator, quotation mutations → ClinicManager + Administrator; approval queue reads → Veterinarian + ClinicManager + Administrator; approval decisions → **ClinicManager only**.
+- **Tenant scoping:** All scheduling/billing/approval repositories filter to the caller's `OrganizationId` via `ITenantContext` (SuperAdmin unscoped). Cross-organization entity ids resolve to 404.
+- **Frontend protection (React):** `ProtectedRoute` redirects unauthenticated users to `/login`; `RoleRoute` + `features/auth/roleAccess.ts` gate routes per role (`/scheduling`, `/billing`, `/approvals` → Administrator + ClinicManager). Component-level `hasRole` checks gate action buttons.
 - **Frontend protection (Flutter):** `AuthProvider` drives navigation between `LoginPage` and `HomePage` based on authentication state. `ApiClient` clears the token and triggers logout on 401.
 
 ---
@@ -195,6 +197,9 @@ All entities below are confirmed in `PetCare.Domain/Entities/` and mapped via EF
 | Approval backend (services, repositories, API, tests) | **Implemented** |
 | Authentication (JWT, password hashing, login endpoint) | **Implemented** |
 | Role-based authorization on approval decisions | **Implemented** |
+| Action-level role authorization on all controllers | **Implemented** (pre-migration corrections, uncommitted) |
+| Organization/tenant scoping on scheduling-billing-approval data | **Implemented** (pre-migration corrections, uncommitted) |
+| `Appointment.PetId` → `Pets` FK (string, canonical) | **Implemented** (pre-migration corrections, uncommitted) |
 | React web — Scheduling, Billing, Approval pages | **Implemented** |
 | React web — Auth, ProtectedRoute, role-aware UI | **Implemented** |
 | Flutter mobile — Scheduling, Billing, Approval screens | **Implemented** |

@@ -14,14 +14,17 @@ namespace PetCare.Application.Services;
 /// docs/database/scheduling-billing-approval-domain-model.md#approval for
 /// the underlying business rules.
 ///
-/// No JWT/role authorization is enforced here yet (added later by the API
-/// security layer); ReviewedBy is accepted as caller-supplied input.
+/// The reviewer identity is bound to the authenticated user
+/// (<see cref="ITenantContext.UserId"/>): ReviewedBy supplied in the request
+/// body is ignored for authenticated callers and only used as a fallback for
+/// unauthenticated/system callers (tests, seeders).
 /// </summary>
 public class ApprovalService : IApprovalService
 {
     private readonly IApprovalRepository _approvalRepository;
     private readonly IQuotationRepository _quotationRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITenantContext _tenant;
     private readonly IValidator<ApproveRequest> _approveValidator;
     private readonly IValidator<RejectRequest> _rejectValidator;
     private readonly IValidator<RequestRevisionRequest> _requestRevisionValidator;
@@ -30,6 +33,7 @@ public class ApprovalService : IApprovalService
         IApprovalRepository approvalRepository,
         IQuotationRepository quotationRepository,
         IUnitOfWork unitOfWork,
+        ITenantContext tenant,
         IValidator<ApproveRequest> approveValidator,
         IValidator<RejectRequest> rejectValidator,
         IValidator<RequestRevisionRequest> requestRevisionValidator)
@@ -37,6 +41,7 @@ public class ApprovalService : IApprovalService
         _approvalRepository = approvalRepository;
         _quotationRepository = quotationRepository;
         _unitOfWork = unitOfWork;
+        _tenant = tenant;
         _approveValidator = approveValidator;
         _rejectValidator = rejectValidator;
         _requestRevisionValidator = requestRevisionValidator;
@@ -62,14 +67,15 @@ public class ApprovalService : IApprovalService
 
         var approval = await GetReviewableApprovalAsync(id, cancellationToken);
 
+        var reviewerId = ResolveReviewerId(request.ReviewedBy);
         var previousStatus = approval.Status;
         approval.Status = ApprovalStatus.Approved;
-        approval.ReviewedBy = request.ReviewedBy;
+        approval.ReviewedBy = reviewerId;
         approval.ReviewedAt = DateTimeOffset.UtcNow;
         approval.Comment = request.Comment;
         approval.Quotation.Status = QuotationStatus.Approved;
 
-        await AppendHistoryAsync(approval, previousStatus, ApprovalStatus.Approved, request.ReviewedBy, request.Comment, cancellationToken);
+        await AppendHistoryAsync(approval, previousStatus, ApprovalStatus.Approved, reviewerId, request.Comment, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return ToResponse(approval);
@@ -81,14 +87,15 @@ public class ApprovalService : IApprovalService
 
         var approval = await GetReviewableApprovalAsync(id, cancellationToken);
 
+        var reviewerId = ResolveReviewerId(request.ReviewedBy);
         var previousStatus = approval.Status;
         approval.Status = ApprovalStatus.Rejected;
-        approval.ReviewedBy = request.ReviewedBy;
+        approval.ReviewedBy = reviewerId;
         approval.ReviewedAt = DateTimeOffset.UtcNow;
         approval.Comment = request.Reason;
         approval.Quotation.Status = QuotationStatus.Rejected;
 
-        await AppendHistoryAsync(approval, previousStatus, ApprovalStatus.Rejected, request.ReviewedBy, request.Reason, cancellationToken);
+        await AppendHistoryAsync(approval, previousStatus, ApprovalStatus.Rejected, reviewerId, request.Reason, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return ToResponse(approval);
@@ -100,14 +107,15 @@ public class ApprovalService : IApprovalService
 
         var approval = await GetReviewableApprovalAsync(id, cancellationToken);
 
+        var reviewerId = ResolveReviewerId(request.ReviewedBy);
         var previousStatus = approval.Status;
         approval.Status = ApprovalStatus.RevisionRequested;
-        approval.ReviewedBy = request.ReviewedBy;
+        approval.ReviewedBy = reviewerId;
         approval.ReviewedAt = DateTimeOffset.UtcNow;
         approval.Comment = request.Reason;
         approval.Quotation.Status = QuotationStatus.RevisionRequested;
 
-        await AppendHistoryAsync(approval, previousStatus, ApprovalStatus.RevisionRequested, request.ReviewedBy, request.Reason, cancellationToken);
+        await AppendHistoryAsync(approval, previousStatus, ApprovalStatus.RevisionRequested, reviewerId, request.Reason, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return ToResponse(approval);
@@ -173,6 +181,17 @@ public class ApprovalService : IApprovalService
     }
 
     /// <summary>
+    /// The reviewer of record is always the authenticated user
+    /// (<see cref="ITenantContext.UserId"/>). The request-body value is kept
+    /// for API-contract compatibility and is only honoured when there is no
+    /// authenticated caller (tests, seeders, system jobs).
+    /// </summary>
+    private Guid ResolveReviewerId(Guid requestReviewedBy)
+    {
+        return _tenant.UserId ?? requestReviewedBy;
+    }
+
+    /// <summary>
     /// Reconciles Approval rows against Quotation.Status = PendingApproval.
     /// Two cases are handled: (1) a Quotation just transitioned to
     /// PendingApproval for the first time and has no Approval row yet, so one
@@ -212,7 +231,7 @@ public class ApprovalService : IApprovalService
                     ApprovalId = existing.Id,
                     PreviousStatus = previousStatus,
                     NewStatus = ApprovalStatus.Pending,
-                    ChangedBy = Guid.Empty,
+                    ChangedBy = null,
                     Reason = "Quotation resubmitted for approval.",
                     ChangedAt = DateTimeOffset.UtcNow
                 }, cancellationToken);

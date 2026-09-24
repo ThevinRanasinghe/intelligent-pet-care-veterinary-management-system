@@ -774,3 +774,115 @@ Integrate the completed `Scheduling-Billing-Approval-Management` feature branch 
 - PR #5 created, reviewed, and merged into `Merge_1` (merge commit `0259a5b`).
 - All pre-merge and post-merge local tests passed (backend 76/76, React 59/59, Flutter 49/49).
 - `main` untouched; source branch preserved; no conflicts; no fabrication.
+---
+
+## Entry 15 — Merge_2 Role-Based UI + Administrator API (Step 15)
+
+**Date:**
+24 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Post-Merge_1 integration work on `Merge_2`: role-specific dashboards and navigation for all five roles, a new Administrator management API (`/api/admin`), the matching admin pages, inventory sub-pages, and a login redirect bug fix.
+
+**What the AI produced (AI-assisted work actually performed):**
+- Built the per-role sidebar navigation in `DashboardLayout` and centralized role access in `frontend/web/src/features/auth/roleAccess.ts` (`ROLE_HOMES`, route→roles table, `canRoleAccessPath`, `safeRedirectPath`), removing four duplicated role-home tables.
+- Added the Administrator backend surface: `AdminController` (`/api/admin`, Administrator-only) with `GET /users`, `PATCH /users/{id}/status` (self-deactivation blocked), `GET /organizations`, `PATCH /organizations/{id}/status` (reason required for Reject/Suspend), `GET /roles`, `GET /system`; `IAdminService`/`AdminService`; `IUserRepository.GetAllAsync` and `IOrganizationRepository.GetAllAsync`.
+- Added the admin frontend: `adminService.ts`, `AdminUsersPage`, `AdminOrganizationsPage`, `AdminRolesPage`, `AdminSystemPage`, and a real-data `SuperAdminDashboard` replacing the placeholder.
+- Fixed the stale-login-redirect bug: `ProtectedRoute` stored `state.from` at logout, and `LoginPage` replayed it blindly on the next login — causing a 403 flash for any role. `LoginPage` now resolves `safeRedirectPath(role, from)`.
+- Wired the new routes in `AppRoutes` (`/settings`, `/admin/organizations`, `/admin/roles`, `/admin/system`, all `RoleRoute`-gated Administrator-only).
+
+**What I changed / rejected:**
+- Did not build user creation or role reassignment into the admin API — no backend support exists, and role changes would break profile/org invariants. Roles & Permissions is a read-only catalog + membership view.
+- Kept `Administrator` in operational route role sets (deep links still work) while restricting only the admin *navigation*, per the project requirement.
+- Rejected committing or pushing at intermediate steps; the work landed as a single `Merge_2` commit after verification.
+
+**How I verified it:**
+- `dotnet build backend/api/PetCare.sln` — 0 warnings, 0 errors.
+- `dotnet test` — **144 passed, 0 failed**.
+- `tsc --noEmit` — clean; `npx vitest run` — **80 passed, 0 failed**; `npm run build` — clean.
+- Live API verification as `admin@petcare.lk`: all 4 admin GETs 200; same endpoints as ClinicManager 403; anonymous 401; PATCH guards (fake id 404, invalid status 400, reject-without-reason 400, self-deactivation 400).
+
+**Commits:**
+- `ee070ca` — `feat: role-based dashboards, navigation, and authorization hardening` — pushed to `origin/Merge_2` (fast-forward from `4e585dd`, 79 files).
+
+**Result:**
+- `Merge_2` advanced to `ee070ca` with all five role experiences and the admin management surface, fully verified locally.
+
+---
+
+## Entry 16 — Backend Pre-Migration Corrections (Step 16)
+
+**Date:**
+24 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Backend design + API corrections on the working branch `backend/pre-migration-corrections` (created from `Merge_2`), preparing the model for the final consolidated EF Core migration. Explicitly out of scope: no migration files, no snapshot changes, no `EnsureCreated`, no database modification, no commits/pushes.
+
+**What the AI produced (AI-assisted work actually performed):**
+- Phase 0 baseline audit: 22 entities, relationships, role constants, endpoint/role matrix, ownership mechanism, organization mechanism, migration state, and inconsistencies — documented before editing.
+- Phase 1: `Appointment.PetId` `Guid` → `string`; real `Appointment → Pet` FK; DTOs/validator/`SchedulingService` (pet existence via `IPetService`)/dev seed updated.
+- Phase 2: `PetOwner.UserId → User.Id` one-to-one; `OwnerAccessService` resolves the owner from JWT `sub` via `UserId` (email matching removed); `IPetOwnerRepository`/`PetOwnerRepository` added.
+- Phase 3: `ITenantContext` + `TenantContext` + `TenantQueryableExtensions.ScopeToOrganizationAsync`; `OrganizationId` on `Veterinarian`/`Medicine`/`Supplier`; transitive scoping across all org-owned repositories; scoped-parent validation on clinical `CreateAsync` (cross-org parent id → `NotFoundException` → 404); `Examination.VeterinarianId` is now a configured FK.
+- Phase 4/5: action-level `[Authorize(Roles = ...)]` (constants, not strings) on every controller — InventoryOfficer removed from appointments/quotations/approvals/clinical/pets/owners/consultations; scheduling + billing mutations → ClinicManager + Administrator; clinical writes → Veterinarian + Administrator; approval decisions → ClinicManager only.
+- Phase 6: verified the ownership graph `User → PetOwner → Pet → Consultation → Examination → Diagnosis → TreatmentRecord → Prescription` is enforced server-side; `dto.OwnerId` is overwritten from identity on PetOwner creates.
+- Phase 7/8: atomic registrations — `User` + `PetOwner`, and `Organization` + ClinicManager, each committed with a single `SaveChangesAsync` (one EF transaction).
+- Updated tests: `SchedulingServiceTests` (string PetId + `IPetService`), `AuthServiceTests` (PetOwner repo + atomicity), `InventoryServiceTests` (`ITenantContext` mock), `PetCare.Tests` (new `TestTenantContext.Unscoped` stub; create tests seed parent entities).
+
+**What I changed / rejected:**
+- Rejected creating any EF migration or touching the snapshot — deferred to the final migration task per the brief.
+- Rejected running `EnsureCreated` or modifying the development database in any way.
+- Rejected giving Administrator blanket operational mutations; admin access remains deliberate and explicit per endpoint.
+- Left `ConsultationRequest`/`Pet`/`PetOwner` unscoped by organization — they are owner-domain entities, not clinic tenant data.
+
+**How I verified it:**
+- `dotnet build backend/api/PetCare.sln` — 0 warnings, 0 errors.
+- `dotnet test` `PetCare.Application.Tests` — **98 passed, 0 failed**.
+- `dotnet test` `PetCare.Tests` — **35 passed, 0 failed**.
+- `PetCare.Infrastructure.Tests` — not run; they intentionally fail fast without `PETCARE_TEST_DB_CONNECTION`/`PETCARE_DB_CONNECTION`.
+- Live smoke test against the unchanged `petcare_dummy` DB: login 200; `GET /api/pets` 200; `GET /api/admin/system` 403 for ClinicManager (authorization working); `GET /api/appointments|quotations|medicines|examinations` 500 — expected model–schema drift until the final migration.
+
+**Notes:**
+- The model is intentionally ahead of the schema: `Appointments.PetId` (uuid→text + FK), `PetOwners.UserId`, `OrganizationId` columns, and all entity tables absent from migration history await the final consolidated migration.
+- Backfill required in that migration: `PetOwners.UserId` (by email), `OrganizationId` on org-owned rows (NULL-org rows are invisible to scoped staff by design).
+- 65 files changed on `backend/pre-migration-corrections`; nothing committed or pushed.
+
+**Result:**
+- The corrected domain model, EF configurations, authorization matrix, tenant isolation, ownership enforcement, and atomic registrations are verified and ready for the final EF Core migration task.
+
+---
+
+## Entry 17 � Administrator Staff Account Creation (Step 18)
+
+**Date:**
+24 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Administrator-only staff account provisioning on `backend/pre-migration-corrections`, filling the gap where Veterinarian and InventoryOfficer accounts had no creation path. Explicit constraints: no generic create-user endpoint, no arbitrary role assignment, no admin-created PetOwner/ClinicManager/Administrator, no EF migration (existing schema already supports `Role`/`OrganizationId`/`MustChangePassword`).
+
+**What the AI produced (AI-assisted work actually performed):**
+- `POST /api/admin/users/veterinarians` and `POST /api/admin/users/inventory-officers` on `AdminController` (class-level `[Authorize(Roles = Roles.SuperAdmin)]` � the request body has no role field; the endpoint fixes the role).
+- `AdminService.CreateStaffAccountAsync`: FluentValidation ? duplicate-email check ? organization must exist and be `Active` ? PBKDF2-hashed cryptographically-random temporary password ? `Active = true`, `MustChangePassword = true`, `OrganizationId` set server-side ? single `SaveChangesAsync`.
+- `CreateStaffUserRequest`/`CreateStaffUserResponse` DTOs (response carries the one-time `temporaryPassword` � documented dev handoff since no email/SMS channel exists) and `CreateStaffUserRequestValidator`.
+- `AdminUsersPage` UI: "Create Veterinarian" / "Create Inventory Officer" buttons, modal form, Active-organizations-only dropdown, one-time temp-password display.
+- `AdminServiceTests` (8 tests): role/org/flags on both roles, duplicate email, unknown org (404 path), pending org, suspended org, validation failures.
+
+**What I changed / rejected:**
+- Rejected a generic `POST /api/admin/users` with a client role field � split into two role-fixed endpoints per the required account model.
+- Rejected returning anything but the raw temporary password once � no password hash, no reuse, no logging.
+- Left the PetOwner self-registration and Organization+ClinicManager registration flows untouched.
+
+**How I verified it:**
+- `dotnet build` � 0 warnings, 0 errors; `dotnet test` � **107/107** Application tests pass.
+- Live API checks on Supabase: 401 unauthenticated, 403 for ClinicManager and Veterinarian tokens, 201 for Administrator, 400 duplicate email, 404 unknown org, temp-password login works end-to-end.
+
+**Result:**
+- All five roles are now provisionable through their correct lifecycle; Administrator remains system-level with no creation endpoint.

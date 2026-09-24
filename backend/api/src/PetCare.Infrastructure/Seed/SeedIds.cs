@@ -17,8 +17,11 @@ public static class SeedIds
     public static readonly Guid SlotNadeeSilva1 = new("22222222-0000-0000-0000-000000000004");
 
     // Dev/test-only fixtures (not applied via migration HasData; see DevelopmentSeeder).
-    public static readonly Guid DevPetBuddy = new("33333333-0000-0000-0000-000000000001");
-    public static readonly Guid DevPetMisty = new("33333333-0000-0000-0000-000000000002");
+    // Pets use the canonical string identifier format ("PET-...").
+    public const string DevPetBuddy = "PET-DEVBUDDY001";
+    public const string DevPetMisty = "PET-DEVMISTY001";
+
+    public const string DevPetOwner = "OWN-DEVSEED001";
 
     public static readonly Guid DevAppointmentConfirmed = new("44444444-0000-0000-0000-000000000001");
     public static readonly Guid DevAppointmentReserved = new("44444444-0000-0000-0000-000000000002");

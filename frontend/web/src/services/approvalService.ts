@@ -18,7 +18,7 @@ export interface ApprovalHistoryResponse {
   approvalId: string;
   previousStatus: string;
   newStatus: string;
-  changedBy: string;
+  changedBy: string | null;
   reason?: string;
   changedAt: string;
 }

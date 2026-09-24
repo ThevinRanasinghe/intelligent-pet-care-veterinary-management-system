@@ -40,6 +40,33 @@ public record UpdateUserStatusRequest
     public bool Active { get; init; }
 }
 
+/// <summary>
+/// Administrator request to create a staff account (Veterinarian or
+/// InventoryOfficer). The role is assigned by the endpoint — never by the
+/// client — and OrganizationId is validated server-side against an
+/// existing Active organization.
+/// </summary>
+public record CreateStaffUserRequest
+{
+    public string FirstName { get; init; } = string.Empty;
+    public string LastName { get; init; } = string.Empty;
+    public string Email { get; init; } = string.Empty;
+    public string? PhoneNumber { get; init; }
+    public Guid OrganizationId { get; init; }
+}
+
+/// <summary>
+/// Newly created staff account. TemporaryPassword is returned exactly once
+/// so the administrator can hand it to the staff member — the project has
+/// no email/SMS delivery mechanism, so this admin-visible one-time value is
+/// the documented development/demo handoff channel. The account must change
+/// it on first login (MustChangePassword = true).
+/// </summary>
+public record CreateStaffUserResponse : AdminUserResponse
+{
+    public string TemporaryPassword { get; init; } = string.Empty;
+}
+
 /// <summary>Request to transition an organization's lifecycle status.</summary>
 public record UpdateOrganizationStatusRequest
 {

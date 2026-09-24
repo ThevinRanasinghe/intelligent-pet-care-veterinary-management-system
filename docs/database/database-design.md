@@ -6,7 +6,7 @@ This document describes the actual PostgreSQL / Entity Framework Core database d
 
 ## 1. Database overview
 
-The component persists its data in a PostgreSQL database accessed through Entity Framework Core 8. The `PetCareDbContext` defines eight `DbSet<T>` entries and applies all entity configurations from the Infrastructure assembly. Audit timestamps (`CreatedAt`, `UpdatedAt`) are stamped server-side by a `SaveChanges` override so clients can never spoof them.
+The component persists its data in a PostgreSQL database accessed through Entity Framework Core 8. The `PetCareDbContext` defines 22 `DbSet<T>` entries covering scheduling/billing/approval, pet/consultation, clinical (examination→diagnosis→treatment→prescription), and medicine/inventory modules, and applies all entity configurations from the Infrastructure assembly. Audit timestamps (`CreatedAt`, `UpdatedAt`) are stamped server-side by a `SaveChanges` override so clients can never spoof them.
 
 ---
 
@@ -24,7 +24,7 @@ The component persists its data in a PostgreSQL database accessed through Entity
 
 ## 3. Tables / entities actually present
 
-All eight tables below are confirmed as `DbSet<T>` properties in `PetCareDbContext` and as `ToTable("...")` calls in their respective EF configurations.
+All 22 tables below are confirmed as `DbSet<T>` properties in `PetCareDbContext` and as `ToTable("...")` calls in their respective EF configurations.
 
 | DbSet | Table name | Entity class | Configuration |
 |---|---|---|---|
@@ -36,6 +36,20 @@ All eight tables below are confirmed as `DbSet<T>` properties in `PetCareDbConte
 | `Approvals` | `Approvals` | `Approval` | `ApprovalConfiguration` |
 | `ApprovalHistories` | `ApprovalHistories` | `ApprovalHistory` | `ApprovalHistoryConfiguration` |
 | `Users` | `Users` | `User` | `UserConfiguration` |
+| `Organizations` | `Organizations` | `Organization` | `OrganizationConfiguration` |
+| `PetOwners` | `PetOwners` | `PetOwner` | `PetOwnerConfiguration` |
+| `Pets` | `Pets` | `Pet` | `PetConfiguration` |
+| `ConsultationRequests` | `ConsultationRequests` | `ConsultationRequest` | `ConsultationRequestConfiguration` |
+| `ConsultationStatusHistories` | `ConsultationStatusHistories` | `ConsultationStatusHistory` | `ConsultationStatusHistoryConfiguration` |
+| `Examinations` | `Examinations` | `Examination` | `ExaminationConfiguration` |
+| `Diagnoses` | `Diagnoses` | `Diagnosis` | `DiagnosisConfiguration` |
+| `TreatmentRecords` | `TreatmentRecords` | `TreatmentRecord` | `TreatmentRecordConfiguration` |
+| `Prescriptions` | `Prescriptions` | `Prescription` | `PrescriptionConfiguration` |
+| `Medicines` | `Medicines` | `Medicine` | `MedicineConfiguration` |
+| `Suppliers` | `Suppliers` | `Supplier` | `SupplierConfiguration` |
+| `MedicineBatches` | `MedicineBatches` | `MedicineBatch` | `MedicineBatchConfiguration` |
+| `MedicineReservations` | `MedicineReservations` | `MedicineReservation` | `MedicineReservationConfiguration` |
+| `InventoryTransactions` | `InventoryTransactions` | `InventoryTransaction` | `InventoryTransactionConfiguration` |
 
 ---
 
@@ -50,10 +64,11 @@ All eight tables below are confirmed as `DbSet<T>` properties in `PetCareDbConte
 | `Specialisation` | string | Required, max 150 |
 | `Branch` | string | Required, max 100 |
 | `Active` | bool | Required, default `true` |
+| `OrganizationId` | Guid? | Nullable FK → `Organizations` (tenant ownership; added in the pre-migration corrections) |
 | `CreatedAt` | DateTimeOffset | Required, default `now()` |
 | `UpdatedAt` | DateTimeOffset | Required, default `now()` |
 
-**Relationships:** 1→many `AppointmentSlot`, 1→many `Appointment` (both `Restrict` delete).
+**Relationships:** 1→many `AppointmentSlot`, 1→many `Appointment` (both `Restrict` delete); many→1 `Organization`. Referenced by `Examination.VeterinarianId` (`Restrict`) — the examination's organization scope is carried transitively through this link.
 **Seed data:** 3 veterinarians seeded via `HasData` (Dr. Anika Perera/Colombo, Dr. Rohan Fernando/Kandy, Dr. Nadee Silva/Galle) with fixed GUIDs from `SeedIds`.
 
 ### AppointmentSlot (`AppointmentSlots`)
@@ -83,7 +98,7 @@ All eight tables below are confirmed as `DbSet<T>` properties in `PetCareDbConte
 | Attribute | Type | Constraints |
 |---|---|---|
 | `Id` | Guid | PK, default `gen_random_uuid()` |
-| `PetId` | Guid | Required (NOT NULL; cross-module FK to Pet, not created in this schema) |
+| `PetId` | string | Required, **FK → `Pets`** (changed from `Guid` to match the canonical `Pet.Id` string type; real relationship configured in the pre-migration corrections) |
 | `VeterinarianId` | Guid | FK → `Veterinarians` |
 | `AppointmentSlotId` | Guid | FK → `AppointmentSlots`, **unique** |
 | `Date` | date | Required |
@@ -102,7 +117,7 @@ All eight tables below are confirmed as `DbSet<T>` properties in `PetCareDbConte
 - `Date` — `IX_Appointment_ScheduledStart`.
 - `Status` — `IX_Appointment_Status`.
 
-**Relationships:** belongs to `Veterinarian` (`Restrict`); 1:1 with `AppointmentSlot` (`Restrict`); 1:1 with `Quotation` (`Restrict`, FK owned by `Quotation`).
+**Relationships:** belongs to `Pet` (FK `PetId` → `Pets.Id`); belongs to `Veterinarian` (`Restrict`); 1:1 with `AppointmentSlot` (`Restrict`); 1:1 with `Quotation` (`Restrict`, FK owned by `Quotation`).
 
 ### Quotation (`Quotations`)
 
@@ -178,10 +193,11 @@ All eight tables below are confirmed as `DbSet<T>` properties in `PetCareDbConte
 | `Name` | string | Required, max 150 |
 | `Role` | string | Required, max 50 |
 | `Active` | bool | Required, default `true` |
+| `OrganizationId` | Guid? | Nullable FK → `Organizations` — staff accounts belong to an organization; PetOwner/Administrator accounts have none |
 | `CreatedAt` | DateTimeOffset | Required, default `now()` |
 | `UpdatedAt` | DateTimeOffset | Required, default `now()` |
 
-**Relationships:** Referenced by `Approval.ReviewedBy` and `ApprovalHistory.ChangedBy` as `Guid` values. No FK constraint is created from `Approvals`/`ApprovalHistories` to `Users` in the current schema (the references are by Guid value only).
+**Relationships:** many→1 `Organization` (`Restrict`); 1:1 with `PetOwner` via `PetOwner.UserId` (added in the pre-migration corrections — owner identity is resolved through this link, not by matching email). Referenced by `Approval.ReviewedBy` and `ApprovalHistory.ChangedBy` as `Guid` values. No FK constraint is created from `Approvals`/`ApprovalHistories` to `Users` in the current schema (the references are by Guid value only).
 
 ---
 
@@ -189,13 +205,33 @@ All eight tables below are confirmed as `DbSet<T>` properties in `PetCareDbConte
 
 ```mermaid
 erDiagram
+    Organization ||--o{ User : employs
+    Organization ||--o{ Veterinarian : owns
+    Organization ||--o{ Medicine : owns
+    Organization ||--o{ Supplier : owns
+    User ||--o| PetOwner : links
+    PetOwner ||--o{ Pet : owns
+    PetOwner ||--o{ ConsultationRequest : files
+    Pet ||--o{ ConsultationRequest : concerns
+    Pet ||--o{ Appointment : booked_for
+    Pet ||--o{ Examination : examined_in
     Veterinarian ||--o{ AppointmentSlot : owns
     Veterinarian ||--o{ Appointment : performs
+    Veterinarian ||--o{ Examination : attends
     AppointmentSlot ||--|| Appointment : consumed_by
     Appointment ||--|| Quotation : has
     Quotation ||--o{ QuotationItem : contains
     Quotation ||--|| Approval : reviewed_by
     Approval ||--o{ ApprovalHistory : audited_in
+    ConsultationRequest ||--o{ ConsultationStatusHistory : tracked_by
+    ConsultationRequest ||--o{ Examination : produces
+    Examination ||--o| Diagnosis : yields
+    Diagnosis ||--o{ TreatmentRecord : treated_by
+    TreatmentRecord ||--o{ Prescription : prescribes
+    Medicine ||--o{ MedicineBatch : stocked_in
+    Medicine ||--o{ MedicineReservation : reserved_in
+    Medicine ||--o{ InventoryTransaction : tracked_by
+    Supplier ||--o{ MedicineBatch : supplies
     User }o..o{ Approval : referenced_by_ReviewedBy
     User }o..o{ ApprovalHistory : referenced_by_ChangedBy
 ```
@@ -216,7 +252,7 @@ erDiagram
 
 ## 6. ID strategy
 
-All primary keys are `Guid` with a database default of `gen_random_uuid()`. This applies to all eight tables. The project does not use auto-increment integer keys. No change to the ID strategy is recommended.
+Primary keys are `Guid` with a database default of `gen_random_uuid()` for most tables (scheduling, billing, approval, user/organization, inventory). The pet-domain entities use **string** primary keys (`Pet.Id`, `PetOwner.Id`, `ConsultationRequest.Id` — e.g. `PET-…`, `OWN-…`), and `Appointment.PetId`/`Examination.PetId` are `string` FK columns matching them. The project does not use auto-increment integer keys.
 
 ---
 
@@ -262,6 +298,18 @@ The `AddUsers` migration exists in the current project history. It was applied t
 
 `DevelopmentSeeder.cs` and `SeedIds.cs` exist in `PetCare.Infrastructure/Seed/` but are **not** invoked from `Program.cs` — there is no automatic startup seeding in the current code. Reference data (`Veterinarian`, `AppointmentSlot`) is seeded via EF Core `HasData` in the migration itself.
 
+### Model–schema drift (pre-migration corrections, 2026-09-24)
+
+The EF Core model has been corrected ahead of the schema on the `backend/pre-migration-corrections` branch. **No migration has been generated yet** — the changes below exist only in the entity/configuration code:
+
+- `Appointments.PetId`: `Guid` → `string`, real FK → `Pets.Id` (was an unconstrained cross-module `uuid`).
+- `PetOwners.UserId`: new column, one-to-one FK → `Users.Id` (replaces email-matching for ownership).
+- `Veterinarians.OrganizationId`, `Medicines.OrganizationId`, `Suppliers.OrganizationId`: new nullable tenant columns.
+- `Examination.VeterinarianId`: now a configured FK → `Veterinarians` (was unmodelled).
+- All tables absent from migration history still need to be created by the final migration: `Organizations`, `PetOwners`, `Pets`, `ConsultationRequests`, `ConsultationStatusHistories`, `Examinations`, `Diagnoses`, `TreatmentRecords`, `Prescriptions`, `Medicines`, `Suppliers`, `MedicineBatches`, `MedicineReservations`, `InventoryTransactions`.
+
+**Required backfills in the final migration:** `PetOwners.UserId` (match by email); `OrganizationId` on org-owned rows (rows left NULL are invisible to org-scoped staff by design).
+
 ---
 
 ## 9. Database safety
@@ -274,7 +322,7 @@ The `AddUsers` migration exists in the current project history. It was applied t
 
 ## 10. Current database limitations / notes
 
-- **`PetId` is not FK-constrained:** `Appointment.PetId` is a NOT NULL `Guid` column referencing the Pet entity owned by another module. The cross-module FK constraint is expected to be added once the Pet table exists in the shared schema.
+- **Model–schema drift:** The development database still reflects the two old migrations; the corrected model (string `PetId` + FK, `PetOwners.UserId`, tenant columns, all missing tables) is pending the final consolidated migration — see §8.
 - **No FK from `Approvals`/`ApprovalHistories` to `Users`:** `ReviewedBy` and `ChangedBy` are stored as `Guid` values but are not FK-constrained to the `Users` table in the current schema.
 - **`DevelopmentSeeder` is not invoked at startup:** The seeder class exists but `Program.cs` does not call it. Development users must be inserted manually or via a separate one-time seeding step if needed.
 - **`AddUsers` migration remains applied:** The migration and any inserted user rows remain in the development database. No rollback was performed.

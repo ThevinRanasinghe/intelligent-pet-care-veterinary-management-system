@@ -1,9 +1,9 @@
 namespace PetCare.Application.DTOs.Approval;
 
 /// <summary>
-/// ReviewedBy is accepted as a client-supplied value for now: no JWT/role
-/// authorization exists yet in this layer (added later by the API security
-/// layer), so the acting Clinic Manager's id must be passed explicitly.
+/// ReviewedBy remains in the contract for compatibility, but the reviewer
+/// of record is bound server-side to the authenticated user (JWT sub) —
+/// the client-supplied value is ignored for authenticated callers.
 /// </summary>
 public class ApproveRequest
 {

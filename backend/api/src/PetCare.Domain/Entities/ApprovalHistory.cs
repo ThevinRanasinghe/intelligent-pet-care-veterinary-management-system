@@ -20,9 +20,11 @@ public class ApprovalHistory
     public ApprovalStatus NewStatus { get; set; }
 
     /// <summary>
-    /// FK to the User who made the change (User entity owned by another module).
+    /// FK to the User who made the change. Null for system-generated rows
+    /// (e.g. the resubmission reset written by the approval-reconciliation
+    /// path), real user ids otherwise.
     /// </summary>
-    public Guid ChangedBy { get; set; }
+    public Guid? ChangedBy { get; set; }
 
     public string? Reason { get; set; }
 

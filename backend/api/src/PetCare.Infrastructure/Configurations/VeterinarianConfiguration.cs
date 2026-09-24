@@ -40,6 +40,15 @@ public class VeterinarianConfiguration : IEntityTypeConfiguration<Veterinarian>
             .IsRequired()
             .HasDefaultValueSql("now()");
 
+        // Organization ownership: slots/appointments scope through this FK.
+        builder.HasIndex(v => v.OrganizationId)
+            .HasDatabaseName("IX_Veterinarians_OrganizationId");
+
+        builder.HasOne(v => v.Organization)
+            .WithMany()
+            .HasForeignKey(v => v.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasMany(v => v.AppointmentSlots)
             .WithOne(s => s.Veterinarian)
             .HasForeignKey(s => s.VeterinarianId)

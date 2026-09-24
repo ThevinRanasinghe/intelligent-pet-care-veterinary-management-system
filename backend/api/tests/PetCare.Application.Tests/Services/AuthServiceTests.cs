@@ -22,6 +22,7 @@ namespace PetCare.Application.Tests.Services;
 public class AuthServiceTests
 {
     private readonly Mock<IUserRepository> _userRepository = new();
+    private readonly Mock<IPetOwnerRepository> _petOwnerRepository = new();
     private readonly Mock<IOrganizationRepository> _organizationRepository = new();
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<IJwtTokenGenerator> _jwtTokenGenerator = new();
@@ -57,6 +58,7 @@ public class AuthServiceTests
 
     private AuthService CreateService() => new(
         _userRepository.Object,
+        _petOwnerRepository.Object,
         _organizationRepository.Object,
         _passwordHasher.Object,
         _jwtTokenGenerator.Object,
@@ -278,6 +280,49 @@ public class AuthServiceTests
         Assert.Equal(Roles.PetOwner, response.Role);
         Assert.Equal("John Doe", response.FullName);
         _userRepository.Verify(r => r.AddAsync(It.Is<User>(u => u.Role == Roles.PetOwner), It.IsAny<CancellationToken>()), Times.Once);
+        // A linked PetOwner profile is created alongside the account.
+        _petOwnerRepository.Verify(r => r.AddAsync(
+            It.Is<PetOwner>(o => o.Email == "john@example.com" && o.FullName == "John Doe"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        // Single SaveChanges: user + owner profile committed atomically.
+        _userRepository.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RegisterPetOwnerAsync_WithExistingUnlinkedProfile_LinksProfileToUser()
+    {
+        _userRepository.Setup(r => r.EmailExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _passwordHasher.Setup(h => h.HashPassword(Password)).Returns("hashed-pw");
+
+        // Clinic staff pre-created an unlinked owner record for this email.
+        var existing = new PetOwner
+        {
+            Id = "OWN-EXISTING1",
+            FullName = "John D.",
+            Email = "john@example.com",
+            UserId = null,
+        };
+        _petOwnerRepository
+            .Setup(r => r.GetUnlinkedByEmailAsync("john@example.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+
+        var service = CreateService();
+        var request = new RegisterPetOwnerRequest
+        {
+            FirstName = "John",
+            LastName = "Doe",
+            Email = "john@example.com",
+            Password = Password,
+            ConfirmPassword = Password,
+        };
+
+        var response = await service.RegisterPetOwnerAsync(request);
+
+        Assert.Equal(Roles.PetOwner, response.Role);
+        // The pre-existing profile is adopted (linked to the new user), not duplicated.
+        Assert.NotNull(existing.UserId);
+        Assert.Equal("John Doe", existing.FullName);
+        _petOwnerRepository.Verify(r => r.AddAsync(It.IsAny<PetOwner>(), It.IsAny<CancellationToken>()), Times.Never);
         _userRepository.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -330,6 +375,9 @@ public class AuthServiceTests
         Assert.NotNull(response.Organization);
         _organizationRepository.Verify(r => r.AddAsync(It.IsAny<Organization>(), It.IsAny<CancellationToken>()), Times.Once);
         _userRepository.Verify(r => r.AddAsync(It.Is<User>(u => u.Role == Roles.ClinicManager), It.IsAny<CancellationToken>()), Times.Once);
+        // Atomic registration: a single SaveChanges commits org + manager together.
+        _organizationRepository.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _userRepository.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

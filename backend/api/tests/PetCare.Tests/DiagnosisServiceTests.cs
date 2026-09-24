@@ -26,10 +26,14 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
+        var examinationId = Guid.NewGuid();
+        context.Examinations.Add(new Examination { Id = examinationId, PetId = "PET-1", VeterinarianId = Guid.NewGuid() });
+        await context.SaveChangesAsync();
+
         var dto = new CreateDiagnosisDto
         {
-            ExaminationId = Guid.NewGuid(),
+            ExaminationId = examinationId,
             ConditionName = "Flu",
             Description = "Mild flu",
             Severity = "Low"
@@ -53,7 +57,7 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
         
         var diagnosis = new Diagnosis
         {
@@ -79,7 +83,7 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
 
         // Act
         var result = await service.GetByIdAsync(Guid.NewGuid());
@@ -93,7 +97,7 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
         
         var examinationId1 = Guid.NewGuid();
         var examinationId2 = Guid.NewGuid();
@@ -118,7 +122,7 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
         
         var diagnosis = new Diagnosis
         {
@@ -155,7 +159,7 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
         
         var updateDto = new UpdateDiagnosisDto { ConditionName = "C", Severity = "Low" };
 
@@ -171,7 +175,7 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
         
         var diagnosis = new Diagnosis { Id = Guid.NewGuid(), ExaminationId = Guid.NewGuid(), ConditionName = "C", Severity = DiagnosisSeverity.Low };
         context.Diagnoses.Add(diagnosis);
@@ -190,7 +194,7 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
 
         // Act
         var result = await service.DeleteAsync(Guid.NewGuid());
@@ -205,10 +209,14 @@ public class DiagnosisServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new DiagnosisService(context);
+        var service = new DiagnosisService(context, TestTenantContext.Unscoped);
+        var examinationId = Guid.NewGuid();
+        context.Examinations.Add(new Examination { Id = examinationId, PetId = "PET-1", VeterinarianId = Guid.NewGuid() });
+        await context.SaveChangesAsync();
+
         var dto = new CreateDiagnosisDto
         {
-            ExaminationId = Guid.NewGuid(),
+            ExaminationId = examinationId,
             ConditionName = "Flu",
             Severity = "InvalidSeverityString"
         };

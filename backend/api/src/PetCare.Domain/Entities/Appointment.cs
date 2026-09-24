@@ -10,9 +10,11 @@ namespace PetCare.Domain.Entities;
 public class Appointment : AuditableEntity
 {
     /// <summary>
-    /// FK to the Pet entity owned by another module; not modeled in this project.
+    /// FK to the canonical Pet entity (Pets.Id is a string identifier such as "PET-...").
     /// </summary>
-    public Guid PetId { get; set; }
+    public string PetId { get; set; } = string.Empty;
+
+    public Pet Pet { get; set; } = null!;
 
     public Guid VeterinarianId { get; set; }
 

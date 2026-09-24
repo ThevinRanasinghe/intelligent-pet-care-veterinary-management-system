@@ -1,23 +1,35 @@
 using Microsoft.EntityFrameworkCore;
 using PetCare.Application.DTOs;
+using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Entities;
 using PetCare.Infrastructure;
+using PetCare.Infrastructure.Repositories;
 
 namespace PetCare.Infrastructure.Services;
 
 public class ExaminationService : IExaminationService
 {
     private readonly PetCareDbContext _context;
+    private readonly ITenantContext _tenant;
 
-    public ExaminationService(PetCareDbContext context)
+    public ExaminationService(PetCareDbContext context, ITenantContext tenant)
     {
         _context = context;
+        _tenant = tenant;
     }
+
+    /// <summary>
+    /// Examinations belong to the attending veterinarian's organization;
+    /// org-scoped staff callers only see their own organization's records.
+    /// </summary>
+    private async Task<IQueryable<Examination>> ScopedAsync(CancellationToken ct = default) =>
+        await _context.Examinations
+            .ScopeToOrganizationAsync(_tenant, e => e.Veterinarian!.OrganizationId, ct);
 
     public async Task<List<ExaminationResponseDto>> GetAllAsync()
     {
-        var examinations = await _context.Examinations
+        var examinations = await (await ScopedAsync())
             .AsNoTracking()
             .ToListAsync();
 
@@ -26,7 +38,7 @@ public class ExaminationService : IExaminationService
 
     public async Task<ExaminationResponseDto?> GetByIdAsync(Guid id)
     {
-        var examination = await _context.Examinations
+        var examination = await (await ScopedAsync())
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.Id == id);
 
@@ -38,7 +50,7 @@ public class ExaminationService : IExaminationService
 
     public async Task<List<ExaminationResponseDto>> GetByPetIdAsync(string petId)
     {
-        var examinations = await _context.Examinations
+        var examinations = await (await ScopedAsync())
             .AsNoTracking()
             .Where(e => e.PetId == petId)
             .ToListAsync();
@@ -48,6 +60,17 @@ public class ExaminationService : IExaminationService
 
     public async Task<ExaminationResponseDto> CreateAsync(CreateExaminationDto dto)
     {
+        // The attending veterinarian determines the examination's
+        // organization; reject references to a veterinarian outside the
+        // caller's organization.
+        var veterinarianInScope = await (await _context.Veterinarians
+                .ScopeToOrganizationAsync(_tenant, v => v.OrganizationId))
+            .AnyAsync(v => v.Id == dto.VeterinarianId);
+        if (!veterinarianInScope)
+        {
+            throw new NotFoundException($"Veterinarian '{dto.VeterinarianId}' was not found.");
+        }
+
         var examination = new Examination
         {
             Id = Guid.NewGuid(),
@@ -69,7 +92,8 @@ public class ExaminationService : IExaminationService
 
     public async Task<ExaminationResponseDto?> UpdateAsync(Guid id, UpdateExaminationDto dto)
     {
-        var examination = await _context.Examinations.FindAsync(id);
+        var examination = await (await ScopedAsync())
+            .FirstOrDefaultAsync(e => e.Id == id);
         if (examination == null)
             return null;
 
@@ -85,7 +109,8 @@ public class ExaminationService : IExaminationService
 
     public async Task<bool> DeleteAsync(Guid id)
     {
-        var examination = await _context.Examinations.FindAsync(id);
+        var examination = await (await ScopedAsync())
+            .FirstOrDefaultAsync(e => e.Id == id);
         if (examination == null)
             return false;
 
@@ -97,7 +122,7 @@ public class ExaminationService : IExaminationService
 
     public async Task<TreatmentRecommendationDto> GetRecommendationsAsync(Guid examinationId)
     {
-        var exam = await _context.Examinations
+        var exam = await (await ScopedAsync())
             .Include(e => e.Pet)
             .FirstOrDefaultAsync(e => e.Id == examinationId);
 

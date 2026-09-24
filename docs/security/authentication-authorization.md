@@ -108,38 +108,126 @@ No actual secret values appear in any committed file. `appsettings.json` and `ap
 
 | Constant | Value | Description |
 |---|---|---|
-| `Roles.ClinicManager` | `"ClinicManager"` | Can approve/reject/request-revision on quotations |
-| `Roles.Staff` | `"Staff"` | General authenticated staff member |
+| `Roles.PetOwner` | `"PetOwner"` | Owns pets and consultation requests; reads own clinical history |
+| `Roles.Veterinarian` | `"Veterinarian"` | Clinical write operations; reads scheduling/billing |
+| `Roles.InventoryOfficer` | `"InventoryOfficer"` | Medicines, suppliers, stock, reservations, dispensing |
+| `Roles.ClinicManager` | `"ClinicManager"` | Scheduling, quotations/billing, approval decisions, read-only clinic oversight |
+| `Roles.SuperAdmin` | `"Administrator"` | Platform administration (users, organizations, system); cross-organization visibility |
+| `Roles.Staff` | `"Staff"` | General authenticated staff member (defined but currently unused) |
 
-### Role-based protection
+All authorization attributes reference the `Roles` constants — no role strings are hard-coded.
 
-The three approval decision endpoints in `ApprovalsController` are decorated with `[Authorize(Roles = Roles.ClinicManager)]`:
+### Endpoint / role matrix (verified against controller attributes)
 
-| Endpoint | Authorization |
+| Endpoint group | Read | Mutate |
+|---|---|---|
+| `POST /api/auth/login`, `POST /api/auth/register*` | Public | — |
+| `PUT /api/auth/change-password`, `PUT /api/auth/profile` | Any authenticated user | same |
+| `/api/admin/*` | Administrator only | Administrator only |
+| `/api/appointments` (+ `available-slots`, `check-conflict`) | Veterinarian, ClinicManager, Administrator | ClinicManager, Administrator |
+| `/api/quotations` (+ `calculate`, `submit`, `finalize`) | Veterinarian, ClinicManager, Administrator | ClinicManager, Administrator |
+| `GET /api/approvals/*` | Veterinarian, ClinicManager, Administrator | — |
+| `POST /api/approvals/{id}/approve|reject|revision` | — | **ClinicManager only** |
+| `GET /api/examinations|diagnoses|treatment-records|prescriptions` (list) | Veterinarian, ClinicManager, Administrator | — |
+| `GET .../{id}` and by-parent clinical reads | PetOwner (own only, enforced in action) + Veterinarian, ClinicManager, Administrator | — |
+| `POST|PUT|PATCH|DELETE /api/examinations|diagnoses|treatment-records|prescriptions` | — | Veterinarian, Administrator |
+| `GET /api/medicines`, `/low-stock`, `/expiring`, `/{id}` | Veterinarian, ClinicManager, InventoryOfficer, Administrator | — |
+| `POST /api/medicines`, `POST /{id}/stock-in` | — | InventoryOfficer, Administrator |
+| `GET /api/medicines/{id}/batches`, `/{id}/transactions` | ClinicManager, InventoryOfficer, Administrator | — |
+| `GET /api/suppliers[/{id}]` | InventoryOfficer, ClinicManager, Administrator | — |
+| `POST /api/suppliers` | — | InventoryOfficer, Administrator |
+| `GET /api/medicine-reservations` | Veterinarian, InventoryOfficer, ClinicManager, Administrator | — |
+| `POST /api/medicine-reservations`, `/{id}/cancel` | — | Veterinarian, InventoryOfficer, Administrator |
+| `POST /api/medicine-reservations/{id}/dispense` | — | InventoryOfficer, Administrator |
+| `/api/pets`, `/api/petowners` (GET) | PetOwner (own only) + Veterinarian, ClinicManager, Administrator | — |
+| `POST|PUT|DELETE /api/pets`, `POST /api/petowners` | — | PetOwner (own only) + ClinicManager, Administrator |
+| `/api/consultations` (GET) | PetOwner (own only) + Veterinarian, ClinicManager, Administrator | — |
+| `POST|PUT /api/consultations`, `/submit`, `/cancel` | — | PetOwner (own only) + ClinicManager, Administrator |
+| `GET /api/consultations/nearest-clinic` | Any authenticated user (utility) | — |
+| `GET /api/lookups/pets` | Veterinarian, ClinicManager, Administrator | — |
+| `GET /api/lookups/medicines` | Veterinarian, ClinicManager, InventoryOfficer, Administrator | — |
+
+The InventoryOfficer role is excluded from all pet/consultation/clinical/scheduling/billing data. The PetOwner role is excluded from all inventory, supplier, scheduling, billing, approval, and administration endpoints.
+
+### Account lifecycle (who creates which account)
+
+| Role | Creation path |
 |---|---|
-| `POST /api/approvals/{id}/approve` | `[Authorize(Roles = Roles.ClinicManager)]` |
-| `POST /api/approvals/{id}/reject` | `[Authorize(Roles = Roles.ClinicManager)]` |
-| `POST /api/approvals/{id}/revision` | `[Authorize(Roles = Roles.ClinicManager)]` |
+| PetOwner | Self-registration — `POST /api/auth/register/pet-owner` (creates `User` + linked `PetOwner` atomically; never created by an Administrator) |
+| ClinicManager | Created as part of `POST /api/auth/register/organization` alongside the Organization (Pending until an Administrator approves it) |
+| Veterinarian | Administrator-only — `POST /api/admin/users/veterinarians` |
+| InventoryOfficer | Administrator-only — `POST /api/admin/users/inventory-officers` |
+| Administrator | System-level role; no API creation path |
 
-All other endpoints require only authentication (a valid JWT). There is no `[AllowAnonymous]` on any endpoint except `POST /api/auth/login` (which has no `[Authorize]` attribute).
+Staff creation rules (`AdminService.CreateStaffAccountAsync`):
+
+- Role is fixed by the endpoint — the request body has no role field, so a caller cannot choose it.
+- `OrganizationId` is validated server-side: the organization must exist and be `Active`; pending/rejected/suspended organizations are rejected with 400, unknown ids with 404.
+- Duplicate emails are rejected (400).
+- New staff start `Active = true` with `MustChangePassword = true`.
+- The project has no email/SMS delivery, so the service generates a cryptographically random temporary password (PBKDF2-hashed in storage) returned **once** in the `CreateStaffUserResponse` — the administrator hands it to the staff member out-of-band. This one-time admin-visible value is the documented development/demo handoff mechanism; production deployments should replace it with a real invitation channel.
+- 401 unauthenticated, 403 for every non-Administrator role — enforced by the class-level `[Authorize(Roles = Roles.SuperAdmin)]`.
+
+### Staff-creation endpoints
+
+`POST /api/admin/users/veterinarians` and `POST /api/admin/users/inventory-officers` — identical contract, different server-assigned role.
+
+| Field | Notes |
+|---|---|
+| `firstName` (required, ≤100) | |
+| `lastName` (required, ≤100) | |
+| `email` (required, valid, ≤256) | must be unique — 400 on duplicate |
+| `phoneNumber` (optional, ≤50) | |
+| `organizationId` (required) | must be an existing **Active** organization — 404 unknown, 400 non-active |
+
+**Response:** `201 Created` → `CreateStaffUserResponse` — the created user's public fields plus `temporaryPassword` (returned once; never stored or logged in plaintext).
+
+**Errors:** 400 validation/duplicate-email/inactive-org · 401 unauthenticated · 403 non-Administrator · 404 unknown organization.
+
+There is intentionally **no** `POST /api/admin/users` and no role field — a client cannot create a PetOwner, ClinicManager, or Administrator, and cannot pick an arbitrary role.
 
 ---
 
-## 6. Protected API operations
+## 6. PetOwner ownership enforcement
 
-| Operation | Protection level |
-|---|---|
-| `POST /api/auth/login` | Public (no auth required) |
-| `GET /api/appointments/*`, `POST /api/appointments`, `PUT /api/appointments/{id}`, `DELETE /api/appointments/{id}` | Authenticated |
-| `GET /api/quotations/*`, `POST /api/quotations`, `PUT /api/quotations/{id}`, `POST /api/quotations/{id}/*` | Authenticated |
-| `GET /api/approvals/pending`, `GET /api/approvals/{id}`, `GET /api/approvals/{id}/history` | Authenticated |
-| `POST /api/approvals/{id}/approve` | **ClinicManager only** |
-| `POST /api/approvals/{id}/reject` | **ClinicManager only** |
-| `POST /api/approvals/{id}/revision` | **ClinicManager only** |
+Ownership is resolved **server-side** from the authenticated identity — never from caller-supplied owner ids:
+
+1. `PetOwner.UserId → User.Id` is a configured one-to-one relationship. Every PetOwner login account maps to exactly one owner profile.
+2. `OwnerAccessService` (scoped per request) reads the JWT `sub`/`NameIdentifier` claim, resolves the linked `PetOwner.Id` via `PetOwners.UserId`, and answers ownership questions for the whole graph: `Pet`, `ConsultationRequest`, `Examination`, `Diagnosis`, `TreatmentRecord`, `Prescription`.
+3. Controller actions short-circuit PetOwner callers that reference resources they do not own — `404 NotFound` where hiding resource existence is the convention, `403 Forbidden` where the existing contract uses it.
+4. On create endpoints (`POST /api/pets`, `POST /api/consultations`, `POST /api/petowners`), any client-supplied `OwnerId`/profile identity is **overwritten** with the caller's resolved owner id.
+5. PetOwner registration (`POST /api/auth/register/pet-owner`) creates the `User` account **and** the linked `PetOwner` profile in a single `SaveChangesAsync` (one EF transaction). If a clinic-created unlinked owner profile already exists for the email, it is attached to the new account instead of duplicated.
 
 ---
 
-## 7. React security
+## 7. Organization / tenant scoping
+
+Organization-owned operational data is isolated per tenant:
+
+- `User.OrganizationId` links staff accounts to their `Organization`.
+- `ITenantContext` (API-scoped `TenantContext`) resolves the caller's organization from the JWT `sub` → `Users` row once per request.
+- `OrganizationId` is carried directly on `Veterinarian`, `Medicine`, and `Supplier`; all other org-owned entities resolve scope transitively: `Appointment`/`AppointmentSlot` → `Veterinarian`, `Quotation` → `Appointment.Veterinarian`, `Approval`/`ApprovalHistory` → `Quotation.Appointment.Veterinarian`, `MedicineBatch`/`MedicineReservation`/`InventoryTransaction` → `Medicine`, and the clinical chain `Examination → Veterinarian` (with `Diagnosis`/`TreatmentRecord`/`Prescription` below it).
+- `TenantQueryableExtensions.ScopeToOrganizationAsync` filters every repository query, `GetById` (which backs update/delete loads), and clinical service query for org-scoped callers.
+- Create paths validate that referenced parents are in-scope (`veterinarian`, `examination`, `diagnosis`, `treatment record`, `medicine`, `appointment`, `slot`); cross-organization ids fail as `NotFoundException` → 404.
+- **SuperAdmin is unscoped** (cross-organization visibility). **PetOwner callers are not org-scoped** — their access is governed by the ownership checks above.
+- Rows with `OrganizationId = NULL` are invisible to org-scoped callers; the final migration must backfill legacy rows.
+
+---
+
+## 8. Registration atomicity
+
+| Flow | Boundary |
+|---|---|
+| `POST /api/auth/register/pet-owner` | `User` + linked `PetOwner` staged, single `SaveChangesAsync` — failure cannot leave a login without an owner profile |
+| `POST /api/auth/register/organization` | `Organization` + ClinicManager `User` (`OrganizationId` link) staged, single `SaveChangesAsync` — failure cannot leave an organization without a manager |
+
+`AuditableEntity` generates `Guid` ids client-side, so the `OrganizationId` link is known before insert.
+
+---
+
+---
+
+## 9. React security
 
 ### Auth state
 
@@ -155,7 +243,9 @@ All other endpoints require only authentication (a valid JWT). There is no `[All
 ### Protected routes
 
 - `ProtectedRoute` (`features/auth/ProtectedRoute.tsx`) wraps all non-login routes. If `isAuthenticated` is false, it redirects to `/login` with the original location preserved in router state.
-- Role-specific gating (e.g. showing/hiding approve/reject buttons) is handled at the component level in `ApprovalPage` via `hasRole('ClinicManager')`, not in `ProtectedRoute`.
+- `RoleRoute` gates each route by role, driven by `features/auth/roleAccess.ts` — the single source of truth for `ROLE_HOMES`, the path→roles table, `canRoleAccessPath`, and `safeRedirectPath`.
+- Post-login redirects validate the saved `state.from` against the user's role (`safeRedirectPath`); a stale cross-role `from` falls back to the role's home instead of flashing the unauthorized page.
+- Role-specific action gating (e.g. showing/hiding approve/reject buttons) is additionally handled at the component level via `hasRole(...)`.
 
 ### API authorization
 
@@ -165,7 +255,7 @@ All other endpoints require only authentication (a valid JWT). There is no `[All
 
 ---
 
-## 8. Flutter security
+## 10. Flutter security
 
 ### Token storage
 
@@ -192,7 +282,7 @@ All other endpoints require only authentication (a valid JWT). There is no `[All
 
 ---
 
-## 9. Security practices actually present
+## 11. Security practices actually present
 
 | Practice | Present? | Evidence |
 |---|---|---|
@@ -210,7 +300,7 @@ All other endpoints require only authentication (a valid JWT). There is no `[All
 
 ---
 
-## 10. Current security limitations
+## 12. Current security limitations
 
 - **No refresh-token flow:** The JWT has a fixed expiry. After expiry, the user must log in again. There is no silent refresh mechanism.
 - **`ReviewedBy` is caller-supplied:** The approval decision endpoints accept `ReviewedBy` as a request-body field rather than deriving it from the JWT `sub` claim. The role is enforced, but the reviewer identity is not automatically bound to the authenticated user.
@@ -218,3 +308,4 @@ All other endpoints require only authentication (a valid JWT). There is no `[All
 - **Production CORS is empty:** `appsettings.json` has `"AllowedOrigins": []`, so the API will not serve browser clients in a production configuration without explicit configuration.
 - **No rate limiting:** The login endpoint has no rate limiting or lockout policy in the current implementation.
 - **No HTTPS enforcement in Development:** `app.UseHttpsRedirection()` is present but Development mode does not enforce HTTPS for local testing.
+- **EF model is ahead of the schema (pre-migration):** Tenant columns (`Veterinarians/Medicines/Suppliers.OrganizationId`), `PetOwners.UserId`, and the `Appointments.PetId` type change exist only in the model until the final migration runs. Rows with NULL `OrganizationId` are invisible to org-scoped staff and must be backfilled; `PetOwners.UserId` must be backfilled by matching email.

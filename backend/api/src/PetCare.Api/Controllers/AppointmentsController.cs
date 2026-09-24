@@ -15,9 +15,18 @@ namespace PetCare.Api.Controllers;
 [ApiController]
 [Route("api/appointments")]
 [Produces("application/json")]
-[Authorize(Roles = $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
+[Authorize]
 public class AppointmentsController : ControllerBase
 {
+    // Scheduling visibility: clinical staff and management (Inventory
+    // Officer has no scheduling responsibility).
+    private const string ReadRoles =
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
+    // Scheduling is managed by the Clinic Manager.
+    private const string ManageRoles =
+        $"{Roles.ClinicManager},{Roles.SuperAdmin}";
+
     private readonly ISchedulingService _schedulingService;
 
     public AppointmentsController(ISchedulingService schedulingService)
@@ -27,6 +36,7 @@ public class AppointmentsController : ControllerBase
 
     /// <summary>Gets all appointments.</summary>
     [HttpGet]
+    [Authorize(Roles = ReadRoles)]
     [ProducesResponseType(typeof(IReadOnlyList<AppointmentResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<AppointmentResponse>>> GetAppointments(CancellationToken cancellationToken)
     {
@@ -36,6 +46,7 @@ public class AppointmentsController : ControllerBase
 
     /// <summary>Gets a single appointment by id.</summary>
     [HttpGet("{id:guid}")]
+    [Authorize(Roles = ReadRoles)]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AppointmentResponse>> GetAppointmentById(Guid id, CancellationToken cancellationToken)
@@ -49,6 +60,7 @@ public class AppointmentsController : ControllerBase
     /// status, slot existence/ownership/bounds, and the overlap conflict rule.
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -63,6 +75,7 @@ public class AppointmentsController : ControllerBase
 
     /// <summary>Updates an existing appointment's schedule/notes, re-validating conflicts.</summary>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -82,6 +95,7 @@ public class AppointmentsController : ControllerBase
     /// a soft cancel, not a hard row delete, per the domain model.
     /// </summary>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = ManageRoles)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CancelAppointment(Guid id, CancellationToken cancellationToken)
@@ -92,6 +106,7 @@ public class AppointmentsController : ControllerBase
 
     /// <summary>Gets Available appointment slots, optionally filtered by veterinarian and/or date.</summary>
     [HttpGet("available-slots")]
+    [Authorize(Roles = ReadRoles)]
     [ProducesResponseType(typeof(IReadOnlyList<AppointmentSlotResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<AppointmentSlotResponse>>> GetAvailableSlots(
         [FromQuery] Guid? veterinarianId,
@@ -107,6 +122,7 @@ public class AppointmentsController : ControllerBase
     /// for the same veterinarian, without creating anything.
     /// </summary>
     [HttpPost("check-conflict")]
+    [Authorize(Roles = ReadRoles)]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     public async Task<ActionResult<bool>> CheckConflict(
         [FromBody] ConflictCheckRequest request,

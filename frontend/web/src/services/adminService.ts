@@ -57,6 +57,33 @@ export async function setUserActive(userId: string, active: boolean): Promise<Ad
   });
 }
 
+export interface CreateStaffUserRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber?: string;
+  organizationId: string;
+}
+
+/** AdminUser plus the one-time temporary password shown to the admin only. */
+export interface CreatedStaffUser extends AdminUser {
+  temporaryPassword: string;
+}
+
+export async function createVeterinarian(request: CreateStaffUserRequest): Promise<CreatedStaffUser> {
+  return apiRequest<CreatedStaffUser>('/admin/users/veterinarians', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function createInventoryOfficer(request: CreateStaffUserRequest): Promise<CreatedStaffUser> {
+  return apiRequest<CreatedStaffUser>('/admin/users/inventory-officers', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
 export async function getOrganizations(): Promise<AdminOrganization[]> {
   return apiRequest<AdminOrganization[]>('/admin/organizations');
 }
