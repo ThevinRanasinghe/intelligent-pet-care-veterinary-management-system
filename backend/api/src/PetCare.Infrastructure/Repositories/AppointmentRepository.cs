@@ -8,20 +8,26 @@ namespace PetCare.Infrastructure.Repositories;
 public class AppointmentRepository : IAppointmentRepository
 {
     private readonly PetCareDbContext _context;
+    private readonly ITenantContext _tenant;
 
-    public AppointmentRepository(PetCareDbContext context)
+    public AppointmentRepository(PetCareDbContext context, ITenantContext tenant)
     {
         _context = context;
+        _tenant = tenant;
     }
 
-    public Task<Appointment?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Appointment?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return _context.Appointments.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        var query = await _context.Appointments
+            .ScopeToOrganizationAsync(_tenant, a => a.Veterinarian.OrganizationId, cancellationToken);
+        return await query.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Appointment>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.Appointments.ToListAsync(cancellationToken);
+        var query = await _context.Appointments
+            .ScopeToOrganizationAsync(_tenant, a => a.Veterinarian.OrganizationId, cancellationToken);
+        return await query.ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Appointment>> GetActiveByVeterinarianAndDateAsync(
@@ -29,7 +35,9 @@ public class AppointmentRepository : IAppointmentRepository
         DateOnly date,
         CancellationToken cancellationToken = default)
     {
-        return await _context.Appointments
+        var query = await _context.Appointments
+            .ScopeToOrganizationAsync(_tenant, a => a.Veterinarian.OrganizationId, cancellationToken);
+        return await query
             .Where(a => a.VeterinarianId == veterinarianId
                 && a.Date == date
                 && a.Status != AppointmentStatus.Cancelled)

@@ -20,12 +20,10 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.Property(a => a.Id)
             .HasDefaultValueSql("gen_random_uuid()");
 
-        // PetId must exist: FK to the Pet entity owned by another module.
-        // Enforced as a plain NOT NULL Guid column here; the cross-module FK
-        // constraint is added at the database level once the Pet table exists
-        // (see docs/database/scheduling-billing-approval-domain-model.md).
+        // PetId references the canonical Pet entity (string PK).
         builder.Property(a => a.PetId)
-            .IsRequired();
+            .IsRequired()
+            .HasMaxLength(30);
 
         builder.Property(a => a.Date)
             .IsRequired()
@@ -73,6 +71,12 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
 
         builder.HasIndex(a => a.Status)
             .HasDatabaseName("IX_Appointment_Status");
+
+        // PetId must exist: real FK to the Pet module's table.
+        builder.HasOne(a => a.Pet)
+            .WithMany()
+            .HasForeignKey(a => a.PetId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // VeterinarianId must exist.
         builder.HasOne(a => a.Veterinarian)

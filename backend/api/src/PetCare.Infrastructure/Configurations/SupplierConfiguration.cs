@@ -20,6 +20,17 @@ public class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
         builder.Property(s => s.Address).HasMaxLength(500);
         builder.Property(s => s.Status).IsRequired().HasMaxLength(20).HasConversion<string>();
 
+        // Organization ownership of supplier records.
+        builder.Property(s => s.OrganizationId);
+
+        builder.HasIndex(s => s.OrganizationId)
+            .HasDatabaseName("IX_Suppliers_OrganizationId");
+
+        builder.HasOne(s => s.Organization)
+            .WithMany()
+            .HasForeignKey(s => s.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(s => s.Name);
         builder.HasIndex(s => s.Status);
     }

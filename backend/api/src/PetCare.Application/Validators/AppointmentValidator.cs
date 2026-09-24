@@ -12,10 +12,9 @@ namespace PetCare.Application.Validators;
 /// conflicts) are enforced by SchedulingService, which needs to load the
 /// same entities anyway to execute the use case.
 ///
-/// PetId existence cannot be verified here: Pet is owned by another
-/// module/component and no repository for it exists in this component
-/// (see docs/database/scheduling-billing-approval-domain-model.md).
-/// Only structural validation (non-empty) is applied to PetId.
+/// PetId references the canonical Pet entity (string id, e.g. "PET-...");
+/// existence is enforced by the Appointments -> Pets FK and by
+/// SchedulingService's existence check before insert.
 /// </summary>
 public class CreateAppointmentRequestValidator : AbstractValidator<CreateAppointmentRequest>
 {
@@ -24,7 +23,8 @@ public class CreateAppointmentRequestValidator : AbstractValidator<CreateAppoint
         IAppointmentSlotRepository appointmentSlotRepository)
     {
         RuleFor(r => r.PetId)
-            .NotEmpty();
+            .NotEmpty()
+            .MaximumLength(30);
 
         RuleFor(r => r.VeterinarianId)
             .NotEmpty()

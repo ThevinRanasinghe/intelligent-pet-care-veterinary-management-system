@@ -7,29 +7,37 @@ namespace PetCare.Infrastructure.Repositories;
 public class QuotationRepository : IQuotationRepository
 {
     private readonly PetCareDbContext _context;
+    private readonly ITenantContext _tenant;
 
-    public QuotationRepository(PetCareDbContext context)
+    public QuotationRepository(PetCareDbContext context, ITenantContext tenant)
     {
         _context = context;
+        _tenant = tenant;
     }
 
-    public Task<Quotation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<Quotation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return _context.Quotations
+        var query = _context.Quotations
             .Include(q => q.Items)
-            .FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
+            .AsQueryable();
+        query = await query.ScopeToOrganizationAsync(_tenant, q => q.Appointment.Veterinarian.OrganizationId, cancellationToken);
+        return await query.FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Quotation>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.Quotations
+        var query = _context.Quotations
             .Include(q => q.Items)
-            .ToListAsync(cancellationToken);
+            .AsQueryable();
+        query = await query.ScopeToOrganizationAsync(_tenant, q => q.Appointment.Veterinarian.OrganizationId, cancellationToken);
+        return await query.ToListAsync(cancellationToken);
     }
 
-    public Task<bool> ExistsForAppointmentAsync(Guid appointmentId, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsForAppointmentAsync(Guid appointmentId, CancellationToken cancellationToken = default)
     {
-        return _context.Quotations.AnyAsync(q => q.AppointmentId == appointmentId, cancellationToken);
+        var query = await _context.Quotations
+            .ScopeToOrganizationAsync(_tenant, q => q.Appointment.Veterinarian.OrganizationId, cancellationToken);
+        return await query.AnyAsync(q => q.AppointmentId == appointmentId, cancellationToken);
     }
 
     public Task AddAsync(Quotation quotation, CancellationToken cancellationToken = default)

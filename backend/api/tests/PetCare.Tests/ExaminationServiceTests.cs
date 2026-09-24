@@ -26,11 +26,15 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
+        var veterinarianId = Guid.NewGuid();
+        context.Veterinarians.Add(new Veterinarian { Id = veterinarianId, Name = "Dr. Test" });
+        await context.SaveChangesAsync();
+
         var dto = new CreateExaminationDto
         {
             PetId = Guid.NewGuid().ToString(),
-            VeterinarianId = Guid.NewGuid(),
+            VeterinarianId = veterinarianId,
             Symptoms = "Fever",
             Notes = "Checkup required",
             ExaminationDate = DateTime.UtcNow
@@ -53,7 +57,7 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
         
         var examination = new Examination
         {
@@ -80,7 +84,7 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
 
         // Act
         var result = await service.GetByIdAsync(Guid.NewGuid());
@@ -94,7 +98,7 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
         
         var petId1 = Guid.NewGuid().ToString();
         var petId2 = Guid.NewGuid().ToString();
@@ -119,7 +123,7 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
         
         var examination = new Examination
         {
@@ -155,7 +159,7 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
         
         var updateDto = new UpdateExaminationDto { Symptoms = "S" };
 
@@ -171,7 +175,7 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
         
         var examination = new Examination { Id = Guid.NewGuid(), PetId = Guid.NewGuid().ToString(), VeterinarianId = Guid.NewGuid(), Symptoms = "S" };
         context.Examinations.Add(examination);
@@ -190,7 +194,7 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
 
         // Act
         var result = await service.DeleteAsync(Guid.NewGuid());
@@ -205,11 +209,15 @@ public class ExaminationServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new ExaminationService(context);
+        var service = new ExaminationService(context, TestTenantContext.Unscoped);
+        var veterinarianId = Guid.NewGuid();
+        context.Veterinarians.Add(new Veterinarian { Id = veterinarianId, Name = "Dr. Test" });
+        await context.SaveChangesAsync();
+
         var dto = new CreateExaminationDto
         {
             PetId = Guid.NewGuid().ToString(),
-            VeterinarianId = Guid.NewGuid(),
+            VeterinarianId = veterinarianId,
             Symptoms = "Fever",
             Notes = "", // Empty string
             ExaminationDate = DateTime.UtcNow

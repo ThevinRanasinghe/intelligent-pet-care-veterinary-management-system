@@ -15,6 +15,7 @@ namespace PetCare.Application.Services;
 public class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepository;
+    private readonly IPetOwnerRepository _petOwnerRepository;
     private readonly IOrganizationRepository _organizationRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
@@ -26,6 +27,7 @@ public class AuthService : IAuthService
 
     public AuthService(
         IUserRepository userRepository,
+        IPetOwnerRepository petOwnerRepository,
         IOrganizationRepository organizationRepository,
         IPasswordHasher passwordHasher,
         IJwtTokenGenerator jwtTokenGenerator,
@@ -36,6 +38,7 @@ public class AuthService : IAuthService
         IValidator<UpdateProfileRequest> updateProfileValidator)
     {
         _userRepository = userRepository;
+        _petOwnerRepository = petOwnerRepository;
         _organizationRepository = organizationRepository;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
@@ -114,6 +117,35 @@ public class AuthService : IAuthService
         };
 
         await _userRepository.AddAsync(user, cancellationToken);
+
+        // Every PetOwner account needs a linked PetOwner domain profile:
+        // ownership of pets/consultations is resolved via PetOwner.UserId,
+        // not by matching email. If clinic staff already created an
+        // unlinked owner record for this email (walk-in client), attach it
+        // to the new account; otherwise create a fresh linked profile.
+        var owner = await _petOwnerRepository.GetUnlinkedByEmailAsync(email, cancellationToken);
+        if (owner is not null)
+        {
+            owner.UserId = user.Id;
+            owner.FullName = user.Name;
+            owner.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            await _petOwnerRepository.AddAsync(new PetOwner
+            {
+                Id = $"OWN-{Guid.NewGuid():N}"[..12].ToUpper(),
+                FullName = user.Name,
+                Email = email,
+                UserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            }, cancellationToken);
+        }
+
+        // One SaveChanges = one EF transaction: the User and its linked
+        // PetOwner profile are committed atomically, so a failure can never
+        // leave an account without an owner profile (or vice versa).
         await _userRepository.SaveChangesAsync(cancellationToken);
 
         return MapToCurrentUser(user, null);
@@ -153,9 +185,6 @@ public class AuthService : IAuthService
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
-        await _organizationRepository.AddAsync(organization, cancellationToken);
-        await _organizationRepository.SaveChangesAsync(cancellationToken);
-
         var managerFirstName = request.ManagerFirstName.Trim();
         var managerLastName = request.ManagerLastName.Trim();
 
@@ -174,6 +203,12 @@ public class AuthService : IAuthService
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
+        // Registration is one logical operation: the Organization row and
+        // its ClinicManager user are staged together and committed by a
+        // single SaveChanges (single EF transaction), so a failure cannot
+        // leave an Organization without a manager or a manager without an
+        // Organization.
+        await _organizationRepository.AddAsync(organization, cancellationToken);
         await _userRepository.AddAsync(manager, cancellationToken);
         await _userRepository.SaveChangesAsync(cancellationToken);
 

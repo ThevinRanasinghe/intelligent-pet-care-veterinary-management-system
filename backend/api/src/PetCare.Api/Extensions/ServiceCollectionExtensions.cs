@@ -53,6 +53,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IQuotationRepository, QuotationRepository>();
         services.AddScoped<IApprovalRepository, ApprovalRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IPetOwnerRepository, PetOwnerRepository>();
         services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
@@ -66,6 +67,9 @@ public static class ServiceCollectionExtensions
         // resource-ownership questions for controller-level authorization.
         services.AddHttpContextAccessor();
         services.AddScoped<IOwnerAccessService, OwnerAccessService>();
+        // Resolves the caller's organization (User.OrganizationId) for
+        // tenant scoping of org-owned data in repositories/services.
+        services.AddScoped<ITenantContext, TenantContext>();
 
         // Diagnosis / Treatment services (from Diagnosis-and-Treatment-Management)
         services.AddScoped<IExaminationService, ExaminationService>();

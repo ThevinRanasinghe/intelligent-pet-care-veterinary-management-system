@@ -34,6 +34,12 @@ public class ApprovalConfiguration : IEntityTypeConfiguration<Approval>
 
         builder.Property(a => a.ReviewedBy);
 
+        // Nullable FK -> Users (required-by-CHECK once a decision exists).
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(a => a.ReviewedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(a => a.ReviewedAt);
 
         builder.Property(a => a.Comment)

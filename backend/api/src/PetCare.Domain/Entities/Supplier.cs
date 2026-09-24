@@ -12,5 +12,10 @@ public class Supplier : AuditableEntity
     public string Address { get; set; } = string.Empty;
     public SupplierStatus Status { get; set; } = SupplierStatus.Active;
 
+    /// <summary>Organization that owns this supplier record (null = unassigned).</summary>
+    public Guid? OrganizationId { get; set; }
+
+    public Organization? Organization { get; set; }
+
     public ICollection<MedicineBatch> Batches { get; set; } = new List<MedicineBatch>();
 }

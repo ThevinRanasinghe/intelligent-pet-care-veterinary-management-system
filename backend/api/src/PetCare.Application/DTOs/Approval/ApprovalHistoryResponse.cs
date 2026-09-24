@@ -10,7 +10,7 @@ public class ApprovalHistoryResponse
 
     public string NewStatus { get; set; } = string.Empty;
 
-    public Guid ChangedBy { get; set; }
+    public Guid? ChangedBy { get; set; }
 
     public string? Reason { get; set; }
 

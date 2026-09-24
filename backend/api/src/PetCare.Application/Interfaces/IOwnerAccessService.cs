@@ -1,9 +1,10 @@
 namespace PetCare.Application.Interfaces;
 
 /// <summary>
-/// Resolves the authenticated caller's PetOwner profile (matched by the JWT
-/// email claim) and answers "does this caller own this resource?" for the
-/// pet/consultation/clinical object graph.
+/// Resolves the authenticated caller's PetOwner profile through the
+/// PetOwner.UserId foreign key (JWT sub/NameIdentifier claim) and answers
+/// "does this caller own this resource?" for the pet/consultation/clinical
+/// object graph.
 ///
 /// Staff roles are never restricted by these checks — callers must gate on
 /// <see cref="IsPetOwner"/> first.
@@ -16,9 +17,13 @@ public interface IOwnerAccessService
     /// <summary>The authenticated caller's email claim, if present.</summary>
     string? CallerEmail { get; }
 
+    /// <summary>The authenticated caller's user id (JWT sub claim), if present.</summary>
+    Guid? CallerUserId { get; }
+
     /// <summary>
-    /// The PetOwner.Id linked to the current caller (by email). Null for
-    /// staff callers and for PetOwner accounts with no owner profile.
+    /// The PetOwner.Id linked to the current caller via PetOwner.UserId.
+    /// Null for staff callers and for PetOwner accounts with no linked
+    /// owner profile.
     /// </summary>
     Task<string?> GetOwnerIdAsync(CancellationToken cancellationToken = default);
 

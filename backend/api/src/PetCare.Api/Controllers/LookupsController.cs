@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PetCare.Application.Interfaces;
 using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
 using PetCare.Infrastructure;
@@ -8,17 +9,22 @@ using PetCare.Infrastructure;
 namespace PetCare.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
+[Authorize]
 [Route("api/[controller]")]
 public class LookupsController : ControllerBase
 {
     private readonly PetCareDbContext _context;
+    private readonly ITenantContext _tenant;
 
-    public LookupsController(PetCareDbContext context)
+    public LookupsController(PetCareDbContext context, ITenantContext tenant)
     {
         _context = context;
+        _tenant = tenant;
     }
 
+    // Pets are owner-domain records (not org-owned); the pet lookup exists
+    // for clinical staff forms, so InventoryOfficer is excluded.
+    [Authorize(Roles = $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}")]
     [HttpGet("pets")]
     public async Task<ActionResult<IEnumerable<object>>> GetPets()
     {
@@ -29,10 +35,20 @@ public class LookupsController : ControllerBase
         return Ok(pets);
     }
 
+    [Authorize(Roles = $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}")]
     [HttpGet("medicines")]
     public async Task<ActionResult<IEnumerable<Medicine>>> GetMedicines()
     {
-        var medicines = await _context.Medicines.AsNoTracking().ToListAsync();
+        var query = _context.Medicines.AsNoTracking().AsQueryable();
+
+        // Inventory lookup is organization-scoped for staff callers.
+        if (_tenant.IsOrganizationScoped)
+        {
+            var orgId = await _tenant.GetOrganizationIdAsync();
+            query = query.Where(m => m.OrganizationId == orgId);
+        }
+
+        var medicines = await query.ToListAsync();
         return Ok(medicines);
     }
 }

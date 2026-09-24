@@ -26,11 +26,17 @@ public class PrescriptionServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new PrescriptionService(context);
+        var service = new PrescriptionService(context, TestTenantContext.Unscoped);
+        var treatmentRecordId = Guid.NewGuid();
+        var medicineId = Guid.NewGuid();
+        context.TreatmentRecords.Add(new TreatmentRecord { Id = treatmentRecordId, DiagnosisId = Guid.NewGuid(), ProcedureName = "Surgery" });
+        context.Medicines.Add(new Medicine { Id = medicineId, Name = "Amoxicillin" });
+        await context.SaveChangesAsync();
+
         var dto = new CreatePrescriptionDto
         {
-            TreatmentRecordId = Guid.NewGuid(),
-            MedicineId = Guid.NewGuid(),
+            TreatmentRecordId = treatmentRecordId,
+            MedicineId = medicineId,
             Dosage = "1 pill daily",
             DurationDays = 7
         };
@@ -53,7 +59,7 @@ public class PrescriptionServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new PrescriptionService(context);
+        var service = new PrescriptionService(context, TestTenantContext.Unscoped);
         
         var prescription = new Prescription
         {
@@ -80,7 +86,7 @@ public class PrescriptionServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new PrescriptionService(context);
+        var service = new PrescriptionService(context, TestTenantContext.Unscoped);
 
         // Act
         var result = await service.GetByIdAsync(Guid.NewGuid());
@@ -94,7 +100,7 @@ public class PrescriptionServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new PrescriptionService(context);
+        var service = new PrescriptionService(context, TestTenantContext.Unscoped);
         
         var treatmentRecordId1 = Guid.NewGuid();
         var treatmentRecordId2 = Guid.NewGuid();
@@ -119,7 +125,7 @@ public class PrescriptionServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new PrescriptionService(context);
+        var service = new PrescriptionService(context, TestTenantContext.Unscoped);
         
         var prescription = new Prescription { Id = Guid.NewGuid(), TreatmentRecordId = Guid.NewGuid(), MedicineId = Guid.NewGuid(), Dosage = "D", DurationDays = 1 };
         context.Prescriptions.Add(prescription);
@@ -138,7 +144,7 @@ public class PrescriptionServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new PrescriptionService(context);
+        var service = new PrescriptionService(context, TestTenantContext.Unscoped);
 
         // Act
         var result = await service.DeleteAsync(Guid.NewGuid());
@@ -153,7 +159,7 @@ public class PrescriptionServiceTests
     {
         // Arrange
         using var context = GetInMemoryDbContext();
-        var service = new PrescriptionService(context);
+        var service = new PrescriptionService(context, TestTenantContext.Unscoped);
         
         var prescription = new Prescription { Id = Guid.NewGuid(), TreatmentRecordId = Guid.NewGuid(), MedicineId = Guid.NewGuid(), Dosage = "D", DurationDays = 1 };
         context.Prescriptions.Add(prescription);

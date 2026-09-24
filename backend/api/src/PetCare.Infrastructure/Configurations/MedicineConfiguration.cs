@@ -29,6 +29,18 @@ public class MedicineConfiguration : IEntityTypeConfiguration<Medicine>
         builder.Ignore(m => m.AvailableQuantity);
         builder.Ignore(m => m.IsLowStock);
 
+        // Organization ownership: batches/reservations/transactions scope
+        // transitively through this FK.
+        builder.Property(m => m.OrganizationId);
+
+        builder.HasIndex(m => m.OrganizationId)
+            .HasDatabaseName("IX_Medicines_OrganizationId");
+
+        builder.HasOne(m => m.Organization)
+            .WithMany()
+            .HasForeignKey(m => m.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(m => m.Name);
         builder.HasIndex(m => m.Status);
     }

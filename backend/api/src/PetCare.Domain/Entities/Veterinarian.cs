@@ -16,6 +16,15 @@ public class Veterinarian : AuditableEntity
 
     public bool Active { get; set; } = true;
 
+    /// <summary>
+    /// Organization this veterinarian belongs to. Null for platform-level
+    /// or unassigned records. Slots and appointments inherit organization
+    /// scope transitively through this link.
+    /// </summary>
+    public Guid? OrganizationId { get; set; }
+
+    public Organization? Organization { get; set; }
+
     public ICollection<AppointmentSlot> AppointmentSlots { get; set; } = new List<AppointmentSlot>();
 
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();

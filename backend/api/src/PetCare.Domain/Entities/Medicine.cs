@@ -20,6 +20,15 @@ public class Medicine : AuditableEntity
     public int TotalQuantity { get; set; }
     public int ReservedQuantity { get; set; }
 
+    /// <summary>
+    /// Organization that owns this inventory item. Null for unassigned
+    /// catalog rows. Batches, reservations and inventory transactions
+    /// inherit organization scope transitively through this link.
+    /// </summary>
+    public Guid? OrganizationId { get; set; }
+
+    public Organization? Organization { get; set; }
+
     public int AvailableQuantity => TotalQuantity - ReservedQuantity;
     public bool IsLowStock => AvailableQuantity < ReorderLevel;
 

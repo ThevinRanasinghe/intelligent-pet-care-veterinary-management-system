@@ -2,7 +2,7 @@ namespace PetCare.Application.DTOs.Scheduling;
 
 public class CreateAppointmentRequest
 {
-    public Guid PetId { get; set; }
+    public string PetId { get; set; } = string.Empty;
 
     public Guid VeterinarianId { get; set; }
 

@@ -12,7 +12,10 @@ namespace PetCare.Api.Controllers;
 public class PrescriptionsController : ControllerBase
 {
     private const string StaffRoles =
-        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}";
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
+    private const string OwnerOrStaffReadRoles =
+        $"{Roles.PetOwner},{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
 
     private const string ClinicalWriteRoles =
         $"{Roles.Veterinarian},{Roles.SuperAdmin}";
@@ -37,6 +40,7 @@ public class PrescriptionsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Roles = OwnerOrStaffReadRoles)]
     public async Task<ActionResult<PrescriptionResponseDto>> GetById(Guid id)
     {
         if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPrescriptionAsync(id))
@@ -52,6 +56,7 @@ public class PrescriptionsController : ControllerBase
     }
 
     [HttpGet("treatment/{treatmentRecordId}")]
+    [Authorize(Roles = OwnerOrStaffReadRoles)]
     public async Task<ActionResult<IEnumerable<PrescriptionResponseDto>>> GetByTreatmentRecordId(Guid treatmentRecordId)
     {
         if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsTreatmentRecordAsync(treatmentRecordId))

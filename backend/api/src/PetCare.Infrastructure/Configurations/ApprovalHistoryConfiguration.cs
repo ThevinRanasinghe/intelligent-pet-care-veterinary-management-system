@@ -25,8 +25,14 @@ public class ApprovalHistoryConfiguration : IEntityTypeConfiguration<ApprovalHis
             .HasMaxLength(20)
             .HasConversion<string>();
 
-        builder.Property(h => h.ChangedBy)
-            .IsRequired();
+        // Nullable: system-generated rows (resubmission resets) carry no
+        // actor. FK -> Users so real user ids are referentially enforced.
+        builder.Property(h => h.ChangedBy);
+
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(h => h.ChangedBy)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(h => h.Reason)
             .HasColumnType("text");

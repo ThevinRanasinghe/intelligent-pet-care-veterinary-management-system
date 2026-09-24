@@ -24,6 +24,7 @@ public class ApprovalServiceTests
     private readonly Mock<IApprovalRepository> _approvalRepository = new();
     private readonly Mock<IQuotationRepository> _quotationRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<ITenantContext> _tenant = new();
     private readonly Mock<IValidator<ApproveRequest>> _approveValidator = new();
     private readonly Mock<IValidator<RejectRequest>> _rejectValidator = new();
     private readonly Mock<IValidator<RequestRevisionRequest>> _requestRevisionValidator = new();
@@ -51,6 +52,7 @@ public class ApprovalServiceTests
         _approvalRepository.Object,
         _quotationRepository.Object,
         _unitOfWork.Object,
+        _tenant.Object,
         _approveValidator.Object,
         _rejectValidator.Object,
         _requestRevisionValidator.Object);
@@ -94,6 +96,31 @@ public class ApprovalServiceTests
         Assert.Equal(ReviewerId, approval.ReviewedBy);
         Assert.NotNull(approval.ReviewedAt);
         Assert.Equal(QuotationStatus.Approved, quotation.Status);
+    }
+
+    // 1b. The reviewer of record is bound to the authenticated user id; a
+    // client-supplied ReviewedBy is ignored when a caller identity exists.
+    [Fact]
+    public async Task ApproveAsync_AuthenticatedUser_UsesTokenIdentityNotRequestReviewedBy()
+    {
+        var quotation = PendingApprovalQuotation();
+        var approval = PendingApproval(quotation);
+        SetUpExistingApproval(approval);
+
+        var authenticatedManagerId = Guid.NewGuid();
+        _tenant.Setup(t => t.UserId).Returns(authenticatedManagerId);
+
+        var result = await CreateService().ApproveAsync(
+            ApprovalId,
+            new ApproveRequest { ReviewedBy = Guid.NewGuid() });
+
+        Assert.Equal("Approved", result.Status);
+        Assert.Equal(authenticatedManagerId, approval.ReviewedBy);
+        _approvalRepository.Verify(
+            r => r.AddHistoryAsync(
+                It.Is<ApprovalHistory>(h => h.ChangedBy == authenticatedManagerId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     // 2. Reject: a Pending approval with a reason succeeds.

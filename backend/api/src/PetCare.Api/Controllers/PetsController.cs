@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs.Pets;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 
 namespace PetCare.Api.Controllers;
 
@@ -10,6 +11,16 @@ namespace PetCare.Api.Controllers;
 [Authorize]
 public class PetsController : ControllerBase
 {
+    // Pet visibility: the owning PetOwner (scoped inside each action) plus
+    // clinical staff and management. Inventory Officer has no pet-domain
+    // responsibility.
+    private const string ReadRoles =
+        $"{Roles.PetOwner},{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
+    // Pet records are managed by their owner or the clinic's management.
+    private const string ManageRoles =
+        $"{Roles.PetOwner},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
     private readonly IPetService _petService;
     private readonly IOwnerAccessService _ownerAccess;
 
@@ -21,6 +32,7 @@ public class PetsController : ControllerBase
 
     // POST: api/pets
     [HttpPost]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<PetDto>> Create(
         [FromBody] CreatePetDto dto)
     {
@@ -56,6 +68,7 @@ public class PetsController : ControllerBase
 
     // GET: api/pets
     [HttpGet]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<List<PetDto>>> GetAll()
     {
         if (_ownerAccess.IsPetOwner)
@@ -75,6 +88,7 @@ public class PetsController : ControllerBase
 
     // GET: api/pets/{id}
     [HttpGet("{id}")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<PetDto>> GetById(string id)
     {
         if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(id))
@@ -100,6 +114,7 @@ public class PetsController : ControllerBase
 
     // GET: api/pets/owner/{ownerId}
     [HttpGet("owner/{ownerId}")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<List<PetDto>>> GetByOwner(
         string ownerId)
     {
@@ -115,6 +130,7 @@ public class PetsController : ControllerBase
 
     // PUT: api/pets/{id}
     [HttpPut("{id}")]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<PetDto>> Update(
         string id,
         [FromBody] UpdatePetDto dto)
@@ -152,6 +168,7 @@ public class PetsController : ControllerBase
 
     // DELETE: api/pets/{id}
     [HttpDelete("{id}")]
+    [Authorize(Roles = ManageRoles)]
     public async Task<IActionResult> Delete(string id)
     {
         if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(id))

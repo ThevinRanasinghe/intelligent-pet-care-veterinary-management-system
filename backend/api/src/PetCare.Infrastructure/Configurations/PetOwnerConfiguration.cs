@@ -25,8 +25,21 @@ public class PetOwnerConfiguration : IEntityTypeConfiguration<PetOwner>
             .IsRequired();
 
         builder.Property(x => x.PhoneNumber)
-            .HasMaxLength(30)
-            .IsRequired();
+            .HasMaxLength(30);
+
+        // Optional 1:0..1 link to the authentication account. Unique index
+        // guarantees one PetOwner profile per User (multiple NULLs allowed
+        // for staff-created profiles not yet claimed by registration).
+        builder.Property(x => x.UserId);
+
+        builder.HasIndex(x => x.UserId)
+            .IsUnique()
+            .HasDatabaseName("IX_PetOwners_UserId");
+
+        builder.HasOne(x => x.User)
+            .WithOne(u => u.PetOwner)
+            .HasForeignKey<PetOwner>(x => x.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(x => x.Address)
             .HasMaxLength(250);

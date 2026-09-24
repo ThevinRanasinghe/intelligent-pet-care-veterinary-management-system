@@ -1,6 +1,7 @@
 using FluentValidation;
 using FluentValidation.Results;
 using Moq;
+using PetCare.Application.DTOs.Pets;
 using PetCare.Application.DTOs.Scheduling;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
@@ -24,6 +25,7 @@ public class SchedulingServiceTests
     private readonly Mock<IAppointmentRepository> _appointmentRepository = new();
     private readonly Mock<IAppointmentSlotRepository> _appointmentSlotRepository = new();
     private readonly Mock<IVeterinarianRepository> _veterinarianRepository = new();
+    private readonly Mock<IPetService> _petService = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IValidator<CreateAppointmentRequest>> _createValidator = new();
     private readonly Mock<IValidator<UpdateAppointmentRequest>> _updateValidator = new();
@@ -31,6 +33,7 @@ public class SchedulingServiceTests
     private static readonly Guid VeterinarianId = Guid.NewGuid();
     private static readonly Guid OtherVeterinarianId = Guid.NewGuid();
     private static readonly Guid SlotId = Guid.NewGuid();
+    private static readonly string PetId = "PET-TEST0001";
     private static readonly DateOnly Date = new(2025, 6, 2);
 
     public SchedulingServiceTests()
@@ -44,12 +47,18 @@ public class SchedulingServiceTests
         _updateValidator
             .Setup(v => v.ValidateAsync(It.IsAny<UpdateAppointmentRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ValidationResult());
+
+        // Default: the referenced pet exists. Individual tests can override.
+        _petService
+            .Setup(s => s.GetByIdAsync(It.IsAny<string>()))
+            .ReturnsAsync(new PetDto { Id = PetId, OwnerId = "OWN-TEST001", Name = "Test Pet", Species = "Dog" });
     }
 
     private SchedulingService CreateService() => new(
         _appointmentRepository.Object,
         _appointmentSlotRepository.Object,
         _veterinarianRepository.Object,
+        _petService.Object,
         _unitOfWork.Object,
         _createValidator.Object,
         _updateValidator.Object);
@@ -85,7 +94,7 @@ public class SchedulingServiceTests
         AppointmentStatus status = AppointmentStatus.Confirmed) => new()
     {
         Id = Guid.NewGuid(),
-        PetId = Guid.NewGuid(),
+        PetId = PetId,
         VeterinarianId = veterinarianId,
         AppointmentSlotId = Guid.NewGuid(),
         Date = Date,
@@ -100,7 +109,7 @@ public class SchedulingServiceTests
         TimeOnly start,
         TimeOnly end) => new()
     {
-        PetId = Guid.NewGuid(),
+        PetId = PetId,
         VeterinarianId = veterinarianId,
         AppointmentSlotId = appointmentSlotId,
         ScheduledStart = Date.ToDateTime(start),
@@ -295,7 +304,24 @@ public class SchedulingServiceTests
         _appointmentRepository.Verify(r => r.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    // 10. Appointment outside the selected slot is rejected.
+    // 10b. Referencing a non-existent pet is rejected (canonical Pets FK).
+    [Fact]
+    public async Task CreateAppointmentAsync_UnknownPet_ThrowsNotFound()
+    {
+        var request = Request(VeterinarianId, SlotId, new TimeOnly(10, 0), new TimeOnly(11, 0));
+
+        _petService
+            .Setup(s => s.GetByIdAsync(request.PetId))
+            .ReturnsAsync((PetDto?)null);
+
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.CreateAppointmentAsync(request));
+
+        _appointmentRepository.Verify(r => r.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 11. Appointment outside the selected slot is rejected.
     [Fact]
     public async Task CreateAppointmentAsync_OutsideSelectedSlot_ThrowsConflict()
     {

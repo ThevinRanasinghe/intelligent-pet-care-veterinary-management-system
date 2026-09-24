@@ -255,4 +255,77 @@ After the merge, `origin/Merge_1` was fetched and checked out into a temporary l
 
 ---
 
+## Step 15 — Merge_2 Role-Based UI + Administrator API
+
+Post-Merge_1 integration work on the `Merge_2` branch: role-specific dashboards and navigation for all five roles, a new `/api/admin` management surface for the Administrator, and a login redirect bug fix. All results below were produced locally on 2026-09-24.
+
+### Scope delivered
+
+- **Role navigation (React):** `DashboardLayout` renders a per-role sidebar (PetOwner / Veterinarian / InventoryOfficer / ClinicManager / Administrator). `features/auth/roleAccess.ts` is the single source of truth for `ROLE_HOMES`, the route→roles table, `canRoleAccessPath`, and `safeRedirectPath`.
+- **Administrator backend:** new `AdminController` (`/api/admin`, `[Authorize(Roles = Roles.SuperAdmin)]`) — `GET /users`, `PATCH /users/{id}/status` (self-deactivation blocked), `GET /organizations`, `PATCH /organizations/{id}/status` (reason required for Reject/Suspend), `GET /roles`, `GET /system`. Backed by `IAdminService`/`AdminService`; `IUserRepository.GetAllAsync` and `IOrganizationRepository.GetAllAsync` added.
+- **Administrator pages (React):** `SuperAdminDashboard` (real data), `AdminUsersPage` (`/settings`), `AdminOrganizationsPage`, `AdminRolesPage`, `AdminSystemPage`, `services/adminService.ts`.
+- **Login redirect fix:** `LoginPage` resolves `safeRedirectPath(role, from)` so a stale `state.from` (e.g. left over from another role's page at logout) can no longer flash the 403 page on the next login.
+
+### Test results (verified locally)
+
+- **Backend build:** `dotnet build backend/api/PetCare.sln` — 0 warnings, 0 errors
+- **Backend tests:** `dotnet test` — **144 passed, 0 failed**
+- **Frontend typecheck:** `tsc --noEmit` — clean
+- **Frontend tests:** `npx vitest run` — **80 passed, 0 failed**
+- **Frontend build:** `npm run build` — clean
+
+### Live API verification (verified locally, Development DB)
+
+| Check | Result |
+|---|---|
+| `GET /api/admin/users`, `/organizations`, `/roles`, `/system` as Administrator | 200 |
+| Same 4 endpoints as ClinicManager | 403 |
+| `GET /api/admin/users` anonymous | 401 |
+| `PATCH /api/admin/organizations/{id}` fake id | 404 |
+| `PATCH` invalid status / reject without reason | 400 |
+| `PATCH /api/admin/users/{id}/status` on own account | 400 (self-guard) |
+
+### Commit
+
+- **`ee070ca`** — `feat: role-based dashboards, navigation, and authorization hardening` — pushed to `origin/Merge_2` (fast-forward, 79 files).
+
+---
+
+## Step 16 — Backend Pre-Migration Corrections
+
+Backend design + API corrections on the working branch `backend/pre-migration-corrections` (created from `Merge_2`), executed as the prescribed pre-migration audit and hardening task. **No EF migration was created, no migration files or `PetCareDbContextModelSnapshot` were modified, no database change was made, nothing was committed or pushed.** All results below were produced locally on 2026-09-24.
+
+### Phase outcomes
+
+| Phase | Change |
+|---|---|
+| 0 — Baseline audit | 22 entities, relationships, role constants, endpoint/role matrix, ownership and organization mechanisms, migration state, and inconsistencies documented before any edit |
+| 1 — Pet ↔ Appointment | `Appointment.PetId` changed `Guid` → `string` (canonical `Pet.Id` type); real `Appointment → Pet` FK configured; DTOs, validator, `SchedulingService` (pet existence via `IPetService`), and dev seed data updated |
+| 2 — User ↔ PetOwner | `PetOwner.UserId → User.Id` one-to-one added; `OwnerAccessService` resolves the owner from the JWT `sub` claim via `UserId` (email matching removed); `IPetOwnerRepository`/`PetOwnerRepository` added |
+| 3 — Organization tenancy | `ITenantContext` + `TenantContext` (JWT sub → `User.OrganizationId`; SuperAdmin unscoped; PetOwner unscoped — owner rules apply); `TenantQueryableExtensions.ScopeToOrganizationAsync` applied to all org-owned repositories; `OrganizationId` added to `Veterinarian`, `Medicine`, `Supplier`; transitive scoping (Appointment/Slot → Veterinarian, Quotation/Approval/History → Appointment.Veterinarian, Batch/Reservation/Transaction → Medicine, clinical chain → Examination.Veterinarian); clinical `CreateAsync` methods reject out-of-scope parent ids with `NotFoundException`; `Examination.VeterinarianId` is now a configured FK |
+| 4/5 — Authorization matrix | Action-level `[Authorize(Roles = ...)]` with `Roles` constants applied to every controller. InventoryOfficer removed from appointments, quotations, approvals, clinical records, pets, pet owners, consultations; appointment/quotation mutations restricted to ClinicManager + Administrator; clinical writes Veterinarian + Administrator; approval decisions ClinicManager only |
+| 6 — Ownership | Verified `User → PetOwner → Pet → Consultation → Examination → Diagnosis → TreatmentRecord → Prescription` resolves server-side from the authenticated user; `dto.OwnerId` is overwritten from identity on PetOwner creates; cross-owner access → 404/`Forbid` per existing conventions |
+| 7 — PetOwner registration | `User` + linked `PetOwner` profile staged and committed with a single `SaveChangesAsync` (one EF transaction); a pre-existing unlinked owner profile for the email is attached rather than duplicated |
+| 8 — Organization registration | `Organization` + ClinicManager `User` (with `OrganizationId` link) committed in a single `SaveChangesAsync` |
+
+### Test results (verified locally)
+
+- **Backend build:** `dotnet build backend/api/PetCare.sln` — 0 warnings, 0 errors
+- **Application tests:** `PetCare.Application.Tests` — **98 passed, 0 failed**
+- **Service tests:** `PetCare.Tests` — **35 passed, 0 failed** (includes new `TestTenantContext` unscoped stub; create tests seed parent entities for the new scope checks)
+- **Infrastructure integration tests:** not run — require `PETCARE_TEST_DB_CONNECTION`/`PETCARE_DB_CONNECTION` pointing at PostgreSQL (they fail fast by design without it)
+
+### Database safety / migration state
+
+- **No migration created; no migration file or snapshot modified; no `EnsureCreated`; no database touched.**
+- The EF model now intentionally drifts ahead of the schema: `Appointment.PetId` (`uuid` → `text` + FK), `PetOwners.UserId`, `OrganizationId` columns on `Veterinarians`/`Medicines`/`Suppliers`, plus all entity tables still absent from migration history (Organizations, PetOwners, Pets, ConsultationRequests(+History), Examinations, Diagnoses, TreatmentRecords, Prescriptions, Medicines, MedicineBatches, MedicineReservations, InventoryTransactions, Suppliers).
+- **Backfill required in the final migration:** `OrganizationId` on existing rows (NULL-org rows are invisible to org-scoped staff by design) and `PetOwners.UserId` (match by email).
+- Live smoke test against the unchanged `petcare_dummy` DB confirms the expected interim state: login 200, `GET /api/pets` 200, `GET /api/admin/system` 403 for non-admin; `GET /api/appointments|quotations|medicines|examinations` 500 (missing columns/type change) until the final migration runs.
+
+### Commit
+
+- _(not committed — working tree on `backend/pre-migration-corrections`, 65 changed files)_
+
+---
+
 *Add new entries below as additional steps are tested.*

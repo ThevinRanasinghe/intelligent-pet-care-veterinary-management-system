@@ -19,6 +19,7 @@ public class SchedulingService : ISchedulingService
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly IAppointmentSlotRepository _appointmentSlotRepository;
     private readonly IVeterinarianRepository _veterinarianRepository;
+    private readonly IPetService _petService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidator<CreateAppointmentRequest> _createValidator;
     private readonly IValidator<UpdateAppointmentRequest> _updateValidator;
@@ -27,6 +28,7 @@ public class SchedulingService : ISchedulingService
         IAppointmentRepository appointmentRepository,
         IAppointmentSlotRepository appointmentSlotRepository,
         IVeterinarianRepository veterinarianRepository,
+        IPetService petService,
         IUnitOfWork unitOfWork,
         IValidator<CreateAppointmentRequest> createValidator,
         IValidator<UpdateAppointmentRequest> updateValidator)
@@ -34,6 +36,7 @@ public class SchedulingService : ISchedulingService
         _appointmentRepository = appointmentRepository;
         _appointmentSlotRepository = appointmentSlotRepository;
         _veterinarianRepository = veterinarianRepository;
+        _petService = petService;
         _unitOfWork = unitOfWork;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
@@ -56,21 +59,25 @@ public class SchedulingService : ISchedulingService
         // Structural/referential validation (start < end, same-day, vet/slot exist).
         await _createValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        // 1. Check veterinarian exists.
+        // 1. Check pet exists (FK to the canonical Pets table).
+        var pet = await _petService.GetByIdAsync(request.PetId)
+            ?? throw new NotFoundException($"Pet '{request.PetId}' does not exist.");
+
+        // 2. Check veterinarian exists.
         var veterinarian = await _veterinarianRepository.GetByIdAsync(request.VeterinarianId, cancellationToken)
             ?? throw new NotFoundException($"Veterinarian '{request.VeterinarianId}' does not exist.");
 
-        // 2. Check veterinarian is active.
+        // 3. Check veterinarian is active.
         if (!veterinarian.Active)
         {
             throw new SchedulingConflictException($"Veterinarian '{request.VeterinarianId}' is not active.");
         }
 
-        // 3. Check appointment slot exists.
+        // 4. Check appointment slot exists.
         var slot = await _appointmentSlotRepository.GetByIdAsync(request.AppointmentSlotId, cancellationToken)
             ?? throw new NotFoundException($"Appointment slot '{request.AppointmentSlotId}' does not exist.");
 
-        // 4. Check slot belongs to veterinarian.
+        // 5. Check slot belongs to veterinarian.
         if (slot.VeterinarianId != request.VeterinarianId)
         {
             throw new SchedulingConflictException("The appointment slot does not belong to the specified veterinarian.");
@@ -80,13 +87,13 @@ public class SchedulingService : ISchedulingService
         var requestedStart = TimeOnly.FromDateTime(request.ScheduledStart);
         var requestedEnd = TimeOnly.FromDateTime(request.ScheduledEnd);
 
-        // 5. Check requested time fits inside slot.
+        // 6. Check requested time fits inside slot.
         if (requestedDate != slot.Date || requestedStart < slot.StartTime || requestedEnd > slot.EndTime)
         {
             throw new SchedulingConflictException("The requested appointment time does not fit inside the selected slot.");
         }
 
-        // 6. Check no conflicting appointment exists.
+        // 7. Check no conflicting appointment exists.
         var hasConflict = await CheckConflictAsync(
             new ConflictCheckRequest
             {
@@ -101,7 +108,7 @@ public class SchedulingService : ISchedulingService
             throw new SchedulingConflictException("The veterinarian already has a conflicting appointment for the requested time.");
         }
 
-        // 7. Create appointment.
+        // 8. Create appointment.
         var appointment = new Appointment
         {
             PetId = request.PetId,
@@ -118,7 +125,7 @@ public class SchedulingService : ISchedulingService
 
         await _appointmentRepository.AddAsync(appointment, cancellationToken);
 
-        // 8. Save changes (appointment insert + slot status update in one transaction/unit of work).
+        // 9. Save changes (appointment insert + slot status update in one transaction/unit of work).
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return ToResponse(appointment);

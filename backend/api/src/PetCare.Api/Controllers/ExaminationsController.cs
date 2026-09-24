@@ -11,8 +11,14 @@ namespace PetCare.Api.Controllers;
 [Authorize]
 public class ExaminationsController : ControllerBase
 {
+    // Clinical record visibility: veterinarian + management. The Inventory
+    // Officer has no clinical responsibility.
     private const string StaffRoles =
-        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}";
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
+
+    // By-id reads also allow the owning PetOwner (owner check inside action).
+    private const string OwnerOrStaffReadRoles =
+        $"{Roles.PetOwner},{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
 
     private const string ClinicalWriteRoles =
         $"{Roles.Veterinarian},{Roles.SuperAdmin}";
@@ -37,6 +43,7 @@ public class ExaminationsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Roles = OwnerOrStaffReadRoles)]
     public async Task<ActionResult<ExaminationResponseDto>> GetById(Guid id)
     {
         if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsExaminationAsync(id))
@@ -52,6 +59,7 @@ public class ExaminationsController : ControllerBase
     }
 
     [HttpGet("pet/{petId}")]
+    [Authorize(Roles = OwnerOrStaffReadRoles)]
     public async Task<ActionResult<IEnumerable<ExaminationResponseDto>>> GetByPetId(string petId)
     {
         if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(petId))
