@@ -33,4 +33,4 @@ petcare-ai/
 └── infra/
 ```
 
-The React branch currently contains complete Scheduling, Billing and Approval UI plus AI workflow monitoring UI. Other feature folders are deliberately placeholders.
+The React app implements all feature folders — `admin`, `auth`, `pets`, `consultations`, `scheduling`, `billing`, `approvals`, `treatment`, `inventory`, `dashboard`, `ai-workflows` (monitoring UI only), `shared`.

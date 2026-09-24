@@ -20,9 +20,10 @@
 - Production React dashboard for medicine catalog, low stock alerts, FEFO batch inspection, and supplier directory
 
 ## 3. Excluded Scope (Deferred / External)
-- Background AI LLM generation agents
-- Flutter mobile screens
+- Background AI LLM generation agents (AI workflow screens are monitoring UI only)
 - Direct cross-component database coupling (integration via clean service/API boundaries)
+
+Note: the Flutter mobile client **is implemented** — scheduling/billing/approval screens under `frontend/mobile` (see `docs/testing/flutter-testing.md`).
 
 ## 4. Integration Expectations
 - React consumes the ASP.NET Core API via `apiRequest` client with Bearer JWT tokens.

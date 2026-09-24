@@ -291,24 +291,26 @@ The following migrations exist in `PetCare.Infrastructure/Migrations/` (exact na
 |---|---|
 | `20260820110944_InitialSchedulingBillingApproval.cs` | `InitialSchedulingBillingApproval` |
 | `20260826163603_AddUsers.cs` | `AddUsers` |
+| `20260924105239_ConsolidatedDomainModel.cs` | `ConsolidatedDomainModel` |
 
-### Database history note
+All three are applied to the shared **Supabase PostgreSQL** database (`__EFMigrationsHistory` contains all three rows). Live schema verified post-migration: 23 tables (22 domain + history), 32 foreign keys, 9 unique indexes, 19 check constraints.
 
-The `AddUsers` migration exists in the current project history. It was applied to the development database. It has **not** been removed or rolled back. The database is **not** in a pre-`AddUsers` state. No new migration was created to conceal or reverse it.
+### What `ConsolidatedDomainModel` delivered
 
-`DevelopmentSeeder.cs` and `SeedIds.cs` exist in `PetCare.Infrastructure/Seed/` but are **not** invoked from `Program.cs` — there is no automatic startup seeding in the current code. Reference data (`Veterinarian`, `AppointmentSlot`) is seeded via EF Core `HasData` in the migration itself.
+- **New tables (14):** `Organizations`, `PetOwners`, `Pets`, `ConsultationRequests`, `ConsultationStatusHistories`, `Medicines`, `Suppliers`, `MedicineBatches`, `MedicineReservations`, `InventoryTransactions`, `Examinations`, `Diagnoses`, `TreatmentRecords`, `Prescriptions`
+- `Appointments.PetId`: `uuid` → `varchar(30)` with a real FK → `Pets.Id`
+- `PetOwners.UserId`: nullable `uuid`, one-to-one FK → `Users` (unique index)
+- `OrganizationId` columns on `Users`, `Veterinarians`, `Medicines`, `Suppliers` (tenant scoping)
+- `Approvals.ReviewedBy` and `ApprovalHistories.ChangedBy`: nullable `uuid` FKs → `Users` (system rows store `NULL`, not a sentinel)
+- `Examination.VeterinarianId`: configured FK → `Veterinarians`
 
-### Model–schema drift (pre-migration corrections, 2026-09-24)
+### ID strategy
 
-The EF Core model has been corrected ahead of the schema on the `backend/pre-migration-corrections` branch. **No migration has been generated yet** — the changes below exist only in the entity/configuration code:
+- **`uuid`** — most entities (`User`, `Organization`, `Veterinarian`, all scheduling/billing/clinical/inventory entities), generated via `gen_random_uuid()`
+- **`varchar(30)` business ids** — `Pet` (`PET-…`), `PetOwner` (`OWN-…`), `ConsultationRequest`; `Appointments.PetId` and `Examinations.PetId` reference these as text
+- **`int` identity** — `ConsultationStatusHistory`
 
-- `Appointments.PetId`: `Guid` → `string`, real FK → `Pets.Id` (was an unconstrained cross-module `uuid`).
-- `PetOwners.UserId`: new column, one-to-one FK → `Users.Id` (replaces email-matching for ownership).
-- `Veterinarians.OrganizationId`, `Medicines.OrganizationId`, `Suppliers.OrganizationId`: new nullable tenant columns.
-- `Examination.VeterinarianId`: now a configured FK → `Veterinarians` (was unmodelled).
-- All tables absent from migration history still need to be created by the final migration: `Organizations`, `PetOwners`, `Pets`, `ConsultationRequests`, `ConsultationStatusHistories`, `Examinations`, `Diagnoses`, `TreatmentRecords`, `Prescriptions`, `Medicines`, `Suppliers`, `MedicineBatches`, `MedicineReservations`, `InventoryTransactions`.
-
-**Required backfills in the final migration:** `PetOwners.UserId` (match by email); `OrganizationId` on org-owned rows (rows left NULL are invisible to org-scoped staff by design).
+`DevelopmentSeeder.cs` and `SeedIds.cs` exist in `PetCare.Infrastructure/Seed/` but are **not** invoked from `Program.cs` — there is no automatic startup seeding. Reference data (`Veterinarian`, `AppointmentSlot`) is seeded via EF Core `HasData` in the migration itself.
 
 ---
 
@@ -322,7 +324,7 @@ The EF Core model has been corrected ahead of the schema on the `backend/pre-mig
 
 ## 10. Current database limitations / notes
 
-- **Model–schema drift:** The development database still reflects the two old migrations; the corrected model (string `PetId` + FK, `PetOwners.UserId`, tenant columns, all missing tables) is pending the final consolidated migration — see §8.
-- **No FK from `Approvals`/`ApprovalHistories` to `Users`:** `ReviewedBy` and `ChangedBy` are stored as `Guid` values but are not FK-constrained to the `Users` table in the current schema.
-- **`DevelopmentSeeder` is not invoked at startup:** The seeder class exists but `Program.cs` does not call it. Development users must be inserted manually or via a separate one-time seeding step if needed.
-- **`AddUsers` migration remains applied:** The migration and any inserted user rows remain in the development database. No rollback was performed.
+- **`DevelopmentSeeder` is not invoked at startup:** The seeder class exists but `Program.cs` does not call it. The first Administrator and any demo accounts must be inserted manually or via a separate one-time seeding step.
+- **`Organization.Status` is stored as `integer`** while sibling Status columns use `varchar` — model-consistent but flagged for uniformity.
+- **Backfill reality for legacy data:** `OrganizationId` columns and `PetOwners.UserId` land `NULL` on migrated legacy rows — NULL-org rows are invisible to org-scoped staff until backfilled (by design).
+- **`AddUsers` migration remains applied:** The migration and any inserted user rows remain in the database. No rollback was performed.

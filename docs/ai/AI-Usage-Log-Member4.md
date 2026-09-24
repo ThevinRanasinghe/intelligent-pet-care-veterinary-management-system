@@ -886,3 +886,31 @@ Administrator-only staff account provisioning on `backend/pre-migration-correcti
 
 **Result:**
 - All five roles are now provisionable through their correct lifecycle; Administrator remains system-level with no creation endpoint.
+
+---
+
+## Entry 18 — Documentation & Setup Refresh (Step 20)
+
+**Date:**
+24 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Post-merge documentation refresh on `Merge_2` — bring all project docs in line with the integrated system (backend corrections + ConsolidatedDomainModel applied to Supabase + admin staff creation).
+
+**What the AI produced:**
+- Rewrote `README.md` — the previous version still described mock data and dashboard-only placeholders.
+- Created `docs/api/api-reference.md` — every endpoint generated from the actual controllers/routes/`[Authorize]` attributes, organized by module.
+- Created `docs/setup/local-development.md` — verified setup sequence including the user-secrets keys, the `PETCARE_DB_CONNECTION`/`PETCARE_JWT_KEY` env-var fallbacks, the `dotnet ef` design-time caveat, and the Flutter `--dart-define` port note.
+- Created `docs/deployment/deployment-guide.md` — target architecture with explicit `[TO BE DEPLOYED]` placeholders; only the Supabase database is actually deployed.
+- Created `docs/adr/0001-0008` — 5 accepted decisions (React Context state, Flutter Provider, Supabase shared PG, layered backend, org tenant isolation) + 3 TODO templates (agentic AI framework, agent workflow state schema, API/web hosting) marked `[PENDING]` rather than inventing decisions.
+- Updated `docs/database/database-design.md` (ConsolidatedDomainModel applied, drift resolved, ID strategy), `docs/architecture/component-boundary.md` (Flutter implemented, not excluded), `docs/architecture/folder-structure.md` (feature folders no longer placeholders), `docs/testing/test-evidence-index.md` (Steps 19-20).
+
+**What I changed / rejected:**
+- Left `docs/testing/flutter-testing.md`, `react-testing.md`, `ci-cd.md`, the scheduling/billing API contract, and historical AI-log/test-evidence entries untouched — they remain accurate for the work they record.
+- No secrets, credentials, temp passwords, deployment URLs, or fabricated results added anywhere.
+
+**Result:**
+- Documentation now consistently describes: PetOwner self-registration, ClinicManager via organization registration, Veterinarian/InventoryOfficer via Administrator creation for Active orgs, Administrator as system-level. No stale "admin cannot create staff" or "mock data" claims remain.

@@ -346,7 +346,23 @@ Admin-only staff provisioning (Veterinarian / InventoryOfficer) — no schema ch
 - **Test command:** `dotnet test` + live API verification
 - **Result:** `PetCare.Application.Tests` **107/107 passed** (8 new `AdminServiceTests`); live checks — 401 unauthenticated, 403 for ClinicManager and Veterinarian callers, 201 for Administrator, 400 duplicate email, 404 unknown org, temp-password login works
 - **UI:** `AdminUsersPage` — "Create Veterinarian" / "Create Inventory Officer" buttons, modal with active-organizations-only dropdown, one-time temp-password display
-- **Commit:** _(pending)_
+- **Commit:** `b6d4cda` — `feat: add admin staff account creation and documentation`
+
+---
+
+## Step 19 — Git Integration into Merge_2
+
+- **Push:** `backend/pre-migration-corrections` → `origin` (3 commits: `1047e78`, `a897604`, `b6d4cda`)
+- **PR:** [#11](https://github.com/ThevinRanasinghe/intelligent-pet-care-veterinary-management-system/pull/11) — `backend/pre-migration-corrections` → `Merge_2`, +5,779/−292 across 92 files, mergeable=true
+- **CI:** `backend-ci.yml` triggers only on `main` — no checks ran for this PR
+- **Merge:** merge commit `0dce899` (all 3 commits preserved; no squash/rewrite). `Merge_1` (`cf1491a`) and `main` (`4e585dd`) untouched
+- **Post-merge verification on `Merge_2`:** `dotnet build` 0 errors/0 warnings; `PetCare.Application.Tests` 107/107; `PetCare.Tests` 35/35; `PetCare.Infrastructure.Tests` 4 skipped by design (no `PETCARE_TEST_DB_CONNECTION`)
+
+## Step 20 — Project Documentation & Setup Refresh (this entry)
+
+- **Created:** `docs/api/api-reference.md` (full endpoint map generated from controllers), `docs/setup/local-development.md`, `docs/deployment/deployment-guide.md` (target architecture; URLs pending deployment), `docs/adr/0001–0008` (5 accepted decisions + 3 TODO templates for AI/deployment)
+- **Updated:** `README.md` (rewritten — was stale "mock data/placeholders" text), `docs/database/database-design.md` (ConsolidatedDomainModel + ID strategy), `docs/architecture/component-boundary.md` (Flutter now implemented), `docs/architecture/folder-structure.md` (feature folders no longer placeholders)
+- **Commit:** _(this commit)_
 
 ---
 
