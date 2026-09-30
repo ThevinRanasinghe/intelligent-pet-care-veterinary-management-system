@@ -1,17 +1,24 @@
 using Microsoft.EntityFrameworkCore;
 using PetCare.Application.DTOs.Consultations;
+using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
+using PetCare.Domain.Enums;
 
 namespace PetCare.Infrastructure.Services;
 
 public class ConsultationRequestService : IConsultationRequestService
 {
     private readonly IPetCareDbContext _context;
+    private readonly ITenantContext _tenant;
 
-    public ConsultationRequestService(IPetCareDbContext context)
+    public ConsultationRequestService(
+        IPetCareDbContext context,
+        ITenantContext tenant)
     {
         _context = context;
+        _tenant = tenant;
     }
 
     // =========================================================
@@ -31,6 +38,39 @@ public class ConsultationRequestService : IConsultationRequestService
 
         if (dto.Budget.HasValue && dto.Budget.Value < 0)
             throw new ArgumentException("Budget cannot be negative.");
+
+        if (dto.OrganizationId == Guid.Empty)
+            throw new ArgumentException("An organization (clinic) must be selected.");
+
+        if (!dto.PreferredDate.HasValue)
+            throw new ArgumentException("Preferred date is required.");
+
+        if (!dto.PreferredTime.HasValue)
+            throw new ArgumentException("A time slot is required.");
+
+        var slotDate = DateOnly.FromDateTime(dto.PreferredDate.Value);
+        var slotStart = TimeOnly.FromTimeSpan(dto.PreferredTime.Value);
+
+        if (!BookingRules.IsHourAligned(slotStart) ||
+            !BookingRules.IsWithinOperatingHours(slotStart))
+        {
+            throw new ArgumentException(
+                "Appointments start on the hour between 09:00 and 17:00 (one-hour slots, closing at 18:00).");
+        }
+
+        if (!BookingRules.IsInFuture(slotDate, slotStart))
+        {
+            throw new ArgumentException(
+                "The selected date/time slot cannot be in the past.");
+        }
+
+        var organization = await RequireActiveOrganizationAsync(
+            dto.OrganizationId);
+
+        // The hour is bookable only while at least one active veterinarian
+        // of the clinic has no overlapping appointment.
+        await EnsureSlotAvailableAsync(
+            organization.Id, slotDate, slotStart);
 
         // Check whether owner exists
         var ownerExists = await _context.PetOwners
@@ -59,18 +99,20 @@ public class ConsultationRequestService : IConsultationRequestService
 
             OwnerId = dto.OwnerId.Trim(),
 
+            OrganizationId = organization.Id,
+
             SymptomsDescription = dto.Symptoms.Trim(),
 
             PhotoUrl = string.IsNullOrWhiteSpace(dto.SymptomPhotoUrl)
                 ? null
                 : dto.SymptomPhotoUrl.Trim(),
 
-            // PostgreSQL timestamp with time zone requires UTC DateTime
-            PreferredDate = dto.PreferredDate.HasValue
-                ? DateTime.SpecifyKind(
-                    dto.PreferredDate.Value,
-                    DateTimeKind.Utc)
-                : DateTime.UtcNow,
+            // The preferred date column carries the booked slot start:
+            // booking date + hour-aligned slot start, stored as UTC-kind.
+            // PostgreSQL timestamp with time zone requires UTC DateTime.
+            PreferredDate = DateTime.SpecifyKind(
+                dto.PreferredDate.Value.Date + dto.PreferredTime.Value,
+                DateTimeKind.Utc),
 
             BudgetLimit = dto.Budget ?? 0,
 
@@ -112,12 +154,21 @@ public class ConsultationRequestService : IConsultationRequestService
     // =========================================================
     public async Task<List<ConsultationRequestDto>> GetAllAsync()
     {
-        return await _context.ConsultationRequests
+        var query = _context.ConsultationRequests
             .AsNoTracking()
             .Include(x => x.Pet)
+            .Include(x => x.Organization)
+            .Include(x => x.RequestedByVeterinarian)
+            .AsQueryable();
+
+        query = await ApplyOrganizationScopeAsync(query);
+
+        // Materialize before mapping — MapToDto is not translatable to SQL.
+        var consultations = await query
             .OrderByDescending(x => x.CreatedAt)
-            .Select(x => MapToDto(x))
             .ToListAsync();
+
+        return consultations.Select(MapToDto).ToList();
     }
 
 
@@ -130,13 +181,21 @@ public class ConsultationRequestService : IConsultationRequestService
         if (string.IsNullOrWhiteSpace(ownerId))
             throw new ArgumentException("Owner ID is required.");
 
-        return await _context.ConsultationRequests
+        var query = _context.ConsultationRequests
             .AsNoTracking()
             .Include(x => x.Pet)
-            .Where(x => x.OwnerId == ownerId.Trim())
+            .Include(x => x.Organization)
+            .Include(x => x.RequestedByVeterinarian)
+            .Where(x => x.OwnerId == ownerId.Trim());
+
+        query = await ApplyOrganizationScopeAsync(query);
+
+        // Materialize before mapping — MapToDto is not translatable to SQL.
+        var consultations = await query
             .OrderByDescending(x => x.CreatedAt)
-            .Select(x => MapToDto(x))
             .ToListAsync();
+
+        return consultations.Select(MapToDto).ToList();
     }
 
 
@@ -152,9 +211,15 @@ public class ConsultationRequestService : IConsultationRequestService
         var consultation = await _context.ConsultationRequests
             .AsNoTracking()
             .Include(x => x.Pet)
+            .Include(x => x.Organization)
+            .Include(x => x.RequestedByVeterinarian)
             .FirstOrDefaultAsync(x => x.Id == id.Trim());
 
         if (consultation == null)
+            return null;
+
+        // Foreign-organization requests are invisible to scoped staff.
+        if (!await CanAccessAsync(consultation))
             return null;
 
         return MapToDto(consultation);
@@ -183,6 +248,9 @@ public class ConsultationRequestService : IConsultationRequestService
         if (consultation == null)
             return null;
 
+        if (!await CanAccessAsync(consultation))
+            return null;
+
         // Only Draft or RevisionRequired requests
         // can be edited.
         if (consultation.Status != "Draft" &&
@@ -200,12 +268,38 @@ public class ConsultationRequestService : IConsultationRequestService
                 ? null
                 : dto.SymptomPhotoUrl.Trim();
 
-        if (dto.PreferredDate.HasValue)
+        if (dto.OrganizationId.HasValue)
         {
-            // PostgreSQL timestamp with time zone requires UTC DateTime
+            var organization =
+                await RequireActiveOrganizationAsync(
+                    dto.OrganizationId.Value);
+
+            consultation.OrganizationId = organization.Id;
+        }
+
+        if (dto.PreferredDate.HasValue && dto.PreferredTime.HasValue)
+        {
+            var slotDate = DateOnly.FromDateTime(dto.PreferredDate.Value);
+            var slotStart = TimeOnly.FromTimeSpan(dto.PreferredTime.Value);
+
+            if (!BookingRules.IsHourAligned(slotStart) ||
+                !BookingRules.IsWithinOperatingHours(slotStart))
+            {
+                throw new ArgumentException(
+                    "Appointments start on the hour between 09:00 and 17:00 (one-hour slots, closing at 18:00).");
+            }
+
+            if (!BookingRules.IsInFuture(slotDate, slotStart))
+            {
+                throw new ArgumentException(
+                    "The selected date/time slot cannot be in the past.");
+            }
+
+            // Store booking date + slot start together (UTC-kind).
             consultation.PreferredDate =
                 DateTime.SpecifyKind(
-                    dto.PreferredDate.Value,
+                    dto.PreferredDate.Value.Date +
+                    dto.PreferredTime.Value,
                     DateTimeKind.Utc);
         }
 
@@ -233,6 +327,17 @@ public class ConsultationRequestService : IConsultationRequestService
         consultation.UpdatedAt =
             DateTime.UtcNow;
 
+        // Re-check slot capacity at the (possibly changed) clinic/date/time
+        // so a moved request never lands on a fully-booked slot.
+        if (consultation.OrganizationId.HasValue)
+        {
+            await EnsureSlotAvailableAsync(
+                consultation.OrganizationId.Value,
+                DateOnly.FromDateTime(consultation.PreferredDate),
+                TimeOnly.FromDateTime(consultation.PreferredDate),
+                ignoreConsultationId: consultation.Id);
+        }
+
         await _context.SaveChangesAsync();
 
         return await GetByIdAsync(id);
@@ -253,6 +358,9 @@ public class ConsultationRequestService : IConsultationRequestService
             .FirstOrDefaultAsync(x => x.Id == id.Trim());
 
         if (consultation == null)
+            return null;
+
+        if (!await CanAccessAsync(consultation))
             return null;
 
         // Only Draft requests can be submitted
@@ -281,6 +389,17 @@ public class ConsultationRequestService : IConsultationRequestService
         {
             throw new ArgumentException(
                 "Budget cannot be negative.");
+        }
+
+        // The slot may have filled since the request was created — the
+        // backend is the final authority on availability.
+        if (consultation.OrganizationId.HasValue)
+        {
+            await EnsureSlotAvailableAsync(
+                consultation.OrganizationId.Value,
+                DateOnly.FromDateTime(consultation.PreferredDate),
+                TimeOnly.FromDateTime(consultation.PreferredDate),
+                ignoreConsultationId: consultation.Id);
         }
 
         consultation.Status = "Submitted";
@@ -327,6 +446,9 @@ public class ConsultationRequestService : IConsultationRequestService
             .FirstOrDefaultAsync(x => x.Id == id.Trim());
 
         if (consultation == null)
+            return false;
+
+        if (!await CanAccessAsync(consultation))
             return false;
 
         if (consultation.Status == "Cancelled")
@@ -384,11 +506,14 @@ public class ConsultationRequestService : IConsultationRequestService
             return new List<ConsultationStatusHistoryDto>();
         }
 
-        var consultationExists =
+        var consultation =
             await _context.ConsultationRequests
-                .AnyAsync(x => x.Id == consultationId.Trim());
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Id == consultationId.Trim());
 
-        if (!consultationExists)
+        if (consultation == null ||
+            !await CanAccessAsync(consultation))
         {
             throw new ArgumentException(
                 "Consultation request was not found.");
@@ -440,6 +565,122 @@ public class ConsultationRequestService : IConsultationRequestService
 
 
     // =========================================================
+    // BOOKING-RULE HELPERS
+    // =========================================================
+
+    /// <summary>
+    /// Loads the organization and enforces that it exists and is Active.
+    /// Unknown id → 404; inactive/pending org → 400.
+    /// </summary>
+    private async Task<Organization> RequireActiveOrganizationAsync(
+        Guid organizationId)
+    {
+        var organization = await _context.Organizations
+            .FirstOrDefaultAsync(x => x.Id == organizationId);
+
+        if (organization == null)
+        {
+            throw new NotFoundException(
+                "The selected organization was not found.");
+        }
+
+        if (organization.Status != OrganizationStatus.Active ||
+            !organization.IsActive)
+        {
+            throw new ArgumentException(
+                "The selected organization is not active.");
+        }
+
+        return organization;
+    }
+
+    /// <summary>
+    /// A requested (date, start, start+1h) hour is bookable only while at
+    /// least one active veterinarian of the organization has no overlapping
+    /// non-cancelled appointment. Throws a 409 conflict otherwise.
+    /// </summary>
+    private async Task EnsureSlotAvailableAsync(
+        Guid organizationId,
+        DateOnly date,
+        TimeOnly start,
+        string? ignoreConsultationId = null)
+    {
+        var veterinarianIds = await _context.Veterinarians
+            .Where(v =>
+                v.OrganizationId == organizationId &&
+                v.Active)
+            .Select(v => v.Id)
+            .ToListAsync();
+
+        if (veterinarianIds.Count == 0)
+        {
+            throw new SchedulingConflictException(
+                BookingRules.SlotUnavailableMessage);
+        }
+
+        var end = start.AddMinutes(BookingRules.SlotDurationMinutes);
+
+        var busyVeterinarianIds = await _context.Appointments
+            .Where(a =>
+                veterinarianIds.Contains(a.VeterinarianId) &&
+                a.Date == date &&
+                a.Status != AppointmentStatus.Cancelled &&
+                a.StartTime < end &&
+                a.EndTime > start &&
+                (ignoreConsultationId == null ||
+                 a.ConsultationRequestId != ignoreConsultationId))
+            .Select(a => a.VeterinarianId)
+            .Distinct()
+            .ToListAsync();
+
+        if (busyVeterinarianIds.Count >= veterinarianIds.Count)
+        {
+            throw new SchedulingConflictException(
+                BookingRules.SlotUnavailableMessage);
+        }
+    }
+
+    // =========================================================
+    // ORGANIZATION SCOPING HELPERS
+    // =========================================================
+
+    /// <summary>
+    /// Restricts a query to the caller's organization when the caller is
+    /// organization-scoped staff (ClinicManager / Veterinarian /
+    /// InventoryOfficer). PetOwner and platform-Admin callers are unscoped.
+    /// </summary>
+    private async Task<IQueryable<ConsultationRequest>>
+        ApplyOrganizationScopeAsync(
+            IQueryable<ConsultationRequest> query)
+    {
+        if (!_tenant.IsOrganizationScoped)
+        {
+            return query;
+        }
+
+        var organizationId =
+            await _tenant.GetOrganizationIdAsync();
+
+        return query.Where(x => x.OrganizationId == organizationId);
+    }
+
+    /// <summary>Foreign-organization requests are invisible to scoped staff.</summary>
+    private async Task<bool> CanAccessAsync(
+        ConsultationRequest consultation)
+    {
+        if (!_tenant.IsOrganizationScoped)
+        {
+            return true;
+        }
+
+        var organizationId =
+            await _tenant.GetOrganizationIdAsync();
+
+        return consultation.OrganizationId == organizationId;
+    }
+
+
+    // =========================================================
     // MAP ENTITY TO DTO
     // =========================================================
     private static ConsultationRequestDto MapToDto(
@@ -470,8 +711,16 @@ public class ConsultationRequestService : IConsultationRequestService
             PreferredDate =
                 consultation.PreferredDate,
 
-            // Current entity does not have PreferredTime.
-            PreferredTime = null,
+            // The booked slot start is stored inside PreferredDate
+            // (date + hour-aligned time).
+            PreferredTime =
+                consultation.PreferredDate.TimeOfDay,
+
+            OrganizationId =
+                consultation.OrganizationId,
+
+            OrganizationName =
+                consultation.Organization?.Name,
 
             Budget =
                 consultation.BudgetLimit,
@@ -491,6 +740,15 @@ public class ConsultationRequestService : IConsultationRequestService
 
             Status =
                 consultation.Status,
+
+            RequestType =
+                consultation.RequestType,
+
+            RequestedByVeterinarianId =
+                consultation.RequestedByVeterinarianId,
+
+            RequestedByVeterinarianName =
+                consultation.RequestedByVeterinarian?.Name,
 
             CreatedAt =
                 consultation.CreatedAt,

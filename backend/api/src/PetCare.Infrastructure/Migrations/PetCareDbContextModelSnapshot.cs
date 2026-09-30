@@ -32,6 +32,10 @@ namespace PetCare.Infrastructure.Migrations
                     b.Property<Guid>("AppointmentSlotId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ConsultationRequestId")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -59,6 +63,13 @@ namespace PetCare.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Initial");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -71,6 +82,9 @@ namespace PetCare.Infrastructure.Migrations
 
                     b.HasIndex("AppointmentSlotId")
                         .IsUnique();
+
+                    b.HasIndex("ConsultationRequestId")
+                        .HasDatabaseName("IX_Appointment_ConsultationRequestId");
 
                     b.HasIndex("Date")
                         .HasDatabaseName("IX_Appointment_ScheduledStart");
@@ -299,6 +313,9 @@ namespace PetCare.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("OwnerId")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -326,6 +343,16 @@ namespace PetCare.Infrastructure.Migrations
                     b.Property<DateTime>("PreferredDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RequestType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Initial");
+
+                    b.Property<Guid?>("RequestedByVeterinarianId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -345,11 +372,20 @@ namespace PetCare.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("IX_ConsultationRequests_OrganizationId");
+
                     b.HasIndex("OwnerId");
 
                     b.HasIndex("PetId");
 
-                    b.ToTable("ConsultationRequests", (string)null);
+                    b.HasIndex("RequestedByVeterinarianId")
+                        .HasDatabaseName("IX_ConsultationRequests_RequestedByVeterinarianId");
+
+                    b.ToTable("ConsultationRequests", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConsultationRequest_RequestType_Allowed", "\"RequestType\" IN ('Initial', 'FollowUp')");
+                        });
                 });
 
             modelBuilder.Entity("PetCare.Domain.Entities.ConsultationStatusHistory", b =>
@@ -427,6 +463,9 @@ namespace PetCare.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid?>("AppointmentId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ConsultationRequestId")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
@@ -455,10 +494,20 @@ namespace PetCare.Infrastructure.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<decimal>("VeterinarianCharge")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<Guid>("VeterinarianId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Examinations_AppointmentId")
+                        .HasFilter("\"AppointmentId\" IS NOT NULL");
 
                     b.HasIndex("ConsultationRequestId");
 
@@ -741,6 +790,12 @@ namespace PetCare.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -899,15 +954,61 @@ namespace PetCare.Infrastructure.Migrations
                     b.Property<int>("DurationDays")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Frequency")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Instructions")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<Guid>("MedicineId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ProcessedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<string>("RequestStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<Guid?>("ReservationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Route")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<Guid>("TreatmentRecordId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("UnavailableReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MedicineId");
+
+                    b.HasIndex("ProcessedByUserId")
+                        .HasDatabaseName("IX_Prescriptions_ProcessedByUserId");
+
+                    b.HasIndex("RequestStatus")
+                        .HasDatabaseName("IX_Prescriptions_RequestStatus");
+
+                    b.HasIndex("ReservationId")
+                        .HasDatabaseName("IX_Prescriptions_ReservationId");
 
                     b.HasIndex("TreatmentRecordId");
 
@@ -931,6 +1032,19 @@ namespace PetCare.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("PaidByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Pending");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -958,6 +1072,9 @@ namespace PetCare.Infrastructure.Migrations
 
                     b.HasIndex("AppointmentId")
                         .IsUnique();
+
+                    b.HasIndex("PaidByUserId")
+                        .HasDatabaseName("IX_Quotation_PaidByUserId");
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_Quotation_Status");
@@ -1229,10 +1346,18 @@ namespace PetCare.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OrganizationId")
                         .HasDatabaseName("IX_Veterinarians_OrganizationId");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Veterinarians_UserId")
+                        .HasFilter("\"UserId\" IS NOT NULL");
 
                     b.ToTable("Veterinarians", (string)null);
 
@@ -1277,6 +1402,11 @@ namespace PetCare.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PetCare.Domain.Entities.ConsultationRequest", "ConsultationRequest")
+                        .WithMany()
+                        .HasForeignKey("ConsultationRequestId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("PetCare.Domain.Entities.Pet", "Pet")
                         .WithMany()
                         .HasForeignKey("PetId")
@@ -1290,6 +1420,8 @@ namespace PetCare.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("AppointmentSlot");
+
+                    b.Navigation("ConsultationRequest");
 
                     b.Navigation("Pet");
 
@@ -1341,6 +1473,11 @@ namespace PetCare.Infrastructure.Migrations
 
             modelBuilder.Entity("PetCare.Domain.Entities.ConsultationRequest", b =>
                 {
+                    b.HasOne("PetCare.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("PetCare.Domain.Entities.PetOwner", "Owner")
                         .WithMany("ConsultationRequests")
                         .HasForeignKey("OwnerId")
@@ -1353,9 +1490,18 @@ namespace PetCare.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PetCare.Domain.Entities.Veterinarian", "RequestedByVeterinarian")
+                        .WithMany()
+                        .HasForeignKey("RequestedByVeterinarianId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Organization");
+
                     b.Navigation("Owner");
 
                     b.Navigation("Pet");
+
+                    b.Navigation("RequestedByVeterinarian");
                 });
 
             modelBuilder.Entity("PetCare.Domain.Entities.ConsultationStatusHistory", b =>
@@ -1382,6 +1528,11 @@ namespace PetCare.Infrastructure.Migrations
 
             modelBuilder.Entity("PetCare.Domain.Entities.Examination", b =>
                 {
+                    b.HasOne("PetCare.Domain.Entities.Appointment", "Appointment")
+                        .WithOne("Examination")
+                        .HasForeignKey("PetCare.Domain.Entities.Examination", "AppointmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("PetCare.Domain.Entities.ConsultationRequest", "ConsultationRequest")
                         .WithMany()
                         .HasForeignKey("ConsultationRequestId")
@@ -1398,6 +1549,8 @@ namespace PetCare.Infrastructure.Migrations
                         .HasForeignKey("VeterinarianId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Appointment");
 
                     b.Navigation("ConsultationRequest");
 
@@ -1500,6 +1653,16 @@ namespace PetCare.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PetCare.Domain.Entities.User", "ProcessedBy")
+                        .WithMany()
+                        .HasForeignKey("ProcessedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("PetCare.Domain.Entities.MedicineReservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("PetCare.Domain.Entities.TreatmentRecord", "TreatmentRecord")
                         .WithMany("Prescriptions")
                         .HasForeignKey("TreatmentRecordId")
@@ -1507,6 +1670,10 @@ namespace PetCare.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Medicine");
+
+                    b.Navigation("ProcessedBy");
+
+                    b.Navigation("Reservation");
 
                     b.Navigation("TreatmentRecord");
                 });
@@ -1519,7 +1686,14 @@ namespace PetCare.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PetCare.Domain.Entities.User", "PaidBy")
+                        .WithMany()
+                        .HasForeignKey("PaidByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Appointment");
+
+                    b.Navigation("PaidBy");
                 });
 
             modelBuilder.Entity("PetCare.Domain.Entities.QuotationItem", b =>
@@ -1571,11 +1745,20 @@ namespace PetCare.Infrastructure.Migrations
                         .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("PetCare.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Organization");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("PetCare.Domain.Entities.Appointment", b =>
                 {
+                    b.Navigation("Examination");
+
                     b.Navigation("Quotation");
                 });
 

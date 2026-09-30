@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
+import '../../core/state/load_state.dart';
+
+export '../../core/state/load_state.dart' show LoadState;
 import '../../core/network/api_error.dart';
 import 'approval_service.dart';
 import 'models/approval.dart';
 
-enum LoadState { idle, loading, success, error }
 
 class ApprovalProvider extends ChangeNotifier {
   final ApprovalService _service;

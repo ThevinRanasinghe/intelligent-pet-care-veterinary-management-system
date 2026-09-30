@@ -366,4 +366,120 @@ Admin-only staff provisioning (Veterinarian / InventoryOfficer) — no schema ch
 
 ---
 
+## Step 21 — ClinicManager-Scoped Staff Account Creation
+
+Requirement change: staff accounts (Veterinarian/InventoryOfficer) are created by the **ClinicManager of the organization**, not the Administrator. The admin-side creation endpoints from Step 18 were removed; new manager-scoped endpoints on branch `feature/manager-staff-account-creation`.
+
+- **Endpoints:** `POST /api/manager/users/veterinarians`, `POST /api/manager/users/inventory-officers` — `[Authorize(Roles = Roles.ClinicManager)]`; `ManagerCreateStaffRequest` has **no `organizationId` field**; the org is resolved from `ITenantContext` (`User.OrganizationId`) server-side
+- **Rules:** role fixed per endpoint; unscoped manager → 403; non-Active org → 403; duplicate email → 400; `Active=true`, `MustChangePassword=true`, one-time temporary password
+- **Backend tests:** `ManagerServiceTests` — 7 tests (role/org/flags for both roles, no-org 403, suspended-org 403, duplicate email, validation, request-carries-no-org assertion)
+- **Frontend tests:** `ClinicManagerDashboard.staff.test.tsx` — 5 tests (section visible to CM, hidden for other roles, no org selector in the form, submit → temp password shown, error path)
+- **Verified results:** `dotnet build` 0 errors; Application.Tests **106/106**, PetCare.Tests **35/35**; frontend `tsc` clean, Vitest **85/85**
+- **Live API verification (Supabase):** 401 unauthenticated · 403 PetOwner · 403 Veterinarian · 403 Administrator · 201 ClinicManager (org auto-bound to their org — never client-supplied) · 400 duplicate email · temp-password login works · created staff visible in `GET /api/admin/users` and manageable via admin status endpoints
+- **No EF migration required** — `User.Role`/`OrganizationId`/`MustChangePassword` already exist; Supabase schema untouched
+- **Commit:** _(pending — feature branch)_
+
+---
+
+## Step 22 — Workflow Redesign (request → assign → examine → medicine request → auto-bill → pay)
+
+End-to-end consultation workflow redesign on the working tree: manager-driven vet assignment, veterinarian examination with vet charge, prescriptions as medicine requests, InventoryOfficer issue/unavailable, automatic bill generation on the Quotation, payment recording, PetOwner bill/appointment reads, and manager veterinarian history. Migration `20260926165049_WorkflowRedesign` is additive-only (18 columns, 8 indexes, 7 FKs, 1 CHECK constraint) and is **not yet applied to the shared Supabase database**.
+
+### Verified results (local)
+
+| Check | Command | Result |
+|---|---|---|
+| Backend build | `dotnet build backend/api/PetCare.sln` | **0 errors** |
+| Application tests | `dotnet test` | `PetCare.Application.Tests` — **135/135 passed** |
+| Service tests | `dotnet test` | `PetCare.Tests` — **43/43 passed** |
+| Infrastructure tests | `dotnet test` | `PetCare.Infrastructure.Tests` — **19/19 passed** |
+| Web typecheck | `npx tsc --noEmit` | **0 errors** |
+| Web tests | `npx vitest run` | **106 tests / 22 files — all passing** |
+| Web build | `npm run build` | **succeeds** |
+| Mobile analyze | `flutter analyze` | **no issues** |
+| Mobile tests | `flutter test` | **57/57 passed** |
+| End-to-end | 95-assertion PowerShell harness vs local disposable Postgres (`petcare_e2e`) | **95/95 PASS** — full flow incl. org isolation and follow-up |
+
+### Notes on environment-dependent test behaviour
+
+- `PetCare.Infrastructure.Tests` requires `PETCARE_TEST_DB_CONNECTION` pointing at a **migrated** local PostgreSQL database. Without it the tests fail with "Set PETCARE_TEST_DB_CONNECTION…" — that earlier 4-test failure was **environment-dependent, not a code defect**, and is resolved by pointing the variable at a migrated disposable DB.
+- `dotnet ef` tooling (including applying `WorkflowRedesign`) reads only `PETCARE_DB_CONNECTION`.
+- Known honest limitations recorded for this step: no notification platform (pending-item views only); the 3 seeded `Veterinarians` have no `UserId` and cannot sign in; `GET /api/manager/veterinarians` lists Active vets only; `InvoiceNumber` is derived (`INV-<8-hex>`), not sequential; Flutter pet registration/consultation creation remain web-only; examinations without `AppointmentId` produce no bill.
+
+- **Commit:** _(uncommitted working tree at time of verification)_
+
+---
+
 *Add new entries below as additional steps are tested.*
+
+---
+
+## Step 23 — Booking Rules + Clinic Location / Google Maps (H5 + H6)
+
+Fixed-slot booking rules (09:00–18:00, nine 1-hour slots, org/date/slot mandatory, capacity + vet-overlap protection) and real organization coordinates with Google Maps integration (registration `LocationPickerMap`, booking `ClinicMap`, `nearby-clinics` locator). Migrations `20260927070805_BookingRules` and `20260927081008_OrganizationLocation` are additive-only and **not yet applied to Supabase** (applied to local disposable DBs only).
+
+### Verified results (local, executed today)
+
+| Check | Command | Result |
+|---|---|---|
+| Backend build | `dotnet build backend/api/PetCare.sln` | **0 errors** (1 pre-existing xUnit analyzer warning) |
+| Application tests | `dotnet test` | `PetCare.Application.Tests` — **181/181 passed** (+11: 6 `RegisterOrganizationRequestValidatorTests`, 5 `ClinicLocatorServiceTests`) |
+| Service tests | `dotnet test` | `PetCare.Tests` — **56/56 passed** |
+| Infrastructure tests | `dotnet test` | `PetCare.Infrastructure.Tests` — **19/19 passed** (with `PETCARE_TEST_DB_CONNECTION` → local migrated `petcare_test`; without it the tests fail fast by design — environment requirement, not a defect) |
+| Web typecheck | `npx tsc --noEmit` | **0 errors** |
+| Web tests | `npx vitest run` | **124 tests / 25 files — all passing** (+18: map/booking/registration coverage incl. map-failure fallbacks) |
+| Web build | `npm run build` | **succeeds** (pre-existing >500 kB chunk warning only) |
+| Mobile | `flutter analyze` / `flutter test` | **Unchanged, not re-run for H5/H6** — last run (H3): 0 issues, 57/57 |
+| End-to-end | 115-assertion PowerShell harness vs local disposable Postgres (`petcare_e2e`, API on :5145) | **115/115 PASS** |
+
+### E2E coverage highlights (115/115)
+
+registration → pet → consultation request with org/date/slot; booking-rule 400s (no date, no time, start < 09:00, end > 18:00, non-hour-aligned, past date); org slot-capacity 409 ("This appointment slot is no longer available. Please select another time."); assign 1-hour rule 400 + vet overlap 409 (+ unique `(VeterinarianId, Date, StartTime)` index for concurrent assigns); `availability` day + `availability/month` responses; pending org excluded from nearby clinics; invalid latitude 400; active org appears with id/name/address/coords/distance (11.37 km Colombo→Maharagama); `nearest-clinic` returns a real org (hardcoded fake list removed); `lookups/organizations` exposes coordinates; active org without coords excluded from nearby but still in lookups; examination → prescription → issue/unavailable → bill 4500 → mark-paid → owner view; follow-up; veterinarian history; org isolation.
+
+- **Migration `Up()` evidence:** `OrganizationLocation` adds `Organizations.Latitude`/`Longitude` (`double precision`, nullable); `BookingRules` adds `ConsultationRequests.OrganizationId` + index + FK → `Organizations` (`SetNull`).
+- **Database safety:** migrations applied to local disposable databases only; Supabase untouched.
+- **Commit:** _(uncommitted working tree at time of verification)_
+
+---
+
+## Step 24 — Clinic-location UX correction (H8)
+
+Registration "Clinic Location" section reworked: the manual latitude/longitude fallback was removed from `LocationPickerMap` (load failure now shows a retryable "Map location is temporarily unavailable…" notice — no env-var names in the UI), the picker gained a "Select Clinic Location" title and pin-state hints instead of a coordinate readout, and `RegisterPage` shows "✓ Exact clinic location selected" (coordinates never displayed; still posted as `latitude`/`longitude`, `null` when unset). The `loadGoogleMaps` memoized promise is cleared on failure so "Try Again" genuinely retries.
+
+- **Verified locally:** `npx tsc --noEmit` 0 errors; `npx vitest run` — **128 tests / 25 files, all passing** (location suite grew 3 → 7: no manual inputs/env var, pin confirm without coordinates, Change Location reopen, POST lat/lng, registration without location → null coords, load-failure → Try Again retry); `npm run build` — succeeds.
+- **Commit:** _(uncommitted working tree at time of verification)_
+
+
+---
+
+## Step 25 — Flutter Pet-Owner App Redesign (H9)
+
+Flutter app reworked into a PetOwner-only application: branded splash + session restore, staff-role blocking screen, RegisterPage (`POST /auth/register/pet-owner`), five-tab `MainShell` (Home / Appointments / Pets / Bills / Profile), pet CRUD, four-step booking wizard (pet → clinic map/list → month-availability calendar → slot chips → details) calling `POST /consultations` + `/submit`, owner appointments merged view (`/consultations` + `/appointments/mine`), read-only bills via `/quotations/mine`, profile + change password + logout. Deps added: `google_maps_flutter ^2.18.2`, `url_launcher ^6.3.2`; manifest ships a `YOUR_GOOGLE_MAPS_API_KEY` placeholder.
+
+### Verified results (local, executed today)
+
+| Check | Command | Result |
+|---|---|---|
+| Static analysis | `flutter analyze` | **0 issues** |
+| Mobile tests | `flutter test` | **71/71 passed** (57 existing kept green; +14 new owner-app tests) |
+| No backend changes | — | No backend files touched by this step |
+
+New coverage: staff login lands on the blocked screen (not the owner UI); pet list + add-pet validation + `POST /pets` body; clinic picker lists orgs (null-coords still selectable), `Get Directions` URL shape, clinic-load failure retry + empty-clinics message; booking guards (Next disabled without pet/clinic/date/time, symptoms required to submit); fully-booked day disabled; booked slot chip disabled; 9 slot chips rendered; `POST /consultations` body carries petId/organizationId/preferredDate/preferredTime; 409 → friendly slot-unavailable message; Pending/Upcoming/History segmentation; profile details + logout clears session. Google Maps is excluded from widget tests via `BookingWizardPage(useMap: false)`.
+
+- **Commit:** _(uncommitted working tree at time of verification)_
+
+---
+
+## Step 26 � Flutter UI Reskin to Beacon Design System (H10)
+
+`frontend/mobile` re-skinned to match the React "Beacon Pet Health" design tokens. New `lib/core/theme/app_colors.dart` (petcareYellow `#FFBE00`/`#E6AB00`/`#FFF3CC`, petcareBlack `#111111`, cream `#FAFAE9`, muted `#55554A`, orange `#F26422`, neutral `#B8B49C`, selected `#FFFBEA`/`#EADF9C`, semantic success/warning/danger/info/neutral triples, border `#E2E9E6`) and `lib/core/theme/app_theme.dart` (`ColorScheme`, light `AppBarTheme`, dark `#111` `NavigationBarTheme` with yellow active, white radius-17 `CardTheme`, `#FBFDFC`/`#E2E9E6` `InputDecorationTheme` with yellow focus, yellow `FilledButtonTheme`, white `OutlinedButtonTheme`, chip/segmented-button/dialog/snackbar themes) wired into `main.dart` replacing `colorSchemeSeed: Colors.teal`. New `lib/core/widgets/` primitives: `AppCard`, `StatusBadge` (web .badge-* mapping), `AppEmptyState`, `AppErrorState`, `AppLoading`, `SectionHeader`, `DetailRow`, `BrandLogoTile`/`BrandLockup`. Restyled: splash (yellow brand panel), login/register (cream + white auth-form-card + orange eyebrow), staff-blocked, owner home (black hero card + yellow CTA), owner appointments (segmented filter + status badges), appointment/consultation detail (header card + detail rows), pets (emoji species avatar, View Profile), bills (invoice-style header + PAID badge + line items + total divider), profile (initials avatar), booking wizard (step progress, `#FFFBEA`/`#E6AB00` selected radio-cards, yellow selected day/slot chips), clinic picker (selected-clinic highlight card). UI-only: no endpoint, model, provider, or booking-rule changes; GoogleMap untouched; `useMap:false` test hook preserved.
+
+### Verified results (local, executed today)
+
+| Check | Command | Result |
+|---|---|---|
+| Static analysis | `flutter analyze` | **0 issues** |
+| Mobile tests | `flutter test` | **72/72 passed** (71 existing kept green; stale counter `widget_test.dart` replaced with a real splash?login smoke test) |
+| No backend changes | � | No backend, service, provider, or model files touched by this step |
+
+- **Commit:** _(uncommitted working tree at time of verification)_

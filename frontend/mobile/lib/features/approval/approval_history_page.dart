@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_states.dart';
 import 'approval_provider.dart';
 
 class ApprovalHistoryPage extends StatefulWidget {
@@ -34,22 +37,11 @@ class _ApprovalHistoryPageState extends State<ApprovalHistoryPage> {
     switch (provider.historyState) {
       case LoadState.idle:
       case LoadState.loading:
-        return const Center(child: CircularProgressIndicator());
+        return const AppLoading();
       case LoadState.error:
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 8),
-              Text(provider.errorMessage, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => provider.loadHistory(widget.approvalId),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
+        return AppErrorState(
+          message: provider.errorMessage,
+          onRetry: () => provider.loadHistory(widget.approvalId),
         );
       case LoadState.success:
         if (provider.history.isEmpty) {
@@ -59,10 +51,20 @@ class _ApprovalHistoryPageState extends State<ApprovalHistoryPage> {
           itemCount: provider.history.length,
           itemBuilder: (context, index) {
             final h = provider.history[index];
-            return Card(
+            return AppCard(
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: EdgeInsets.zero,
               child: ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.history)),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(Icons.history,
+                      color: AppColors.black, size: 20),
+                ),
                 title: Text('${h.previousStatus} -> ${h.newStatus}'),
                 subtitle: Text(
                   'By: ${h.changedBy.substring(0, 8)}...\n'

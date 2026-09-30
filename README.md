@@ -2,34 +2,34 @@
 
 Integrated Pet Care & Veterinary Service Management System — SE3090 Software Engineering Frameworks, Assignment.
 
-PetCare AI is a multi-tenant veterinary practice platform: pet owners request consultations and manage pets, clinic staff schedule appointments, run examinations and treatment, bill through quotations with a manager approval workflow, and manage medicine inventory with FEFO batch tracking — all against a single shared ASP.NET Core API backed by PostgreSQL on Supabase.
+PetCare AI is a multi-tenant veterinary practice platform: pet owners self-register, manage pets, pick a clinic from the registered organizations (on a map with optional distance sorting), and submit consultation requests for a chosen date and fixed one-hour slot; the clinic manager assigns a veterinarian (which books the appointment); the veterinarian completes examinations, diagnoses, treatments, and prescriptions — each prescription is a medicine request the inventory officer issues or marks unavailable; the appointment's bill is generated automatically from the vet charge and issued medicines, and the inventory officer records payment. Clinics may store a map location (latitude/longitude) at registration so owners can browse them geographically and open external directions. Medicine inventory runs on FEFO batch tracking — all against a single shared ASP.NET Core API backed by PostgreSQL on Supabase. A manual quotation + manager-approval flow also remains available alongside the automated billing path.
 
 ## User roles
 
 | Role | Description | Account creation |
 |---|---|---|
-| `PetOwner` | Owns pets and consultation requests; reads own clinical history | Self-registration (`POST /api/auth/register/pet-owner`) |
-| `ClinicManager` | Scheduling, quotations/billing, approval decisions, clinic oversight | Created with the organization via `POST /api/auth/register/organization` |
-| `Veterinarian` | Clinical records (examinations, diagnoses, treatments, prescriptions); reads scheduling/billing | Administrator-created via `POST /api/admin/users/veterinarians` |
-| `InventoryOfficer` | Medicines, suppliers, stock, reservations, dispensing | Administrator-created via `POST /api/admin/users/inventory-officers` |
-| `Administrator` | Platform administration — users, organizations, staff accounts, system info | System-level; provisioned directly (no self-service endpoint) |
+| `PetOwner` | Owns pets and consultation requests; reads own appointments, clinical history, and bills | Self-registration (`POST /api/auth/register/pet-owner`) |
+| `ClinicManager` | Consultation-request queue, veterinarian assignment (books appointments), staff accounts (vets/inventory officers), veterinarian work history, bill view, quotation approval decisions | Created with the organization via `POST /api/auth/register/organization` |
+| `Veterinarian` | Own appointments; clinical records (examinations incl. vet charge, diagnoses, treatments, prescriptions); follow-up consultation requests | ClinicManager-created via `POST /api/manager/users/veterinarians` (own org only; auto-creates a linked `Veterinarian` profile) |
+| `InventoryOfficer` | Medicines, suppliers, stock, reservations, dispensing; medicine-request queue (issue/unavailable); marks bills paid | ClinicManager-created via `POST /api/manager/users/inventory-officers` (own org only) |
+| `Administrator` | Platform administration — users, organizations, staff account management, system info | System-level; provisioned directly (no self-service endpoint) |
 
 ## Main business components
 
 - **Auth & tenancy** — JWT login, org-scoped staff, PetOwner ownership enforcement
-- **Pets & consultations** — owner-managed pets, consultation requests with status history
-- **Clinical** — examinations → diagnoses → treatment records → prescriptions chain
-- **Scheduling & billing** — vet slots, appointments, quotations, approval workflow
-- **Medicine & inventory** — medicines, suppliers, batches (FEFO), reservations, transaction ledger
+- **Pets & consultations** — owner-managed pets, consultation requests with status history; manager assigns a vet (`POST /api/consultations/{id}/assign`), which creates the appointment; vets can file follow-up requests. Booking is date + organization + one of nine fixed one-hour slots (09:00–18:00); slot availability is exposed per organization (`GET /api/consultations/availability`, `/availability/month`) and per veterinarian for the assign flow
+- **Clinic locations & maps** — organizations may register an optional map location (`Organization.Latitude/Longitude`); owners browse active clinics on a Google Map (`ClinicMap`), sort by distance (`GET /api/consultations/nearby-clinics`, `/nearest-clinic` — Haversine), and open external Google directions; organization registration offers a `LocationPickerMap` — the clinic enters its address, picks "Select Location on Map", searches/zooms, pins the exact location, and confirms; the system stores latitude/longitude automatically (the step is optional and can be completed later). Google Maps is used for map visualization, clinic location selection and directions. Bookable clinics are the active organizations registered in the PetCare system.
+- **Clinical** — examinations → diagnoses → treatment records → prescriptions chain; examinations close appointments and carry the veterinarian charge
+- **Scheduling & billing** — vet slots, appointments (`GET /api/appointments/mine` per-caller view), auto-generated bills on the Quotation entity (vet charge + issued medicines), payment tracking; manual quotation + approval workflow remains available
+- **Medicine & inventory** — medicines, suppliers, batches (FEFO), reservations, transaction ledger; prescriptions double as medicine requests fulfilled by the inventory officer
 - **Administration** — org approval, user lifecycle, staff account creation, system stats
-- **AI workflow UI** — monitoring interface only; agentic backend not yet implemented
 
 ## Technology stack
 
 | Layer | Stack |
 |---|---|
 | Web | React 19 + TypeScript + Vite, React Router, React Context (auth) |
-| Mobile | Flutter (Dart), `provider`, `flutter_secure_storage`, `http` |
+| Mobile | Flutter (Dart), `provider`, `flutter_secure_storage`, `http`, `google_maps_flutter`, `url_launcher` |
 | API | ASP.NET Core 8 Web API, JWT bearer auth |
 | ORM/Data | Entity Framework Core 8 + Npgsql |
 | Database | PostgreSQL on Supabase (shared pooled instance) |
@@ -39,7 +39,7 @@ PetCare AI is a multi-tenant veterinary practice platform: pet owners request co
 
 ```
 frontend/web/      React SPA (Vite) — full staff + owner experience
-frontend/mobile/   Flutter client — scheduling/billing/approval mobile app
+frontend/mobile/   Flutter app — Pet Owner mobile app (pets, clinic map booking, appointments, bills)
 backend/api/       ASP.NET Core solution
   src/PetCare.Api/            Controllers, middleware, DI wiring
   src/PetCare.Application/    Services, DTOs, validators, interfaces
@@ -78,9 +78,11 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
-API base URL is read from `VITE_API_BASE_URL` (`.env` already points at `http://localhost:5019/api`).
+API base URL is read from `VITE_API_BASE_URL` (`.env` already points at `http://localhost:5019/api`). An optional Google Maps key (see `frontend/web/.env.example` and `docs/setup/local-development.md`) enables the clinic map and location picker — the script is loaded dynamically, so no npm dependency is added; without it the picker is simply skipped (location can be added later) and the booking map shows a plain clinic list, so registration and booking are never blocked.
 
 ### Mobile (`frontend/mobile`)
+
+Flutter is used as the Pet Owner mobile application. Pet Owners can register/login, manage their pets, find active PetCare clinics on a map, submit consultation requests, view appointments and follow-up appointments, and view their bills. Clinic Manager, Veterinarian, Inventory Officer and Administrator workflows remain in the React staff application. Staff accounts that sign in on mobile see a blocking notice and a logout action.
 
 ```bash
 cd frontend/mobile
@@ -89,6 +91,8 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5019/api   # Android emul
 ```
 
 `10.0.2.2` is the Android emulator's host loopback. For a physical device, use the machine's LAN IP.
+
+Google Maps is used for map visualization, clinic selection and directions. Bookable clinics are the active organizations registered in the PetCare system. The Android manifest ships a `YOUR_GOOGLE_MAPS_API_KEY` placeholder (`android/app/src/main/AndroidManifest.xml`) — replace it locally with a real Maps SDK for Android key to render the map; without a key the clinic picker falls back to its list view, so booking still works.
 
 ## Configuration keys (never commit values)
 
@@ -111,11 +115,11 @@ cd frontend/web && npm run lint              # web: TypeScript check
 cd frontend/mobile && flutter test           # mobile: unit/widget tests
 ```
 
-`PetCare.Infrastructure.Tests` requires `PETCARE_TEST_DB_CONNECTION` pointing at a PostgreSQL instance; it fails fast by design without one.
+`PetCare.Infrastructure.Tests` requires `PETCARE_TEST_DB_CONNECTION` pointing at a **migrated** local PostgreSQL database; it fails fast with "Set PETCARE_TEST_DB_CONNECTION…" by design without one.
 
 ## Database
 
-EF Core migrations own the schema — applied history: `InitialSchedulingBillingApproval`, `AddUsers`, `ConsolidatedDomainModel` (all applied to Supabase). 22 domain tables; `Guid`/uuid IDs for most entities, `varchar(30)` business IDs for `Pet`/`PetOwner`/`ConsultationRequest`, int identity for `ConsultationStatusHistory`. See `docs/database/database-design.md`.
+EF Core migrations own the schema — migration history: `InitialSchedulingBillingApproval`, `AddUsers`, `ConsolidatedDomainModel` (all applied to Supabase), plus `20260926165049_WorkflowRedesign` (consultation→billing workflow), `20260927070805_BookingRules` (`ConsultationRequests.OrganizationId`; concurrent same-vet/slot assigns are guarded by the pre-existing unique `(VeterinarianId, Date, StartTime)` index → 409), and `20260927081008_OrganizationLocation` (`Organizations.Latitude`/`Longitude`) — all additive-only and **not yet applied to the shared Supabase database** — run `dotnet ef database update` before pointing a new API build at it. 22 domain tables; `Guid`/uuid IDs for most entities, `varchar(30)` business IDs for `Pet`/`PetOwner`/`ConsultationRequest`, int identity for `ConsultationStatusHistory`. See `docs/database/database-design.md`.
 
 ## Documentation
 
@@ -132,8 +136,14 @@ EF Core migrations own the schema — applied history: `InitialSchedulingBilling
 
 ## Known limitations / TODO
 
-- **AI workflows:** UI-only — no agentic backend, orchestration, or model integration yet
+- **No notification platform:** "notifications" are status-driven pending-item views (manager request queue, inventory-officer medicine-request queue, dashboards) — there is no notification entity or real-time push infrastructure
+- **Three migrations pending on Supabase:** `WorkflowRedesign`, `BookingRules`, and `OrganizationLocation` exist only as migration files until `dotnet ef database update` is run against the shared database
+- **Maps are optional:** without a configured Google Maps key the clinic-location picker shows a retryable "temporarily unavailable" notice (the location can be added later) and the booking map falls back to a plain clinic list — registration and booking still work
+- **Seeded veterinarians are not login accounts:** the 3 `HasData` `Veterinarians` rows have no `UserId`; only vets created via `POST /api/manager/users/veterinarians` (which creates the linked `Veterinarian` row) can sign in
+- **`GET /api/manager/veterinarians` lists Active vets only**
+- **Bill requires an appointment:** `GenerateOrRefreshBillForExaminationAsync` returns nothing for examinations without `AppointmentId`; `InvoiceNumber` is derived (`INV-` + first 8 hex chars of the quotation `Id`), not a sequential counter
+- **Flutter is PetOwner-only:** pets, clinic-map booking, consultation requests, appointments and read-only bills are in the mobile app; all staff workflows (approvals, slots, inventory, assignment) remain on the React web app. The Google Map needs a local API key; without it the clinic picker is a plain list
 - **Deployment:** API and web run locally only; hosted deployment pending (see deployment guide)
-- **Staff password delivery:** admin-created staff receive a one-time temporary password shown to the admin — no email/SMS invitation channel exists yet
+- **Staff password delivery:** manager-created staff receive a one-time temporary password shown to the manager — no email/SMS invitation channel exists yet
 - **`DevelopmentSeeder` exists but is not invoked** at startup — dev accounts are provisioned manually
 - **README screenshots/demo:** pending final release

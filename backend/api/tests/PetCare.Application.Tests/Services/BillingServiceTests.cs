@@ -23,6 +23,8 @@ public class BillingServiceTests
 {
     private readonly Mock<IQuotationRepository> _quotationRepository = new();
     private readonly Mock<IAppointmentRepository> _appointmentRepository = new();
+    private readonly Mock<IExaminationRepository> _examinationRepository = new();
+    private readonly Mock<ITenantContext> _tenant = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IValidator<CreateQuotationRequest>> _createValidator = new();
     private readonly Mock<IValidator<UpdateQuotationRequest>> _updateValidator = new();
@@ -44,6 +46,8 @@ public class BillingServiceTests
     private BillingService CreateService() => new(
         _quotationRepository.Object,
         _appointmentRepository.Object,
+        _examinationRepository.Object,
+        _tenant.Object,
         _unitOfWork.Object,
         _createValidator.Object,
         _updateValidator.Object);

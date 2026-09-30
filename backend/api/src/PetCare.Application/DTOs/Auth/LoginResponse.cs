@@ -19,4 +19,10 @@ public class LoginResponse
     public string Name { get; set; } = string.Empty;
 
     public string Role { get; set; } = string.Empty;
+
+    /// <summary>The staff member's organization, when the account is organization-scoped.</summary>
+    public Guid? OrganizationId { get; set; }
+
+    /// <summary>Display name of the caller's organization (null for PetOwner/Administrator).</summary>
+    public string? OrganizationName { get; set; }
 }

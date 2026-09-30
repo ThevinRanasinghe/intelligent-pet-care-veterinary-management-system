@@ -21,7 +21,7 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 |---|---|---|---|---|
 | POST | `/login` | Public | `LoginRequest` → `LoginResponse` | 401 on bad credentials/inactive account; 403 `OrganizationPending` for staff of non-Active orgs |
 | POST | `/register`, `/register/pet-owner` | Public | `RegisterPetOwnerRequest` → `CurrentUserResponse` | Creates `User` + linked `PetOwner` atomically; 201 |
-| POST | `/register/organization` | Public | `RegisterOrganizationRequest` → `CurrentUserResponse` | Creates `Organization` (Pending) + initial `ClinicManager` atomically; 201 |
+| POST | `/register/organization` | Public | `RegisterOrganizationRequest` → `CurrentUserResponse` | Creates `Organization` (Pending) + initial `ClinicManager` atomically; 201; optional `latitude`/`longitude` (both-or-neither; lat ∈ [-90,90], lng ∈ [-180,180]) stores the clinic's map location |
 | PUT | `/change-password` | Any authenticated | `ChangePasswordRequest` | Clears `MustChangePassword` |
 | PUT | `/profile` | Any authenticated | `UpdateProfileRequest` → `CurrentUserResponse` | |
 
@@ -48,7 +48,9 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 
 | Method | Route | Roles | Body | Notes |
 |---|---|---|---|---|
-| POST | `/` | Owner, CM, Admin | `CreateConsultationRequestDto` | Pet/owner identity bound server-side |
+| POST | `/` | Owner, CM, Admin | `CreateConsultationRequestDto` | Pet/owner identity bound server-side; **organizationId + date + hour-aligned slot start are mandatory** (400 otherwise); the org's slot capacity is checked → 409 "This appointment slot is no longer available. Please select another time." |
+| POST | `/{id}/assign` | **CM, Admin** | `AssignVeterinarianRequest` → `AppointmentResponse` | `{veterinarianId, date, startTime, endTime, notes?}` — creates the slot + `Confirmed` appointment (`Type` Initial/FollowUp, `ConsultationRequestId` link), request → `AppointmentConfirmed` + history row; 409 on overlap/inactive vet/illegal status |
+| POST | `/follow-up` | **Vet, Admin** | `CreateFollowUpRequest` → `ConsultationRequestDto` (201) | `{petId, examinationId?, preferredDate, reason, notes?}` — `RequestType=FollowUp`, `Submitted`, `RequestedByVeterinarianId` resolved from JWT |
 | GET | `/` | Owner, Vet, CM, Admin | — | Owner: own only |
 | GET | `/owner/{ownerId}` | Owner, Vet, CM, Admin | — | |
 | GET | `/{id}` | Owner, Vet, CM, Admin | — | |
@@ -56,7 +58,10 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | PUT | `/{id}` | Owner, CM, Admin | `UpdateConsultationRequestDto` | |
 | POST | `/{id}/submit` | Owner, CM, Admin | — | Status transition |
 | PATCH | `/{id}/cancel` | Owner, CM, Admin | — | Status transition |
-| GET | `/nearest-clinic` | Any authenticated | — | Utility lookup |
+| GET | `/nearest-clinic?latitude&longitude` | Any authenticated | `?latitude&longitude` → `{id,name,address,latitude,longitude,distanceKm}` | Real nearest active org with coordinates (Haversine); 400 invalid coords; 404 when no located clinic exists |
+| GET | `/nearby-clinics?latitude&longitude&radiusKm=50` | Any authenticated | `?latitude&longitude&radiusKm` → `NearbyClinicResponse[]` | Active + `IsActive` orgs with coordinates only; `[{id,name,address,city,latitude,longitude,distanceKm}]` sorted nearest-first; 400 invalid coords or `radiusKm <= 0` |
+| GET | `/availability?organizationId&date[&veterinarianId]` | Any authenticated | → `{date,isPast,slots:[{start,end,available,availableVeterinarianIds}]}` | Nine fixed 1-hour slots (09:00–18:00) for one org/day; `veterinarianId` narrows to that vet (assign flow) |
+| GET | `/availability/month?organizationId&year&month` | Any authenticated | → `[{date,available,fullyBooked,isPast}]` | Per-day availability overview for the booking calendar |
 | GET | `/validate-ownership` | Owner, Vet, CM, Admin | — | Ownership probe |
 
 ## Examinations — `api/examinations`
@@ -66,7 +71,7 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | GET | `/` | Vet, CM, Admin | — | Org-scoped |
 | GET | `/{id}` | Owner (own) + Vet, CM, Admin | — | |
 | GET | `/pet/{petId}` | Owner (own) + Vet, CM, Admin | — | |
-| POST | `/` | Vet, Admin | `CreateExaminationDto` | ConsultationRequest + vet must be in-scope |
+| POST | `/` | Vet, Admin | `CreateExaminationDto` | Accepts `appointmentId` + `veterinarianCharge` — completing an appointment marks it + slot `Completed` and inherits pet/consultation links; Vet caller's own profile forced server-side via `Veterinarian.UserId` (client `VeterinarianId` ignored; unlinked vet → 403) |
 | PUT | `/{id}` | Vet, Admin | `UpdateExaminationDto` | |
 | DELETE | `/{id}` | Vet, Admin | — | |
 | GET | `/{id}/recommendations` | Vet, CM, Admin | — | |
@@ -101,7 +106,10 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | GET | `/` | Vet, CM, Admin | — | |
 | GET | `/{id}` | Owner (own) + Vet, CM, Admin | — | |
 | GET | `/treatment/{treatmentRecordId}` | Owner (own) + Vet, CM, Admin | — | |
-| POST | `/` | Vet, Admin | `CreatePrescriptionDto` | |
+| POST | `/` | Vet, Admin | `CreatePrescriptionDto` | Accepts `quantity`, `frequency`, `instructions`; `RequestStatus` starts `Pending` = the medicine request |
+| GET | `/requests?status=` | Vet, CM, IO, Admin | — | Medicine-request queue (Pending/Issued/Unavailable), newest first |
+| POST | `/{id}/issue` | **IO, Admin** | — → `PrescriptionResponseDto` | Reserve + dispense atomically via stock rules; 409 insufficient stock (never negative); sets `Issued` + `ReservationId` + processed audit fields, then refreshes the bill |
+| POST | `/{id}/unavailable` | **IO, Admin** | `{reason}` (required) → `PrescriptionResponseDto` | `RequestStatus` → `Unavailable`; 400 empty reason, 409 non-Pending |
 | DELETE | `/{id}` | Vet, Admin | — | |
 
 ## Medicines — `api/medicines`
@@ -137,7 +145,9 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 
 | Method | Route | Roles | Body | Notes |
 |---|---|---|---|---|
-| GET | `/`, `/{id}` | Vet, CM, Admin | — | Org-scoped (via Veterinarian) |
+| GET | `/` | Vet, CM, Admin | — | Org-scoped (via Veterinarian) |
+| GET | `/mine?status=&from=&to=&petId=` | Owner, Vet, CM, Admin | — | Vet: own schedule; Owner: own pets' appointments; CM/Admin: org list |
+| GET | `/{id}` | Owner (own) + Vet, CM, Admin | — | Owner: own pets only → 404 otherwise |
 | POST | `/` | CM, Admin | `CreateAppointmentRequest` | `PetId` is the string Pet id (`PET-…`); 409 on vet double-booking |
 | PUT | `/{id}` | CM, Admin | `UpdateAppointmentRequest` | |
 | DELETE | `/{id}` | CM, Admin | — | |
@@ -148,7 +158,10 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 
 | Method | Route | Roles | Body | Notes |
 |---|---|---|---|---|
-| GET | `/`, `/{id}` | Vet, CM, Admin | — | Org-scoped |
+| GET | `/` | Vet, CM, IO, Admin | — | Org-scoped; bills generated from examinations live here too (`Status=Finalised`, `PaymentStatus`, derived `InvoiceNumber = INV-<8-hex>`) |
+| GET | `/mine` | **Owner only** | — | The caller's bills for their own pets |
+| GET | `/{id}` | Owner (own) + Vet, CM, IO, Admin | — | Owner: own pets only → 404 otherwise |
+| POST | `/{id}/mark-paid` | **IO, Admin** | — → `QuotationResponse` | `Finalised` + `Pending` → `Paid` + `PaidAt`/`PaidByUserId`; Vet/CM → 403; else 409 |
 | POST | `/` | CM, Admin | `CreateQuotationRequest` | Totals recomputed server-side |
 | PUT | `/{id}` | CM, Admin | `UpdateQuotationRequest` | Draft only — approved/finalized are read-only |
 | POST | `/{id}/calculate` | CM, Admin | — | |
@@ -160,7 +173,7 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | Method | Route | Roles | Body | Notes |
 |---|---|---|---|---|
 | GET | `/pending`, `/{id}`, `/{id}/history` | Vet, CM, Admin | — | |
-| POST | `/{id}/approve` | **CM only** | `ApproveRequest` | `ReviewedBy` bound server-side from JWT — client value ignored |
+| POST | `/{id}/approve` | **CM only** | `ApproveRequest` | `ReviewedBy` resolved from the JWT tenant identity (request-body value is fallback only) |
 | POST | `/{id}/reject` | **CM only** | `RejectRequest` | Comment required |
 | POST | `/{id}/revision` | **CM only** | `RequestRevisionRequest` | Comment required |
 
@@ -168,16 +181,28 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 
 | Method | Route | Body → Response | Notes |
 |---|---|---|---|
-| GET | `/users` | — → `AdminUserResponse[]` | All platform users |
+| GET | `/users` | — → `AdminUserResponse[]` | All platform users — includes manager-created staff |
 | PATCH | `/users/{id}/status` | `UpdateUserStatusRequest` → `AdminUserResponse` | Cannot deactivate self |
-| **POST** | **`/users/veterinarians`** | `CreateStaffUserRequest` → `CreateStaffUserResponse` | Creates `Role=Veterinarian`; org must exist + be Active; `MustChangePassword=true`; one-time `temporaryPassword` in response; 400 dup email / inactive org, 404 unknown org |
-| **POST** | **`/users/inventory-officers`** | `CreateStaffUserRequest` → `CreateStaffUserResponse` | Same, `Role=InventoryOfficer` |
 | GET | `/organizations` | — → `AdminOrganizationResponse[]` | |
 | PATCH | `/organizations/{id}/status` | `UpdateOrganizationStatusRequest` → `AdminOrganizationResponse` | Active/Rejected/Suspended/Inactive; reason required for Rejected/Suspended |
 | GET | `/roles` | — → `string[]` | Role catalog |
 | GET | `/system` | — → `AdminSystemInfoResponse` | Counts by role/status |
 
-`CreateStaffUserRequest`: `{ firstName, lastName, email, phoneNumber?, organizationId }` — **no role field**; role is fixed by the endpoint. There is no generic `POST /api/admin/users` and no role-reassignment endpoint by design.
+The Administrator manages users and organizations but **does not create staff accounts** — that is the ClinicManager's job (below).
+
+## Manager self-administration — `api/manager` — **ClinicManager only**
+
+| Method | Route | Body → Response | Notes |
+|---|---|---|---|
+| GET | `/veterinarians` | — → `ManagerVeterinarianResponse[]` | **Active** veterinarians in the caller's own org |
+| GET | `/veterinarians/{id}/history?from=&to=` | — → `VeterinarianHistoryResponse` | Per-vet work history: appointment counts (completed/upcoming/cancelled) + lists, examinations (initial/follow-up), prescriptions, medicine-request counts (pending/issued/unavailable), bills (totals, paid/pending); 404 vet not in org |
+| **POST** | **`/users/veterinarians`** | `ManagerCreateStaffRequest` → `CreatedStaffAccountResponse` | Creates `Role=Veterinarian` inside the caller's own org **plus a linked `Veterinarian` profile row** (`UserId` bound) |
+| **POST** | **`/users/inventory-officers`** | `ManagerCreateStaffRequest` → `CreatedStaffAccountResponse` | Same, `Role=InventoryOfficer` |
+
+`ManagerCreateStaffRequest`: `{ firstName, lastName, email, phoneNumber? }` — **no role and no `organizationId` field at all**: the role is fixed by the endpoint and the organization is resolved server-side from the manager's JWT identity (`User.OrganizationId` via `ITenantContext`). A manager can never create an account in another organization.
+
+- `MustChangePassword=true`, `Active=true`; response carries a one-time `temporaryPassword`
+- 400 duplicate email / validation · 401 unauthenticated · 403 non-ClinicManager, unscoped manager, or non-Active org
 
 ## Lookups — `api/lookups`
 
@@ -185,6 +210,7 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 |---|---|---|---|
 | GET | `/pets` | Vet, CM, Admin | Compact pet list for pickers |
 | GET | `/medicines` | Vet, CM, IO, Admin | |
+| GET | `/organizations` | Any authenticated | Active orgs an owner can book at — `{id,name,city,address,latitude,longitude}`; coordinates are `null` until a clinic registers a location (marker source for the owner map) |
 
 ## AI-related endpoints
 

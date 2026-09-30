@@ -73,6 +73,11 @@ public class ExceptionHandlingMiddleware
                 "Organization pending verification.",
                 null),
 
+            ForbiddenException forbidden => (
+                HttpStatusCode.Forbidden,
+                forbidden.Message,
+                null),
+
             InventoryConflictException inventoryConflict => (
                 HttpStatusCode.Conflict,
                 "The request conflicts with an existing inventory business rule.",

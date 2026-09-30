@@ -27,11 +27,20 @@ public class AppointmentsController : ControllerBase
     private const string ManageRoles =
         $"{Roles.ClinicManager},{Roles.SuperAdmin}";
 
-    private readonly ISchedulingService _schedulingService;
+    // By-id/self views also allow the owning PetOwner (ownership is checked
+    // inside the action).
+    private const string OwnerOrStaffReadRoles =
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin},{Roles.PetOwner}";
 
-    public AppointmentsController(ISchedulingService schedulingService)
+    private readonly ISchedulingService _schedulingService;
+    private readonly IOwnerAccessService _ownerAccess;
+
+    public AppointmentsController(
+        ISchedulingService schedulingService,
+        IOwnerAccessService ownerAccess)
     {
         _schedulingService = schedulingService;
+        _ownerAccess = ownerAccess;
     }
 
     /// <summary>Gets all appointments.</summary>
@@ -44,15 +53,45 @@ public class AppointmentsController : ControllerBase
         return Ok(appointments);
     }
 
+    /// <summary>
+    /// Appointments relevant to the caller: veterinarians see their own
+    /// schedule, owners see appointments for their pets, managers/admins see
+    /// the organization list.
+    /// </summary>
+    [HttpGet("mine")]
+    [Authorize(Roles = OwnerOrStaffReadRoles)]
+    [ProducesResponseType(typeof(IReadOnlyList<AppointmentResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<AppointmentResponse>>> GetMyAppointments(
+        [FromQuery] string? status,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] string? petId,
+        CancellationToken cancellationToken)
+    {
+        var appointments = await _schedulingService.GetMyAppointmentsAsync(status, from, to, petId, cancellationToken);
+        return Ok(appointments);
+    }
+
     /// <summary>Gets a single appointment by id.</summary>
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = ReadRoles)]
+    [Authorize(Roles = OwnerOrStaffReadRoles)]
     [ProducesResponseType(typeof(AppointmentResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AppointmentResponse>> GetAppointmentById(Guid id, CancellationToken cancellationToken)
     {
         var appointment = await _schedulingService.GetAppointmentByIdAsync(id, cancellationToken);
-        return appointment is null ? NotFound() : Ok(appointment);
+        if (appointment is null)
+        {
+            return NotFound();
+        }
+
+        // A pet owner may only read appointments for their own pets.
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(appointment.PetId))
+        {
+            return NotFound();
+        }
+
+        return Ok(appointment);
     }
 
     /// <summary>

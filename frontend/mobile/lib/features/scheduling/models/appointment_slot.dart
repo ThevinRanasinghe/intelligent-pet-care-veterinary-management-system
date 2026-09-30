@@ -39,6 +39,15 @@ class Appointment {
   final String scheduledEnd;
   final String status;
   final String? notes;
+  // Workflow-redesign denormalised fields (optional).
+  final String? consultationRequestId;
+  /// 'Initial' | 'FollowUp'.
+  final String? type;
+  final String? petName;
+  final String? ownerName;
+  final String? veterinarianName;
+  final String? symptoms;
+  final String? examinationId;
   final String createdAt;
   final String updatedAt;
 
@@ -51,6 +60,13 @@ class Appointment {
     required this.scheduledEnd,
     required this.status,
     this.notes,
+    this.consultationRequestId,
+    this.type,
+    this.petName,
+    this.ownerName,
+    this.veterinarianName,
+    this.symptoms,
+    this.examinationId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -65,6 +81,13 @@ class Appointment {
       scheduledEnd: json['scheduledEnd'] as String,
       status: json['status'] as String,
       notes: json['notes'] as String?,
+      consultationRequestId: json['consultationRequestId'] as String?,
+      type: json['type'] as String?,
+      petName: json['petName'] as String?,
+      ownerName: json['ownerName'] as String?,
+      veterinarianName: json['veterinarianName'] as String?,
+      symptoms: json['symptoms'] as String?,
+      examinationId: json['examinationId'] as String?,
       createdAt: json['createdAt'] as String,
       updatedAt: json['updatedAt'] as String,
     );

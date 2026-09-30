@@ -18,6 +18,9 @@ public interface ITenantContext
     /// <summary>The authenticated caller's user id (JWT sub), if present.</summary>
     Guid? UserId { get; }
 
+    /// <summary>True when the caller carries the given role claim.</summary>
+    bool IsInRole(string role);
+
     /// <summary>True when the caller is the platform Administrator.</summary>
     bool IsPlatformAdmin { get; }
 

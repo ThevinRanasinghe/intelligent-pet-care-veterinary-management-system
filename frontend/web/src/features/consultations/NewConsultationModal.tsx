@@ -6,7 +6,6 @@ import {
   CalendarDays,
   Clock3,
   MapPin,
-  Navigation,
 } from "lucide-react";
 
 import {
@@ -15,8 +14,21 @@ import {
   consultationService,
   Pet,
   ConsultationRequestApi,
-  NearestClinicApi,
 } from "../../services/api";
+import {
+  lookupsService,
+  DayAvailability,
+  MonthAvailabilityDay,
+  OrganizationLookup,
+} from "../../services/lookupsService";
+import { messageFrom } from "../../utils/errors";
+import { ClinicMap } from "../shared/maps/ClinicMap";
+import {
+  BookingCalendar,
+  currentMonth,
+  VisibleMonth,
+} from "../shared/booking/BookingCalendar";
+import { SlotPicker } from "../shared/booking/SlotPicker";
 import { useAuth } from "../auth/AuthContext";
 
 /* ============================================================
@@ -25,12 +37,10 @@ import { useAuth } from "../auth/AuthContext";
 
 type NewConsultationForm = {
   petId: string;
+  organizationId: string;
   symptoms: string;
   urgency: string;
-  preferredDate: string;
-  preferredTime: string;
   budget: string;
-  clinic: string;
   additionalNotes: string;
 };
 
@@ -50,14 +60,55 @@ type NewConsultationModalProps = {
 
 const initialForm: NewConsultationForm = {
   petId: "",
+  organizationId: "",
   symptoms: "",
   urgency: "Medium",
-  preferredDate: "",
-  preferredTime: "",
   budget: "",
-  clinic: "",
   additionalNotes: "",
 };
+
+const inputStyle = {
+  width: "100%",
+  height: "42px",
+  padding: "0 12px",
+  border: "1px solid #d8d8d2",
+  borderRadius: "8px",
+  background: "#ffffff",
+  color: "#222222",
+  fontSize: "12px",
+  outline: "none",
+} as const;
+
+const textareaStyle = {
+  width: "100%",
+  padding: "11px 12px",
+  resize: "vertical",
+  border: "1px solid #d8d8d2",
+  borderRadius: "8px",
+  background: "#ffffff",
+  color: "#222222",
+  fontSize: "12px",
+  lineHeight: 1.5,
+  outline: "none",
+} as const;
+
+const labelStyle = {
+  display: "block",
+  marginBottom: "6px",
+  fontSize: "11px",
+  fontWeight: 700,
+  color: "#4b4b4b",
+} as const;
+
+const sectionTitleStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "7px",
+  marginBottom: "12px",
+  fontSize: "12px",
+  fontWeight: 800,
+  color: "#242424",
+} as const;
 
 /* ============================================================
    COMPONENT
@@ -72,25 +123,29 @@ export function NewConsultationModal({
   const [form, setForm] = useState<NewConsultationForm>(initialForm);
 
   const [pets, setPets] = useState<Pet[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationLookup[]>([]);
 
   const [loadingPets, setLoadingPets] = useState(false);
+  const [loadingOrganizations, setLoadingOrganizations] = useState(false);
+
+  // Booking calendar state
+  const [visibleMonth, setVisibleMonth] = useState<VisibleMonth>(currentMonth());
+  const [monthDays, setMonthDays] = useState<MonthAvailabilityDay[] | null>(null);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dayAvailability, setDayAvailability] = useState<DayAvailability | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
-
   const [error, setError] = useState("");
 
-  // GPS location
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-
-  const [nearestClinic, setNearestClinic] = useState<NearestClinicApi | null>(
-    null,
+  const selectedOrganization = organizations.find(
+    (organization) => organization.id === form.organizationId,
   );
 
-  const [loadingNearestClinic, setLoadingNearestClinic] = useState(false);
-
   /* ============================================================
-     LOAD REGISTERED PETS
+     LOAD REGISTERED PETS + ACTIVE ORGANIZATIONS
      ============================================================ */
 
   useEffect(() => {
@@ -139,12 +194,95 @@ export function NewConsultationModal({
       }
     };
 
+    const loadOrganizations = async () => {
+      try {
+        setLoadingOrganizations(true);
+        const data = await lookupsService.getActiveOrganizations();
+        if (mounted) {
+          setOrganizations(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error("Failed to load organizations:", err);
+        if (mounted) {
+          setOrganizations([]);
+          setError("Unable to load available clinics.");
+        }
+      } finally {
+        if (mounted) {
+          setLoadingOrganizations(false);
+        }
+      }
+    };
+
     loadPets();
+    loadOrganizations();
 
     return () => {
       mounted = false;
     };
   }, [isOpen, user]);
+
+  /* ============================================================
+     MONTH AVAILABILITY (per organization)
+     ============================================================ */
+
+  useEffect(() => {
+    if (!isOpen || !form.organizationId) {
+      setMonthDays(null);
+      return;
+    }
+
+    let mounted = true;
+    setLoadingMonth(true);
+
+    lookupsService
+      .getMonthAvailability(form.organizationId, visibleMonth.year, visibleMonth.month)
+      .then((days) => {
+        if (mounted) setMonthDays(days);
+      })
+      .catch((err) => {
+        console.error("Failed to load month availability:", err);
+        if (mounted) setMonthDays(null);
+      })
+      .finally(() => {
+        if (mounted) setLoadingMonth(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen, form.organizationId, visibleMonth]);
+
+  /* ============================================================
+     DAY AVAILABILITY (slots for the selected date)
+     ============================================================ */
+
+  useEffect(() => {
+    if (!isOpen || !form.organizationId || !selectedDate) {
+      setDayAvailability(null);
+      return;
+    }
+
+    let mounted = true;
+    setLoadingSlots(true);
+
+    lookupsService
+      .getAvailability(form.organizationId, selectedDate)
+      .then((availability) => {
+        if (mounted) setDayAvailability(availability);
+      })
+      .catch((err) => {
+        console.error("Failed to load day availability:", err);
+        if (mounted) setDayAvailability(null);
+      })
+      .finally(() => {
+        if (mounted) setLoadingSlots(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen, form.organizationId, selectedDate]);
 
   /* ============================================================
      ESC KEY
@@ -181,61 +319,25 @@ export function NewConsultationModal({
     if (error) {
       setError("");
     }
+
+    // A different clinic means a different availability map.
+    if (field === "organizationId") {
+      setSelectedDate(null);
+      setSelectedSlot(null);
+      setDayAvailability(null);
+      setMonthDays(null);
+    }
   };
 
-  /* ============================================================
-     GET CURRENT LOCATION
-     ============================================================ */
+  const handleSelectDate = (iso: string) => {
+    setSelectedDate(iso);
+    setSelectedSlot(null);
+    if (error) setError("");
+  };
 
-  const handleGetLocation = () => {
-    if (!navigator.geolocation) {
-      setError("Geolocation is not supported by this browser.");
-      return;
-    }
-
-    setError("");
-    setNearestClinic(null);
-    setLoadingNearestClinic(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const currentLatitude = position.coords.latitude;
-        const currentLongitude = position.coords.longitude;
-
-        setLatitude(currentLatitude);
-        setLongitude(currentLongitude);
-
-        try {
-          const clinic = await consultationService.getNearestClinic(
-            currentLatitude,
-            currentLongitude,
-          );
-
-          setNearestClinic(clinic);
-
-          // Automatically select the nearest clinic
-          setForm((previous) => ({
-            ...previous,
-            clinic: clinic.name,
-          }));
-        } catch (err) {
-          console.error("Failed to find nearest clinic:", err);
-
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to find the nearest clinic.",
-          );
-        } finally {
-          setLoadingNearestClinic(false);
-        }
-      },
-      () => {
-        setLoadingNearestClinic(false);
-
-        setError("Unable to get your location. Please allow location access.");
-      },
-    );
+  const handleSelectSlot = (start: string) => {
+    setSelectedSlot(start);
+    if (error) setError("");
   };
 
   /* ============================================================
@@ -244,10 +346,11 @@ export function NewConsultationModal({
 
   const resetForm = () => {
     setForm(initialForm);
-    setLatitude(null);
-    setLongitude(null);
-    setNearestClinic(null);
-    setLoadingNearestClinic(false);
+    setSelectedDate(null);
+    setSelectedSlot(null);
+    setDayAvailability(null);
+    setMonthDays(null);
+    setVisibleMonth(currentMonth());
     setError("");
   };
 
@@ -268,6 +371,9 @@ export function NewConsultationModal({
      SUBMIT CONSULTATION
      ============================================================ */
 
+  const canSubmit =
+    !!form.petId && !!form.organizationId && !!selectedDate && !!selectedSlot;
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -276,10 +382,6 @@ export function NewConsultationModal({
     }
 
     setError("");
-
-    /* ----------------------------------------------------------
-       Validate Pet
-       ---------------------------------------------------------- */
 
     if (!form.petId) {
       setError("Please select a registered pet.");
@@ -293,36 +395,25 @@ export function NewConsultationModal({
       return;
     }
 
-    /* ----------------------------------------------------------
-       Validate Symptoms
-       ---------------------------------------------------------- */
+    if (!form.organizationId) {
+      setError("Please select a clinic.");
+      return;
+    }
+
+    if (!selectedDate) {
+      setError("Please pick a date for the consultation.");
+      return;
+    }
+
+    if (!selectedSlot) {
+      setError("Please pick a time slot for the consultation.");
+      return;
+    }
 
     if (!form.symptoms.trim()) {
       setError("Please describe the pet's symptoms.");
       return;
     }
-
-    /* ----------------------------------------------------------
-       Validate Date
-       ---------------------------------------------------------- */
-
-    if (!form.preferredDate) {
-      setError("Please select a preferred date.");
-      return;
-    }
-
-    /* ----------------------------------------------------------
-       Validate Time
-       ---------------------------------------------------------- */
-
-    if (!form.preferredTime) {
-      setError("Please select a preferred time.");
-      return;
-    }
-
-    /* ----------------------------------------------------------
-       Validate Budget
-       ---------------------------------------------------------- */
 
     if (form.budget.trim()) {
       const budget = Number(form.budget);
@@ -332,10 +423,6 @@ export function NewConsultationModal({
         return;
       }
     }
-
-    /* ----------------------------------------------------------
-       Validate Owner
-       ---------------------------------------------------------- */
 
     if (!selectedPet.ownerId) {
       setError("This pet does not have a valid owner.");
@@ -360,20 +447,9 @@ export function NewConsultationModal({
       }
 
       /* ========================================================
-         STEP 2 - COMBINE DATE + TIME
-         ======================================================== */
-
-      const dateTimeString = `${form.preferredDate}T${form.preferredTime}:00`;
-
-      const preferredDate = new Date(dateTimeString);
-
-      if (Number.isNaN(preferredDate.getTime())) {
-        setError("Please enter a valid date and time.");
-        return;
-      }
-
-      /* ========================================================
-         STEP 3 - CREATE CONSULTATION
+         STEP 2 - CREATE CONSULTATION
+         The end time is never sent — the server books exactly one
+         hour from the selected slot start.
          ======================================================== */
 
       const createdConsultation = await consultationService.createConsultation({
@@ -381,27 +457,25 @@ export function NewConsultationModal({
 
         ownerId: selectedPet.ownerId,
 
+        organizationId: form.organizationId,
+
         symptoms: form.symptoms.trim(),
 
         urgency: form.urgency,
 
-        preferredDate: preferredDate.toISOString(),
+        preferredDate: selectedDate,
 
-        preferredTime: form.preferredTime ? `${form.preferredTime}:00` : null,
+        preferredTime: `${selectedSlot}:00`,
 
         budget: form.budget.trim() ? Number(form.budget) : null,
 
         symptomPhotoUrl: null,
 
-        latitude,
-
-        longitude,
-
         additionalNotes: form.additionalNotes.trim() || null,
       });
 
       /* ========================================================
-         STEP 4 - SEND RESULT TO PARENT
+         STEP 3 - SEND RESULT TO PARENT
          ======================================================== */
 
       onSubmit(createdConsultation);
@@ -412,12 +486,9 @@ export function NewConsultationModal({
     } catch (err) {
       console.error("Failed to create consultation:", err);
 
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to create consultation request.";
-
-      setError(message);
+      // messageFrom surfaces ProblemDetails.detail — a 409 slot conflict
+      // shows "This appointment slot is no longer available. …"
+      setError(messageFrom(err) || "Failed to create consultation request.");
     } finally {
       setSubmitting(false);
     }
@@ -498,8 +569,6 @@ export function NewConsultationModal({
             flexShrink: 0,
           }}
         >
-          {/* Header left */}
-
           <div
             style={{
               display: "flex",
@@ -507,8 +576,6 @@ export function NewConsultationModal({
               gap: "12px",
             }}
           >
-            {/* Icon */}
-
             <div
               style={{
                 width: "44px",
@@ -523,8 +590,6 @@ export function NewConsultationModal({
             >
               <PawPrint size={23} />
             </div>
-
-            {/* Text */}
 
             <div>
               <div
@@ -559,7 +624,7 @@ export function NewConsultationModal({
                   color: "#777777",
                 }}
               >
-                Submit a consultation request for a registered pet.
+                Pick a clinic, a date and a one-hour slot.
               </p>
             </div>
           </div>
@@ -615,6 +680,7 @@ export function NewConsultationModal({
 
             {error && (
               <div
+                role="alert"
                 style={{
                   marginBottom: "18px",
                   padding: "12px 14px",
@@ -634,100 +700,41 @@ export function NewConsultationModal({
                 PET INFORMATION
                 ================================================== */}
 
-            <div
-              style={{
-                marginBottom: "20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "7px",
-                  marginBottom: "12px",
-                  fontSize: "12px",
-                  fontWeight: 800,
-                  color: "#242424",
-                }}
-              >
+            <div style={{ marginBottom: "20px" }}>
+              <div style={sectionTitleStyle}>
                 <PawPrint size={16} />
                 <span>Pet Information</span>
               </div>
 
-              <label
-                htmlFor="consultation-pet"
-                style={{
-                  display: "block",
-                  marginBottom: "6px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "#4b4b4b",
-                }}
-              >
+              <label htmlFor="consultation-pet" style={labelStyle}>
                 Registered Pet
-                <span
-                  style={{
-                    color: "#c62828",
-                    marginLeft: "3px",
-                  }}
-                >
-                  *
-                </span>
+                <span style={{ color: "#c62828", marginLeft: "3px" }}>*</span>
               </label>
 
-              <div
-                style={{
-                  position: "relative",
-                }}
+              <select
+                id="consultation-pet"
+                name="petId"
+                aria-label="Registered Pet"
+                value={form.petId}
+                onChange={(event) => handleChange("petId", event.target.value)}
+                disabled={loadingPets || submitting}
+                style={inputStyle}
               >
-                <PawPrint
-                  size={16}
-                  style={{
-                    position: "absolute",
-                    left: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#8a8a8a",
-                    pointerEvents: "none",
-                  }}
-                />
+                <option value="">
+                  {loadingPets
+                    ? "Loading registered pets..."
+                    : "Select a registered pet"}
+                </option>
 
-                <select
-                  id="consultation-pet"
-                  name="petId"
-                  value={form.petId}
-                  onChange={(event) =>
-                    handleChange("petId", event.target.value)
-                  }
-                  disabled={loadingPets || submitting}
-                  style={{
-                    width: "100%",
-                    height: "42px",
-                    padding: "0 12px 0 38px",
-                    border: "1px solid #d8d8d2",
-                    borderRadius: "8px",
-                    background: "#ffffff",
-                    color: "#222222",
-                    fontSize: "12px",
-                    outline: "none",
-                  }}
-                >
-                  <option value="">
-                    {loadingPets
-                      ? "Loading registered pets..."
-                      : "Select a registered pet"}
+                {pets.map((pet) => (
+                  <option key={pet.id} value={pet.id}>
+                    {pet.name}
+                    {" — "}
+                    {pet.species}
+                    {pet.breed ? ` — ${pet.breed}` : ""}
                   </option>
-
-                  {pets.map((pet) => (
-                    <option key={pet.id} value={pet.id}>
-                      {pet.name}
-                      {" — "}
-                      {pet.species}
-                      {pet.breed ? ` — ${pet.breed}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                ))}
+              </select>
 
               <p
                 style={{
@@ -741,14 +748,140 @@ export function NewConsultationModal({
             </div>
 
             {/* ==================================================
+                CLINIC (ORGANIZATION)
+                ================================================== */}
+
+            <div style={{ marginBottom: "20px" }}>
+              <div style={sectionTitleStyle}>
+                <MapPin size={16} />
+                <span>Select Clinic</span>
+              </div>
+
+              {!loadingOrganizations && organizations.length > 0 && (
+                <div style={{ marginBottom: "12px" }}>
+                  <ClinicMap
+                    clinics={organizations}
+                    selectedId={form.organizationId}
+                    onSelect={(clinic) =>
+                      handleChange("organizationId", clinic.id)
+                    }
+                  />
+                </div>
+              )}
+
+              {selectedOrganization && (
+                <div
+                  data-testid="selected-clinic-card"
+                  style={{
+                    marginBottom: "12px",
+                    padding: "10px 12px",
+                    border: "1px solid #eadf9c",
+                    borderRadius: "9px",
+                    background: "#fffbea",
+                    fontSize: "12px",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#242424" }}>
+                    {selectedOrganization.name}
+                  </div>
+                  {selectedOrganization.address && (
+                    <div style={{ marginTop: "3px", color: "#666666" }}>
+                      {selectedOrganization.address}
+                    </div>
+                  )}
+                  <div style={{ marginTop: "3px", color: "#9a7200", fontSize: "10px" }}>
+                    Organization ID: {selectedOrganization.id}
+                  </div>
+                </div>
+              )}
+
+              <label htmlFor="consultation-organization" style={labelStyle}>
+                Clinic / Organization
+                <span style={{ color: "#c62828", marginLeft: "3px" }}>*</span>
+              </label>
+
+              <select
+                id="consultation-organization"
+                name="organizationId"
+                aria-label="Clinic / Organization"
+                value={form.organizationId}
+                onChange={(event) =>
+                  handleChange("organizationId", event.target.value)
+                }
+                disabled={loadingOrganizations || submitting}
+                style={inputStyle}
+              >
+                <option value="">
+                  {loadingOrganizations
+                    ? "Loading clinics..."
+                    : "Select a clinic"}
+                </option>
+
+                {organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>
+                    {organization.name}
+                    {organization.city ? ` — ${organization.city}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* ==================================================
+                DATE (MONTH CALENDAR)
+                ================================================== */}
+
+            <div style={{ marginBottom: "20px" }}>
+              <div style={sectionTitleStyle}>
+                <CalendarDays size={16} />
+                <span>Consultation Date</span>
+              </div>
+
+              {!form.organizationId ? (
+                <div className="booking-slots-hint">
+                  Select a clinic first to see available dates.
+                </div>
+              ) : (
+                <BookingCalendar
+                  visibleMonth={visibleMonth}
+                  days={monthDays}
+                  loading={loadingMonth}
+                  selectedDate={selectedDate}
+                  onSelectDate={handleSelectDate}
+                  onMonthChange={setVisibleMonth}
+                />
+              )}
+            </div>
+
+            {/* ==================================================
+                TIME (FIXED ONE-HOUR SLOTS)
+                ================================================== */}
+
+            <div style={{ marginBottom: "20px" }}>
+              <div style={sectionTitleStyle}>
+                <Clock3 size={16} />
+                <span>Time Slot (one hour)</span>
+              </div>
+
+              <SlotPicker
+                slots={dayAvailability?.slots ?? null}
+                selectedStart={selectedSlot}
+                onSelect={handleSelectSlot}
+                loading={loadingSlots}
+                emptyHint={
+                  !form.organizationId
+                    ? "Select a clinic and a date first."
+                    : !selectedDate
+                      ? "Select a date to see the available time slots."
+                      : "No availability information for this day."
+                }
+              />
+            </div>
+
+            {/* ==================================================
                 SYMPTOMS
                 ================================================== */}
 
-            <div
-              style={{
-                marginBottom: "20px",
-              }}
-            >
+            <div style={{ marginBottom: "20px" }}>
               <div
                 style={{
                   marginBottom: "12px",
@@ -760,25 +893,9 @@ export function NewConsultationModal({
                 Symptoms & Problem
               </div>
 
-              <label
-                htmlFor="consultation-symptoms"
-                style={{
-                  display: "block",
-                  marginBottom: "6px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "#4b4b4b",
-                }}
-              >
+              <label htmlFor="consultation-symptoms" style={labelStyle}>
                 Symptoms
-                <span
-                  style={{
-                    color: "#c62828",
-                    marginLeft: "3px",
-                  }}
-                >
-                  *
-                </span>
+                <span style={{ color: "#c62828", marginLeft: "3px" }}>*</span>
               </label>
 
               <textarea
@@ -791,300 +908,52 @@ export function NewConsultationModal({
                 disabled={submitting}
                 rows={4}
                 placeholder="Describe the symptoms or health problem..."
-                style={{
-                  width: "100%",
-                  minHeight: "100px",
-                  padding: "11px 12px",
-                  resize: "vertical",
-                  border: "1px solid #d8d8d2",
-                  borderRadius: "8px",
-                  background: "#ffffff",
-                  color: "#222222",
-                  fontSize: "12px",
-                  lineHeight: 1.5,
-                  outline: "none",
-                }}
+                style={{ ...textareaStyle, minHeight: "100px" }}
               />
             </div>
 
             {/* ==================================================
-                URGENCY
+                URGENCY + BUDGET
                 ================================================== */}
 
-            <div
-              style={{
-                marginBottom: "20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "7px",
-                  marginBottom: "12px",
-                  fontSize: "12px",
-                  fontWeight: 800,
-                  color: "#242424",
-                }}
-              >
+            <div style={{ marginBottom: "20px" }}>
+              <div style={sectionTitleStyle}>
                 <Clock3 size={16} />
-
-                <span>Request Priority</span>
-              </div>
-
-              <label
-                htmlFor="consultation-urgency"
-                style={{
-                  display: "block",
-                  marginBottom: "6px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "#4b4b4b",
-                }}
-              >
-                Urgency
-              </label>
-
-              <select
-                id="consultation-urgency"
-                name="urgency"
-                value={form.urgency}
-                onChange={(event) =>
-                  handleChange("urgency", event.target.value)
-                }
-                disabled={submitting}
-                style={{
-                  width: "100%",
-                  height: "42px",
-                  padding: "0 12px",
-                  border: "1px solid #d8d8d2",
-                  borderRadius: "8px",
-                  background: "#ffffff",
-                  color: "#222222",
-                  fontSize: "12px",
-                  outline: "none",
-                }}
-              >
-                <option value="Low">Low</option>
-
-                <option value="Medium">Medium</option>
-
-                <option value="High">High</option>
-
-                <option value="Emergency">Emergency</option>
-              </select>
-            </div>
-
-            {/* ==================================================
-                DATE + TIME
-                ================================================== */}
-
-            <div
-              style={{
-                marginBottom: "20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "7px",
-                  marginBottom: "12px",
-                  fontSize: "12px",
-                  fontWeight: 800,
-                  color: "#242424",
-                }}
-              >
-                <CalendarDays size={16} />
-
-                <span>Preferred Schedule</span>
+                <span>Request Priority & Budget</span>
               </div>
 
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))",
+                  gridTemplateColumns:
+                    "repeat(auto-fit, minmax(min(200px, 100%), 1fr))",
                   gap: "14px",
                 }}
               >
-                {/* DATE */}
-
                 <div>
-                  <label
-                    htmlFor="consultation-date"
-                    style={{
-                      display: "block",
-                      marginBottom: "6px",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#4b4b4b",
-                    }}
-                  >
-                    Preferred Date
-                    <span
-                      style={{
-                        color: "#c62828",
-                        marginLeft: "3px",
-                      }}
-                    >
-                      *
-                    </span>
+                  <label htmlFor="consultation-urgency" style={labelStyle}>
+                    Urgency
                   </label>
 
-                  <div
-                    style={{
-                      position: "relative",
-                    }}
+                  <select
+                    id="consultation-urgency"
+                    name="urgency"
+                    value={form.urgency}
+                    onChange={(event) =>
+                      handleChange("urgency", event.target.value)
+                    }
+                    disabled={submitting}
+                    style={inputStyle}
                   >
-                    <CalendarDays
-                      size={16}
-                      style={{
-                        position: "absolute",
-                        left: "12px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#8a8a8a",
-                        pointerEvents: "none",
-                      }}
-                    />
-
-                    <input
-                      id="consultation-date"
-                      name="preferredDate"
-                      type="date"
-                      value={form.preferredDate}
-                      onChange={(event) =>
-                        handleChange("preferredDate", event.target.value)
-                      }
-                      disabled={submitting}
-                      min={new Date().toISOString().split("T")[0]}
-                      style={{
-                        width: "100%",
-                        height: "42px",
-                        padding: "0 10px 0 38px",
-                        border: "1px solid #d8d8d2",
-                        borderRadius: "8px",
-                        background: "#ffffff",
-                        color: "#222222",
-                        fontSize: "12px",
-                        outline: "none",
-                      }}
-                    />
-                  </div>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Emergency">Emergency</option>
+                  </select>
                 </div>
 
-                {/* TIME */}
-
                 <div>
-                  <label
-                    htmlFor="consultation-time"
-                    style={{
-                      display: "block",
-                      marginBottom: "6px",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#4b4b4b",
-                    }}
-                  >
-                    Preferred Time
-                    <span
-                      style={{
-                        color: "#c62828",
-                        marginLeft: "3px",
-                      }}
-                    >
-                      *
-                    </span>
-                  </label>
-
-                  <div
-                    style={{
-                      position: "relative",
-                    }}
-                  >
-                    <Clock3
-                      size={16}
-                      style={{
-                        position: "absolute",
-                        left: "12px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#8a8a8a",
-                        pointerEvents: "none",
-                      }}
-                    />
-
-                    <input
-                      id="consultation-time"
-                      name="preferredTime"
-                      type="time"
-                      value={form.preferredTime}
-                      onChange={(event) =>
-                        handleChange("preferredTime", event.target.value)
-                      }
-                      disabled={submitting}
-                      style={{
-                        width: "100%",
-                        height: "42px",
-                        padding: "0 10px 0 38px",
-                        border: "1px solid #d8d8d2",
-                        borderRadius: "8px",
-                        background: "#ffffff",
-                        color: "#222222",
-                        fontSize: "12px",
-                        outline: "none",
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ==================================================
-                BUDGET + CLINIC
-                ================================================== */}
-
-            <div
-              style={{
-                marginBottom: "20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "7px",
-                  marginBottom: "12px",
-                  fontSize: "12px",
-                  fontWeight: 800,
-                  color: "#242424",
-                }}
-              >
-                <MapPin size={16} />
-
-                <span>Clinic & Budget</span>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))",
-                  gap: "14px",
-                }}
-              >
-                {/* BUDGET */}
-
-                <div>
-                  <label
-                    htmlFor="consultation-budget"
-                    style={{
-                      display: "block",
-                      marginBottom: "6px",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#4b4b4b",
-                    }}
-                  >
+                  <label htmlFor="consultation-budget" style={labelStyle}>
                     Budget Limit
                   </label>
 
@@ -1100,17 +969,7 @@ export function NewConsultationModal({
                     }
                     disabled={submitting}
                     placeholder="e.g. 15000"
-                    style={{
-                      width: "100%",
-                      height: "42px",
-                      padding: "0 12px",
-                      border: "1px solid #d8d8d2",
-                      borderRadius: "8px",
-                      background: "#ffffff",
-                      color: "#222222",
-                      fontSize: "12px",
-                      outline: "none",
-                    }}
+                    style={inputStyle}
                   />
 
                   <p
@@ -1123,176 +982,6 @@ export function NewConsultationModal({
                     Optional maximum budget in LKR.
                   </p>
                 </div>
-
-                {/* CLINIC */}
-
-                <div>
-                  <label
-                    htmlFor="consultation-clinic"
-                    style={{
-                      display: "block",
-                      marginBottom: "6px",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: "#4b4b4b",
-                    }}
-                  >
-                    Preferred Clinic
-                  </label>
-
-                  <div
-                    style={{
-                      position: "relative",
-                    }}
-                  >
-                    <MapPin
-                      size={16}
-                      style={{
-                        position: "absolute",
-                        left: "12px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#8a8a8a",
-                        pointerEvents: "none",
-                      }}
-                    />
-
-                    <input
-                      id="consultation-clinic"
-                      name="clinic"
-                      type="text"
-                      value={form.clinic}
-                      onChange={(event) =>
-                        handleChange("clinic", event.target.value)
-                      }
-                      disabled={submitting}
-                      placeholder="Enter preferred clinic"
-                      style={{
-                        width: "100%",
-                        height: "42px",
-                        padding: "0 12px 0 38px",
-                        border: "1px solid #d8d8d2",
-                        borderRadius: "8px",
-                        background: "#ffffff",
-                        color: "#222222",
-                        fontSize: "12px",
-                        outline: "none",
-                      }}
-                    />
-                  </div>
-
-                  <p
-                    style={{
-                      margin: "6px 0 0",
-                      fontSize: "10px",
-                      color: "#888888",
-                    }}
-                  >
-                    Clinic preference is currently kept in the consultation
-                    form.
-                  </p>
-
-                  {/* ==================================================
-                      GPS LOCATION + NEAREST CLINIC
-                      ================================================== */}
-
-                  <button
-                    type="button"
-                    onClick={handleGetLocation}
-                    disabled={submitting || loadingNearestClinic}
-                    style={{
-                      marginTop: "10px",
-                      height: "38px",
-                      padding: "0 14px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "7px",
-                      border: "1px solid #d6aa00",
-                      borderRadius: "8px",
-                      background: "#fffbea",
-                      color: "#735900",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      cursor:
-                        submitting || loadingNearestClinic
-                          ? "not-allowed"
-                          : "pointer",
-                      opacity: submitting || loadingNearestClinic ? 0.6 : 1,
-                    }}
-                  >
-                    <Navigation size={15} />
-
-                    {loadingNearestClinic
-                      ? "Finding nearest clinic..."
-                      : "Use My Location"}
-                  </button>
-
-                  {latitude !== null && longitude !== null && (
-                    <p
-                      style={{
-                        margin: "7px 0 0",
-                        fontSize: "10px",
-                        color: "#5f7a3a",
-                      }}
-                    >
-                      ✓ Location captured
-                    </p>
-                  )}
-
-                  {nearestClinic && (
-                    <div
-                      style={{
-                        marginTop: "10px",
-                        padding: "11px 12px",
-                        border: "1px solid #e8dfad",
-                        borderRadius: "9px",
-                        background: "#fffdf2",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          fontWeight: 800,
-                          color: "#735900",
-                          marginBottom: "5px",
-                        }}
-                      >
-                        Nearest Clinic
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          color: "#242424",
-                        }}
-                      >
-                        {nearestClinic.name}
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop: "3px",
-                          fontSize: "10px",
-                          color: "#777777",
-                        }}
-                      >
-                        {nearestClinic.address}
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop: "5px",
-                          fontSize: "10px",
-                          fontWeight: 700,
-                          color: "#5f7a3a",
-                        }}
-                      >
-                        {nearestClinic.distanceKm} km away
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -1300,11 +989,7 @@ export function NewConsultationModal({
                 ADDITIONAL NOTES
                 ================================================== */}
 
-            <div
-              style={{
-                marginBottom: "18px",
-              }}
-            >
+            <div style={{ marginBottom: "18px" }}>
               <div
                 style={{
                   marginBottom: "12px",
@@ -1316,16 +1001,7 @@ export function NewConsultationModal({
                 Additional Information
               </div>
 
-              <label
-                htmlFor="consultation-notes"
-                style={{
-                  display: "block",
-                  marginBottom: "6px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "#4b4b4b",
-                }}
-              >
+              <label htmlFor="consultation-notes" style={labelStyle}>
                 Additional Notes
               </label>
 
@@ -1339,19 +1015,7 @@ export function NewConsultationModal({
                 disabled={submitting}
                 rows={3}
                 placeholder="Add any other useful information..."
-                style={{
-                  width: "100%",
-                  minHeight: "80px",
-                  padding: "11px 12px",
-                  resize: "vertical",
-                  border: "1px solid #d8d8d2",
-                  borderRadius: "8px",
-                  background: "#ffffff",
-                  color: "#222222",
-                  fontSize: "12px",
-                  lineHeight: 1.5,
-                  outline: "none",
-                }}
+                style={{ ...textareaStyle, minHeight: "80px" }}
               />
             </div>
 
@@ -1371,7 +1035,8 @@ export function NewConsultationModal({
               }}
             >
               <strong>Request validation:</strong> Pet ownership will be
-              verified before the consultation request is created.
+              verified, and the chosen one-hour slot is re-checked by the
+              server before the consultation request is created.
             </div>
           </div>
 
@@ -1417,7 +1082,7 @@ export function NewConsultationModal({
 
             <button
               type="submit"
-              disabled={submitting || loadingPets}
+              disabled={submitting || loadingPets || !canSubmit}
               style={{
                 height: "38px",
                 padding: "0 20px",
@@ -1427,8 +1092,11 @@ export function NewConsultationModal({
                 color: "#171717",
                 fontSize: "11px",
                 fontWeight: 800,
-                cursor: submitting || loadingPets ? "not-allowed" : "pointer",
-                opacity: submitting || loadingPets ? 0.55 : 1,
+                cursor:
+                  submitting || loadingPets || !canSubmit
+                    ? "not-allowed"
+                    : "pointer",
+                opacity: submitting || loadingPets || !canSubmit ? 0.55 : 1,
               }}
             >
               {submitting ? "Creating..." : "Create Consultation"}

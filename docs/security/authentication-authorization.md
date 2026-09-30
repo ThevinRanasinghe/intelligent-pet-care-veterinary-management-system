@@ -108,10 +108,10 @@ No actual secret values appear in any committed file. `appsettings.json` and `ap
 
 | Constant | Value | Description |
 |---|---|---|
-| `Roles.PetOwner` | `"PetOwner"` | Owns pets and consultation requests; reads own clinical history |
-| `Roles.Veterinarian` | `"Veterinarian"` | Clinical write operations; reads scheduling/billing |
-| `Roles.InventoryOfficer` | `"InventoryOfficer"` | Medicines, suppliers, stock, reservations, dispensing |
-| `Roles.ClinicManager` | `"ClinicManager"` | Scheduling, quotations/billing, approval decisions, read-only clinic oversight |
+| `Roles.PetOwner` | `"PetOwner"` | Owns pets and consultation requests; reads own clinical history, appointments, and bills |
+| `Roles.Veterinarian` | `"Veterinarian"` | Own appointments; clinical writes (examinations incl. vet charge, diagnoses, treatments, prescriptions); follow-up consultation requests; **cannot** issue medicine or mark bills paid |
+| `Roles.InventoryOfficer` | `"InventoryOfficer"` | Medicines, suppliers, stock, reservations, dispensing; medicine-request queue (issue/unavailable); marks bills paid; **cannot** perform clinical writes |
+| `Roles.ClinicManager` | `"ClinicManager"` | Request queue + vet assignment, scheduling, quotations/billing **view**, approval decisions, staff accounts, veterinarian history; **cannot** mark bills paid |
 | `Roles.SuperAdmin` | `"Administrator"` | Platform administration (users, organizations, system); cross-organization visibility |
 | `Roles.Staff` | `"Staff"` | General authenticated staff member (defined but currently unused) |
 
@@ -125,12 +125,18 @@ All authorization attributes reference the `Roles` constants — no role strings
 | `PUT /api/auth/change-password`, `PUT /api/auth/profile` | Any authenticated user | same |
 | `/api/admin/*` | Administrator only | Administrator only |
 | `/api/appointments` (+ `available-slots`, `check-conflict`) | Veterinarian, ClinicManager, Administrator | ClinicManager, Administrator |
-| `/api/quotations` (+ `calculate`, `submit`, `finalize`) | Veterinarian, ClinicManager, Administrator | ClinicManager, Administrator |
+| `GET /api/appointments/mine`, `GET /api/appointments/{id}` | PetOwner (own pets only) + Veterinarian, ClinicManager, Administrator | — |
+| `GET /api/quotations`, `/api/quotations/{id}` | Veterinarian, ClinicManager, InventoryOfficer, Administrator (+ PetOwner own-only on `/{id}`) | — |
+| `GET /api/quotations/mine` | **PetOwner only** (own pets' bills) | — |
+| `POST /api/quotations` (+ `calculate`, `submit`, `finalize`, `PUT`) | — | ClinicManager, Administrator |
+| `POST /api/quotations/{id}/mark-paid` | — | **InventoryOfficer, Administrator only** (Vet/CM → 403) |
 | `GET /api/approvals/*` | Veterinarian, ClinicManager, Administrator | — |
 | `POST /api/approvals/{id}/approve|reject|revision` | — | **ClinicManager only** |
 | `GET /api/examinations|diagnoses|treatment-records|prescriptions` (list) | Veterinarian, ClinicManager, Administrator | — |
 | `GET .../{id}` and by-parent clinical reads | PetOwner (own only, enforced in action) + Veterinarian, ClinicManager, Administrator | — |
-| `POST|PUT|PATCH|DELETE /api/examinations|diagnoses|treatment-records|prescriptions` | — | Veterinarian, Administrator |
+| `POST|PUT|PATCH|DELETE /api/examinations|diagnoses|treatment-records|prescriptions` | — | Veterinarian (own profile forced server-side on `POST /api/examinations`), Administrator |
+| `GET /api/prescriptions/requests` | Veterinarian, ClinicManager, InventoryOfficer, Administrator | — |
+| `POST /api/prescriptions/{id}/issue`, `/{id}/unavailable` | — | **InventoryOfficer, Administrator only** |
 | `GET /api/medicines`, `/low-stock`, `/expiring`, `/{id}` | Veterinarian, ClinicManager, InventoryOfficer, Administrator | — |
 | `POST /api/medicines`, `POST /{id}/stock-in` | — | InventoryOfficer, Administrator |
 | `GET /api/medicines/{id}/batches`, `/{id}/transactions` | ClinicManager, InventoryOfficer, Administrator | — |
@@ -143,11 +149,20 @@ All authorization attributes reference the `Roles` constants — no role strings
 | `POST|PUT|DELETE /api/pets`, `POST /api/petowners` | — | PetOwner (own only) + ClinicManager, Administrator |
 | `/api/consultations` (GET) | PetOwner (own only) + Veterinarian, ClinicManager, Administrator | — |
 | `POST|PUT /api/consultations`, `/submit`, `/cancel` | — | PetOwner (own only) + ClinicManager, Administrator |
-| `GET /api/consultations/nearest-clinic` | Any authenticated user (utility) | — |
+| `POST /api/consultations/{id}/assign` | — | **ClinicManager, Administrator only** (creates slot + Confirmed appointment) |
+| `POST /api/consultations/follow-up` | — | **Veterinarian, Administrator** |
+| `GET /api/consultations/nearest-clinic`, `/nearby-clinics`, `/availability`, `/availability/month` | Any authenticated user (utility) | — |
 | `GET /api/lookups/pets` | Veterinarian, ClinicManager, Administrator | — |
 | `GET /api/lookups/medicines` | Veterinarian, ClinicManager, InventoryOfficer, Administrator | — |
+| `GET /api/lookups/organizations` | Any authenticated user (Active orgs incl. coordinates — booking map source) | — |
+| `/api/manager/veterinarians`, `/veterinarians/{id}/history` | **ClinicManager only** (class-level authorize) | — |
 
-The InventoryOfficer role is excluded from all pet/consultation/clinical/scheduling/billing data. The PetOwner role is excluded from all inventory, supplier, scheduling, billing, approval, and administration endpoints.
+Scope notes by role:
+
+- **Veterinarian** — sees only their own appointments (`/mine`) and performs clinical writes under their own profile (the `Veterinarian.UserId` link is resolved server-side; a client-supplied `VeterinarianId` is ignored on `POST /api/examinations`). Cannot issue medicine, mark bills paid, assign vets, or create staff.
+- **InventoryOfficer** — excluded from pet/consultation/clinical/scheduling writes **except** billing: they read quotations, run the medicine-request queue (issue/unavailable), and mark bills paid. Cannot perform clinical writes (no `POST /api/examinations|diagnoses|treatment-records|prescriptions`).
+- **ClinicManager** — assigns vets, manages scheduling/quotations/approvals, creates staff, and views veterinarian history and bills — but **cannot** mark bills paid (403) or issue medicine.
+- **PetOwner** — excluded from all inventory, supplier, approval, and administration endpoints; on scheduling/billing they may only read their own pets' appointments (`/mine`, `/{id}`) and their own bills (`/quotations/mine`, `/{id}` ownership-checked → 404 otherwise).
 
 ### Account lifecycle (who creates which account)
 
@@ -155,22 +170,23 @@ The InventoryOfficer role is excluded from all pet/consultation/clinical/schedul
 |---|---|
 | PetOwner | Self-registration — `POST /api/auth/register/pet-owner` (creates `User` + linked `PetOwner` atomically; never created by an Administrator) |
 | ClinicManager | Created as part of `POST /api/auth/register/organization` alongside the Organization (Pending until an Administrator approves it) |
-| Veterinarian | Administrator-only — `POST /api/admin/users/veterinarians` |
-| InventoryOfficer | Administrator-only — `POST /api/admin/users/inventory-officers` |
+| Veterinarian | ClinicManager-created for **their own** organization — `POST /api/manager/users/veterinarians` |
+| InventoryOfficer | ClinicManager-created for **their own** organization — `POST /api/manager/users/inventory-officers` |
 | Administrator | System-level role; no API creation path |
 
-Staff creation rules (`AdminService.CreateStaffAccountAsync`):
+Staff creation rules (`ManagerService.CreateStaffAccountAsync`):
 
 - Role is fixed by the endpoint — the request body has no role field, so a caller cannot choose it.
-- `OrganizationId` is validated server-side: the organization must exist and be `Active`; pending/rejected/suspended organizations are rejected with 400, unknown ids with 404.
+- **`OrganizationId` is never accepted from the client.** `ManagerCreateStaffRequest` has no such field; the service resolves the organization from the authenticated ClinicManager's `User.OrganizationId` via `ITenantContext`. A manager in Org A can never create staff in Org B by modifying a request.
+- A manager with no organization link is rejected (403); a manager whose organization is not `Active` is rejected (403).
 - Duplicate emails are rejected (400).
 - New staff start `Active = true` with `MustChangePassword = true`.
-- The project has no email/SMS delivery, so the service generates a cryptographically random temporary password (PBKDF2-hashed in storage) returned **once** in the `CreateStaffUserResponse` — the administrator hands it to the staff member out-of-band. This one-time admin-visible value is the documented development/demo handoff mechanism; production deployments should replace it with a real invitation channel.
-- 401 unauthenticated, 403 for every non-Administrator role — enforced by the class-level `[Authorize(Roles = Roles.SuperAdmin)]`.
+- The project has no email/SMS delivery, so the service generates a cryptographically random temporary password (PBKDF2-hashed in storage) returned **once** in the `CreatedStaffAccountResponse` — the manager hands it to the staff member out-of-band. This one-time visible value is the documented development/demo handoff mechanism; production deployments should replace it with a real invitation channel.
+- 401 unauthenticated, 403 for every non-ClinicManager role — enforced by the class-level `[Authorize(Roles = Roles.ClinicManager)]` on `ManagerController`.
 
 ### Staff-creation endpoints
 
-`POST /api/admin/users/veterinarians` and `POST /api/admin/users/inventory-officers` — identical contract, different server-assigned role.
+`POST /api/manager/users/veterinarians` and `POST /api/manager/users/inventory-officers` — identical contract, different server-assigned role. **ClinicManager only.**
 
 | Field | Notes |
 |---|---|
@@ -178,13 +194,12 @@ Staff creation rules (`AdminService.CreateStaffAccountAsync`):
 | `lastName` (required, ≤100) | |
 | `email` (required, valid, ≤256) | must be unique — 400 on duplicate |
 | `phoneNumber` (optional, ≤50) | |
-| `organizationId` (required) | must be an existing **Active** organization — 404 unknown, 400 non-active |
 
-**Response:** `201 Created` → `CreateStaffUserResponse` — the created user's public fields plus `temporaryPassword` (returned once; never stored or logged in plaintext).
+**Response:** `201 Created` → `CreatedStaffAccountResponse` — the created user's public fields plus `temporaryPassword` (returned once; never stored or logged in plaintext).
 
-**Errors:** 400 validation/duplicate-email/inactive-org · 401 unauthenticated · 403 non-Administrator · 404 unknown organization.
+**Errors:** 400 validation/duplicate-email · 401 unauthenticated · 403 non-ClinicManager, unscoped manager, or non-Active organization.
 
-There is intentionally **no** `POST /api/admin/users` and no role field — a client cannot create a PetOwner, ClinicManager, or Administrator, and cannot pick an arbitrary role.
+The Administrator does **not** create staff — they retain full management visibility: every manager-created account appears in `GET /api/admin/users` and can be activated/deactivated via `PATCH /api/admin/users/{id}/status`.
 
 ---
 
@@ -193,7 +208,7 @@ There is intentionally **no** `POST /api/admin/users` and no role field — a cl
 Ownership is resolved **server-side** from the authenticated identity — never from caller-supplied owner ids:
 
 1. `PetOwner.UserId → User.Id` is a configured one-to-one relationship. Every PetOwner login account maps to exactly one owner profile.
-2. `OwnerAccessService` (scoped per request) reads the JWT `sub`/`NameIdentifier` claim, resolves the linked `PetOwner.Id` via `PetOwners.UserId`, and answers ownership questions for the whole graph: `Pet`, `ConsultationRequest`, `Examination`, `Diagnosis`, `TreatmentRecord`, `Prescription`.
+2. `OwnerAccessService` (scoped per request) reads the JWT `sub`/`NameIdentifier` claim, resolves the linked `PetOwner.Id` via `PetOwners.UserId`, and answers ownership questions for the whole graph: `Pet`, `ConsultationRequest`, `Examination`, `Diagnosis`, `TreatmentRecord`, `Prescription`. Appointment and quotation (bill) reads are ownership-checked transitively through the appointment's `PetId` (`OwnsPetAsync`).
 3. Controller actions short-circuit PetOwner callers that reference resources they do not own — `404 NotFound` where hiding resource existence is the convention, `403 Forbidden` where the existing contract uses it.
 4. On create endpoints (`POST /api/pets`, `POST /api/consultations`, `POST /api/petowners`), any client-supplied `OwnerId`/profile identity is **overwritten** with the caller's resolved owner id.
 5. PetOwner registration (`POST /api/auth/register/pet-owner`) creates the `User` account **and** the linked `PetOwner` profile in a single `SaveChangesAsync` (one EF transaction). If a clinic-created unlinked owner profile already exists for the email, it is attached to the new account instead of duplicated.
@@ -303,7 +318,8 @@ Organization-owned operational data is isolated per tenant:
 ## 12. Current security limitations
 
 - **No refresh-token flow:** The JWT has a fixed expiry. After expiry, the user must log in again. There is no silent refresh mechanism.
-- **`ReviewedBy` is caller-supplied:** The approval decision endpoints accept `ReviewedBy` as a request-body field rather than deriving it from the JWT `sub` claim. The role is enforced, but the reviewer identity is not automatically bound to the authenticated user.
+- **`ReviewedBy` has a request-body fallback:** `ApprovalService` resolves the reviewer from `ITenantContext.UserId` (the JWT `sub` claim) and only falls back to the request-body `ReviewedBy` when no tenant user id is available. The role check is always enforced.
+- **Seeded veterinarians are not linked to logins:** the 3 `HasData` `Veterinarians` rows have `UserId = NULL`; veterinarian writes for them resolve to 403. Only vets created via `POST /api/manager/users/veterinarians` (which creates the linked `Veterinarian` row) can perform veterinarian-scoped actions.
 - **Token stored in `localStorage` (React):** This is vulnerable to XSS-based extraction. A production deployment should consider `HttpOnly` cookies or a more hardened storage strategy.
 - **Production CORS is empty:** `appsettings.json` has `"AllowedOrigins": []`, so the API will not serve browser clients in a production configuration without explicit configuration.
 - **No rate limiting:** The login endpoint has no rate limiting or lockout policy in the current implementation.

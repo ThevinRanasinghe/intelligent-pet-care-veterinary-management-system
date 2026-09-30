@@ -35,4 +35,29 @@ public interface IBillingService
     /// longer be edited.
     /// </summary>
     Task<QuotationResponse> FinalizeQuotationAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates or refreshes the bill (quotation) for the appointment behind
+    /// an examination: one Examination line for the veterinarian charge plus
+    /// one Medicine line per Issued prescription. Returns null without doing
+    /// anything when the examination is not linked to an appointment, and
+    /// leaves a Paid bill untouched.
+    /// </summary>
+    Task<QuotationResponse?> GenerateOrRefreshBillForExaminationAsync(
+        Guid examinationId,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Marks a Finalised, unpaid quotation as Paid (InventoryOfficer/Admin).
+    /// </summary>
+    Task<QuotationResponse> MarkPaidAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Quotations for appointments of pets owned by the given owner id —
+    /// the PetOwner "my bills" view (not organization-scoped).
+    /// </summary>
+    Task<IReadOnlyList<QuotationResponse>> GetQuotationsForOwnerAsync(
+        string ownerId,
+        CancellationToken cancellationToken = default);
 }

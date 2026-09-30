@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { PawPrint } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { ownerService, petService } from '../../services/api';
+import { getMyBills } from '../../services/billingService';
+import type { Quotation } from '../../types/domain';
 import { CareHistoryView, loadCareEntries, type CareEntry } from './CareHistoryView';
 
 /** Read-only care information for the current pet owner's registered pets. */
 export function OwnerCareHistoryPage() {
   const { user } = useAuth();
   const [entries, setEntries] = useState<CareEntry[]>([]);
+  const [billsByExamination, setBillsByExamination] = useState<Map<string, Quotation>>(new Map());
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
 
@@ -37,9 +40,17 @@ export function OwnerCareHistoryPage() {
         }
 
         const pets = await petService.getPetsByOwner(owner.id);
-        const careEntries = await loadCareEntries(pets);
+        const [careEntries, myBills] = await Promise.all([
+          loadCareEntries(pets),
+          getMyBills().catch(() => [] as Quotation[]),
+        ]);
 
-        if (active) setEntries(careEntries);
+        if (active) {
+          setEntries(careEntries);
+          setBillsByExamination(new Map(
+            myBills.filter((b) => b.examinationId).map((b) => [b.examinationId as string, b]),
+          ));
+        }
       } catch {
         if (active) {
           setEntries([]);
@@ -69,7 +80,7 @@ export function OwnerCareHistoryPage() {
       ) : message ? (
         <div className="empty-state"><PawPrint size={28} /><strong>{message}</strong></div>
       ) : (
-        <CareHistoryView entries={entries} />
+        <CareHistoryView entries={entries} billsByExamination={billsByExamination} />
       )}
     </div>
   );

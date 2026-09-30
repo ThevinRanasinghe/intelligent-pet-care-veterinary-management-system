@@ -38,7 +38,24 @@ public class Appointment : AuditableEntity
     public string? Notes { get; set; }
 
     /// <summary>
+    /// FK to the ConsultationRequest this appointment was scheduled from
+    /// (string id, optional — walk-in appointments have no request).
+    /// </summary>
+    public string? ConsultationRequestId { get; set; }
+
+    public ConsultationRequest? ConsultationRequest { get; set; }
+
+    /// <summary>Initial visit or veterinarian-requested follow-up.</summary>
+    public AppointmentType Type { get; set; } = AppointmentType.Initial;
+
+    /// <summary>
     /// 1:1 with Quotation (Quotation.AppointmentId is the UNIQUE FK owner side).
     /// </summary>
     public Quotation? Quotation { get; set; }
+
+    /// <summary>
+    /// The examination recorded when this appointment was completed
+    /// (at most one per appointment; Examination.AppointmentId is UNIQUE).
+    /// </summary>
+    public Examination? Examination { get; set; }
 }

@@ -52,6 +52,10 @@ public class OrganizationConfiguration : IEntityTypeConfiguration<Organization>
             .IsRequired()
             .HasMaxLength(100);
 
+        builder.Property(o => o.Latitude);
+
+        builder.Property(o => o.Longitude);
+
         builder.Property(o => o.Status)
             .HasConversion<int>()
             .IsRequired();

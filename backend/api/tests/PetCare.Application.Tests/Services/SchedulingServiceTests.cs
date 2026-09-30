@@ -6,6 +6,7 @@ using PetCare.Application.DTOs.Scheduling;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
 using PetCare.Application.Services;
+using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
 using Xunit;
@@ -29,6 +30,9 @@ public class SchedulingServiceTests
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IValidator<CreateAppointmentRequest>> _createValidator = new();
     private readonly Mock<IValidator<UpdateAppointmentRequest>> _updateValidator = new();
+    private readonly Mock<ICurrentVeterinarianResolver> _veterinarianResolver = new();
+    private readonly Mock<IOwnerAccessService> _ownerAccess = new();
+    private readonly Mock<ITenantContext> _tenant = new();
 
     private static readonly Guid VeterinarianId = Guid.NewGuid();
     private static readonly Guid OtherVeterinarianId = Guid.NewGuid();
@@ -61,7 +65,10 @@ public class SchedulingServiceTests
         _petService.Object,
         _unitOfWork.Object,
         _createValidator.Object,
-        _updateValidator.Object);
+        _updateValidator.Object,
+        _veterinarianResolver.Object,
+        _ownerAccess.Object,
+        _tenant.Object);
 
     private static Veterinarian ActiveVeterinarian(Guid? id = null) => new()
     {
@@ -338,5 +345,90 @@ public class SchedulingServiceTests
         await Assert.ThrowsAsync<SchedulingConflictException>(() => service.CreateAppointmentAsync(request));
 
         _appointmentRepository.Verify(r => r.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 12. GET /appointments/mine for a veterinarian filters by the vet
+    //     profile resolved from the caller's account — never client input.
+    [Fact]
+    public async Task GetMyAppointmentsAsync_Veterinarian_UsesResolvedVeterinarianId()
+    {
+        var vet = ActiveVeterinarian();
+        vet.Id = VeterinarianId;
+        _tenant.Setup(t => t.IsInRole(Roles.Veterinarian)).Returns(true);
+        _veterinarianResolver.Setup(r => r.ResolveRequiredAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vet);
+        _appointmentRepository
+            .Setup(r => r.GetByVeterinarianAsync(VeterinarianId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Appointment>
+            {
+                ExistingAppointment(VeterinarianId, new TimeOnly(10, 0), new TimeOnly(11, 0))
+            });
+
+        var service = CreateService();
+        var result = await service.GetMyAppointmentsAsync(null, null, null, null);
+
+        Assert.Single(result);
+        _appointmentRepository.Verify(r => r.GetByVeterinarianAsync(VeterinarianId, It.IsAny<CancellationToken>()), Times.Once);
+        _appointmentRepository.Verify(r => r.GetByOwnerAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _appointmentRepository.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 13. A Veterinarian-role user without a linked profile is forbidden.
+    [Fact]
+    public async Task GetMyAppointmentsAsync_UnlinkedVeterinarian_ThrowsForbidden()
+    {
+        _tenant.Setup(t => t.IsInRole(Roles.Veterinarian)).Returns(true);
+        _veterinarianResolver.Setup(r => r.ResolveRequiredAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ForbiddenException("Your account is not linked to a veterinarian profile."));
+
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => service.GetMyAppointmentsAsync(null, null, null, null));
+        _appointmentRepository.Verify(r => r.GetByVeterinarianAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 14. GET /appointments/mine for a pet owner filters by the caller's
+    //     owner id (ownership path, not org scope).
+    [Fact]
+    public async Task GetMyAppointmentsAsync_PetOwner_UsesOwnerId()
+    {
+        _tenant.Setup(t => t.IsInRole(It.IsAny<string>())).Returns(false);
+        _ownerAccess.Setup(o => o.IsPetOwner).Returns(true);
+        _ownerAccess.Setup(o => o.GetOwnerIdAsync(It.IsAny<CancellationToken>())).ReturnsAsync("OWN-TEST0001");
+        _appointmentRepository
+            .Setup(r => r.GetByOwnerAsync("OWN-TEST0001", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Appointment>
+            {
+                ExistingAppointment(VeterinarianId, new TimeOnly(10, 0), new TimeOnly(11, 0))
+            });
+
+        var service = CreateService();
+        var result = await service.GetMyAppointmentsAsync(null, null, null, null);
+
+        Assert.Single(result);
+        _appointmentRepository.Verify(r => r.GetByOwnerAsync("OWN-TEST0001", It.IsAny<CancellationToken>()), Times.Once);
+        _appointmentRepository.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 15. Staff callers (manager/admin) get the org-scoped list.
+    [Fact]
+    public async Task GetMyAppointmentsAsync_Manager_ReturnsOrgList()
+    {
+        _tenant.Setup(t => t.IsInRole(Roles.Veterinarian)).Returns(false);
+        _ownerAccess.Setup(o => o.IsPetOwner).Returns(false);
+        _appointmentRepository
+            .Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Appointment>
+            {
+                ExistingAppointment(VeterinarianId, new TimeOnly(10, 0), new TimeOnly(11, 0)),
+                ExistingAppointment(VeterinarianId, new TimeOnly(13, 0), new TimeOnly(14, 0))
+            });
+
+        var service = CreateService();
+        var result = await service.GetMyAppointmentsAsync(null, null, null, null);
+
+        Assert.Equal(2, result.Count);
+        _appointmentRepository.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

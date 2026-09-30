@@ -62,6 +62,38 @@ void main() {
       };
       final appt = Appointment.fromJson(json);
       expect(appt.notes, isNull);
+      expect(appt.type, isNull);
+      expect(appt.petName, isNull);
+    });
+
+    test('parses workflow-redesign denormalised fields', () {
+      final json = {
+        'id': 'appt-3',
+        'petId': 'pet-1',
+        'veterinarianId': 'vet-1',
+        'appointmentSlotId': 'slot-1',
+        'scheduledStart': '2026-10-01T10:00:00',
+        'scheduledEnd': '2026-10-01T10:30:00',
+        'status': 'Confirmed',
+        'notes': null,
+        'consultationRequestId': 'CON-0001',
+        'type': 'FollowUp',
+        'petName': 'Shadow',
+        'ownerName': 'Amal',
+        'veterinarianName': 'Dr. Silva',
+        'symptoms': 'Limping',
+        'examinationId': null,
+        'createdAt': '2026-09-26T00:00:00',
+        'updatedAt': '2026-09-26T00:00:00',
+      };
+      final appt = Appointment.fromJson(json);
+      expect(appt.type, 'FollowUp');
+      expect(appt.petName, 'Shadow');
+      expect(appt.ownerName, 'Amal');
+      expect(appt.veterinarianName, 'Dr. Silva');
+      expect(appt.symptoms, 'Limping');
+      expect(appt.consultationRequestId, 'CON-0001');
+      expect(appt.examinationId, isNull);
     });
   });
 
@@ -104,6 +136,61 @@ void main() {
       expect(q.items.length, 2);
       expect(q.items[0].description, 'General check-up');
       expect(q.items[1].quantity, 2);
+    });
+
+    test('defaults paymentStatus to Pending when absent', () {
+      final json = {
+        'id': 'quo-2',
+        'appointmentId': 'appt-2',
+        'budget': 1000.0,
+        'subtotal': 800.0,
+        'total': 800.0,
+        'isWithinBudget': true,
+        'status': 'Draft',
+        'items': <Map<String, dynamic>>[],
+        'createdAt': '2026-01-01T00:00:00',
+        'updatedAt': '2026-01-01T00:00:00',
+      };
+      final q = Quotation.fromJson(json);
+      expect(q.paymentStatus, 'Pending');
+      expect(q.paidAt, isNull);
+      expect(q.invoiceNumber, isNull);
+      expect(q.veterinarianChargeTotal, 0);
+      expect(q.medicineTotal, 0);
+    });
+
+    test('parses workflow-redesign billing fields', () {
+      final json = {
+        'id': 'quo-3',
+        'invoiceNumber': 'INV-AAAA0001',
+        'appointmentId': 'appt-1',
+        'budget': 3000.0,
+        'subtotal': 2800.0,
+        'total': 2800.0,
+        'isWithinBudget': true,
+        'status': 'Finalised',
+        'paymentStatus': 'Paid',
+        'paidAt': '2026-09-27T00:00:00Z',
+        'petName': 'Shadow',
+        'ownerName': 'Amal',
+        'veterinarianName': 'Dr. Silva',
+        'examinationDate': '2026-09-26T10:05:00',
+        'veterinarianChargeTotal': 2500.0,
+        'medicineTotal': 300.0,
+        'items': <Map<String, dynamic>>[],
+        'createdAt': '2026-09-26T10:00:00Z',
+        'updatedAt': '2026-09-27T00:00:00Z',
+      };
+      final q = Quotation.fromJson(json);
+      expect(q.invoiceNumber, 'INV-AAAA0001');
+      expect(q.paymentStatus, 'Paid');
+      expect(q.paidAt, '2026-09-27T00:00:00Z');
+      expect(q.petName, 'Shadow');
+      expect(q.ownerName, 'Amal');
+      expect(q.veterinarianName, 'Dr. Silva');
+      expect(q.examinationDate, '2026-09-26T10:05:00');
+      expect(q.veterinarianChargeTotal, 2500.0);
+      expect(q.medicineTotal, 300.0);
     });
   });
 

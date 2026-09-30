@@ -45,6 +45,15 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.Property(a => a.Notes)
             .HasColumnType("text");
 
+        builder.Property(a => a.ConsultationRequestId)
+            .HasMaxLength(30);
+
+        builder.Property(a => a.Type)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasConversion<string>()
+            .HasDefaultValue(Domain.Enums.AppointmentType.Initial);
+
         builder.Property(a => a.CreatedAt)
             .IsRequired()
             .HasDefaultValueSql("now()");
@@ -94,5 +103,15 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .WithOne(q => q.Appointment)
             .HasForeignKey<Quotation>(q => q.AppointmentId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Optional link back to the consultation request this appointment
+        // was scheduled from (string FK to ConsultationRequests.Id).
+        builder.HasOne(a => a.ConsultationRequest)
+            .WithMany()
+            .HasForeignKey(a => a.ConsultationRequestId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(a => a.ConsultationRequestId)
+            .HasDatabaseName("IX_Appointment_ConsultationRequestId");
     }
 }

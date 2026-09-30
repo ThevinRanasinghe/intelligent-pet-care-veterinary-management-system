@@ -38,6 +38,17 @@ class Quotation {
   final List<QuotationItem> items;
   final String createdAt;
   final String updatedAt;
+  // Workflow-redesign billing fields (all optional — absent on older records).
+  final String? invoiceNumber;
+  /// 'Pending' | 'Paid' — defaults to 'Pending' when absent.
+  final String paymentStatus;
+  final String? paidAt;
+  final String? petName;
+  final String? ownerName;
+  final String? veterinarianName;
+  final String? examinationDate;
+  final double veterinarianChargeTotal;
+  final double medicineTotal;
 
   Quotation({
     required this.id,
@@ -50,6 +61,15 @@ class Quotation {
     required this.items,
     required this.createdAt,
     required this.updatedAt,
+    this.invoiceNumber,
+    this.paymentStatus = 'Pending',
+    this.paidAt,
+    this.petName,
+    this.ownerName,
+    this.veterinarianName,
+    this.examinationDate,
+    this.veterinarianChargeTotal = 0,
+    this.medicineTotal = 0,
   });
 
   factory Quotation.fromJson(Map<String, dynamic> json) {
@@ -66,6 +86,15 @@ class Quotation {
           .toList(),
       createdAt: json['createdAt'] as String,
       updatedAt: json['updatedAt'] as String,
+      invoiceNumber: json['invoiceNumber'] as String?,
+      paymentStatus: json['paymentStatus'] as String? ?? 'Pending',
+      paidAt: json['paidAt'] as String?,
+      petName: json['petName'] as String?,
+      ownerName: json['ownerName'] as String?,
+      veterinarianName: json['veterinarianName'] as String?,
+      examinationDate: json['examinationDate'] as String?,
+      veterinarianChargeTotal: (json['veterinarianChargeTotal'] as num?)?.toDouble() ?? 0,
+      medicineTotal: (json['medicineTotal'] as num?)?.toDouble() ?? 0,
     );
   }
 }

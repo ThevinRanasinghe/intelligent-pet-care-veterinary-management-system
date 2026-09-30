@@ -18,4 +18,6 @@ public interface IAppointmentSlotRepository
         Guid? veterinarianId,
         DateOnly? date,
         CancellationToken cancellationToken = default);
+
+    Task AddAsync(AppointmentSlot slot, CancellationToken cancellationToken = default);
 }

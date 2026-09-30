@@ -3,10 +3,10 @@ import type { ReactNode } from 'react';
 import { Outlet, useNavigate, useLocation, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, PawPrint, Stethoscope, Package, CalendarDays,
-  FileText, ClipboardCheck, Sparkles, BarChart3, Settings,
+  FileText, ClipboardCheck, BarChart3, Settings,
   LogOut, Menu, X, Pill, Activity, History,
   Truck, Layers, ClipboardList, AlertTriangle,
-  Users, Building2, ShieldCheck,
+  Users, Building2, ShieldCheck, UserPlus, Receipt,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_HOMES } from '../auth/roleAccess';
@@ -15,7 +15,10 @@ import ProfileModal from './ProfileModal';
 
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/manager': { title: 'Clinic Manager Overview', subtitle: 'Live operational command center for your clinic' },
+  '/manager/staff': { title: 'Staff Accounts', subtitle: 'Create Veterinarian and Inventory Officer accounts for your organization' },
+  '/manager/vets': { title: 'Veterinarian History', subtitle: 'Appointments, examinations, medicine requests and billing per veterinarian' },
   '/vet': { title: 'Veterinarian Dashboard', subtitle: 'Patient consultations, examinations, and treatment records' },
+  '/vet/appointments': { title: 'My Appointments', subtitle: 'Your scheduled consultations and clinical workflow' },
   '/inventory-dashboard': { title: 'Inventory Officer Dashboard', subtitle: 'Pharmaceutical stock tracking, FEFO batch dispensing, and supplier directory' },
   '/super-admin': { title: 'Platform Overview', subtitle: 'Review registrations, verify clinics, manage lifecycle states' },
   '/pet-owner': { title: 'My Pet Care', subtitle: 'Manage your pets, consultation requests, and treatment history' },
@@ -31,11 +34,12 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   '/inventory/suppliers': { title: 'Suppliers', subtitle: 'Pharmaceutical supply partners' },
   '/inventory/batches': { title: 'Stock & Batches', subtitle: 'Batch quantities, received dates, and expiry' },
   '/inventory/reservations': { title: 'Reservations', subtitle: 'Medicine stock reservations' },
+  '/inventory/requests': { title: 'Medicine Requests', subtitle: 'Pending prescriptions awaiting stock issue' },
+  '/inventory/bills': { title: 'Bills & Payments', subtitle: 'Finalised bills and payment tracking' },
   '/inventory/alerts': { title: 'Low Stock & Expiry', subtitle: 'Reorder alerts and expiring batches' },
   '/scheduling': { title: 'Scheduling', subtitle: 'Appointment scheduling and slot management' },
   '/billing': { title: 'Quotations & Billing', subtitle: 'Quotations, invoices, and payment tracking' },
   '/approvals': { title: 'Approval Center', subtitle: 'Review and approve pending proposals' },
-  '/ai-workflows': { title: 'AI Workflows', subtitle: 'AI-powered clinical workflows' },
   '/reports': { title: 'Reports & Analytics', subtitle: 'Business intelligence and reporting' },
   '/settings': { title: 'Users & Settings', subtitle: 'Platform user accounts and access' },
   '/admin/organizations': { title: 'Organization Management', subtitle: 'Verify registrations and manage clinic lifecycle states' },
@@ -71,7 +75,7 @@ function getNavigationForRole(role: Role | undefined, roleHome: string): NavItem
   if (role === 'Veterinarian') {
     return [
       { label: 'Dashboard', to: roleHome, icon: <LayoutDashboard size={18} /> },
-      { label: 'Consultation Requests', to: '/consultations', icon: <PawPrint size={18} /> },
+      { label: 'My Appointments', to: '/vet/appointments', icon: <CalendarDays size={18} /> },
       { label: 'Examinations', to: '/examinations', icon: <Activity size={18} /> },
       { label: 'Diagnosis & Treatment', to: '/treatment', icon: <Stethoscope size={18} /> },
       { label: 'Medical History', to: '/medical-history', icon: <History size={18} /> },
@@ -85,7 +89,9 @@ function getNavigationForRole(role: Role | undefined, roleHome: string): NavItem
       { label: 'Medicine & Inventory', to: '/inventory', icon: <Package size={18} /> },
       { label: 'Suppliers', to: '/inventory/suppliers', icon: <Truck size={18} /> },
       { label: 'Stock & Batches', to: '/inventory/batches', icon: <Layers size={18} /> },
+      { label: 'Medicine Requests', to: '/inventory/requests', icon: <ClipboardList size={18} /> },
       { label: 'Reservations', to: '/inventory/reservations', icon: <ClipboardList size={18} /> },
+      { label: 'Bills & Payments', to: '/inventory/bills', icon: <Receipt size={18} /> },
       { label: 'Low Stock & Expiry', to: '/inventory/alerts', icon: <AlertTriangle size={18} /> },
     ];
   }
@@ -99,7 +105,8 @@ function getNavigationForRole(role: Role | undefined, roleHome: string): NavItem
       { label: 'Scheduling', to: '/scheduling', icon: <CalendarDays size={18} /> },
       { label: 'Quotations & Billing', to: '/billing', icon: <FileText size={18} /> },
       { label: 'Approval Center', to: '/approvals', icon: <ClipboardCheck size={18} /> },
-      { label: 'AI Workflows', to: '/ai-workflows', icon: <Sparkles size={18} /> },
+      { label: 'Staff Accounts', to: '/manager/staff', icon: <UserPlus size={18} /> },
+      { label: 'Veterinarian History', to: '/manager/vets', icon: <Stethoscope size={18} /> },
       { label: 'Reports', to: '/reports', icon: <BarChart3 size={18} /> },
     ];
   }
@@ -122,7 +129,6 @@ function getNavigationForRole(role: Role | undefined, roleHome: string): NavItem
     { label: 'Scheduling', to: '/scheduling', icon: <CalendarDays size={18} /> },
     { label: 'Quotations & Billing', to: '/billing', icon: <FileText size={18} /> },
     { label: 'Approval Center', to: '/approvals', icon: <ClipboardCheck size={18} /> },
-    { label: 'AI Workflows', to: '/ai-workflows', icon: <Sparkles size={18} /> },
     { label: 'Reports', to: '/reports', icon: <BarChart3 size={18} /> },
     { label: 'Users & Settings', to: '/settings', icon: <Settings size={18} /> },
   ];
@@ -175,7 +181,6 @@ export function DashboardLayout() {
           <div className="sidebar-logo-icon">🐾</div>
           <div>
             <div className="sidebar-logo-text">Beacon Pet Health</div>
-            <div className="sidebar-logo-subtext">Veterinary Platform</div>
           </div>
           <button
             className="sidebar-close-btn"
@@ -185,6 +190,14 @@ export function DashboardLayout() {
             <X size={18} />
           </button>
         </div>
+
+        {/* Organization the staff member belongs to */}
+        {user?.organizationName && (
+          <div className="sidebar-org-badge" title={`Organization: ${user.organizationName}`}>
+            <Building2 size={14} aria-hidden="true" />
+            <span>{user.organizationName}</span>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="sidebar-nav" aria-label="Dashboard navigation">

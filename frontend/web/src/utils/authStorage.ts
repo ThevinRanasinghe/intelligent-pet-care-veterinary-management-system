@@ -13,6 +13,11 @@ export interface StoredAuth {
   email: string;
   name: string;
   role: Role;
+  /** The staff member's organization id — needed for org-scoped availability
+   *  queries (e.g. vet follow-up booking). Null for PetOwner/Administrator. */
+  organizationId?: string | null;
+  /** Display name of the staff member's organization (null for PetOwner/Administrator). */
+  organizationName?: string | null;
 }
 
 const STORAGE_KEY = 'petcare.auth';

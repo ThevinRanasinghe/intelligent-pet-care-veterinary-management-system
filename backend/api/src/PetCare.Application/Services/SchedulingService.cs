@@ -2,6 +2,7 @@ using FluentValidation;
 using PetCare.Application.DTOs.Scheduling;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
 
@@ -23,6 +24,9 @@ public class SchedulingService : ISchedulingService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidator<CreateAppointmentRequest> _createValidator;
     private readonly IValidator<UpdateAppointmentRequest> _updateValidator;
+    private readonly ICurrentVeterinarianResolver _veterinarianResolver;
+    private readonly IOwnerAccessService _ownerAccess;
+    private readonly ITenantContext _tenant;
 
     public SchedulingService(
         IAppointmentRepository appointmentRepository,
@@ -31,7 +35,10 @@ public class SchedulingService : ISchedulingService
         IPetService petService,
         IUnitOfWork unitOfWork,
         IValidator<CreateAppointmentRequest> createValidator,
-        IValidator<UpdateAppointmentRequest> updateValidator)
+        IValidator<UpdateAppointmentRequest> updateValidator,
+        ICurrentVeterinarianResolver veterinarianResolver,
+        IOwnerAccessService ownerAccess,
+        ITenantContext tenant)
     {
         _appointmentRepository = appointmentRepository;
         _appointmentSlotRepository = appointmentSlotRepository;
@@ -40,6 +47,9 @@ public class SchedulingService : ISchedulingService
         _unitOfWork = unitOfWork;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _veterinarianResolver = veterinarianResolver;
+        _ownerAccess = ownerAccess;
+        _tenant = tenant;
     }
 
     public async Task<IReadOnlyList<AppointmentResponse>> GetAppointmentsAsync(CancellationToken cancellationToken = default)
@@ -52,6 +62,64 @@ public class SchedulingService : ISchedulingService
     {
         var appointment = await _appointmentRepository.GetByIdAsync(id, cancellationToken);
         return appointment is null ? null : ToResponse(appointment);
+    }
+
+    public async Task<IReadOnlyList<AppointmentResponse>> GetMyAppointmentsAsync(
+        string? status,
+        DateOnly? from,
+        DateOnly? to,
+        string? petId,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<Appointment> appointments;
+
+        if (_tenant.IsInRole(Roles.Veterinarian))
+        {
+            // Veterinarians see their own schedule — resolved server-side
+            // from the caller's user account, never from client input.
+            var veterinarian = await _veterinarianResolver.ResolveRequiredAsync(cancellationToken);
+            appointments = await _appointmentRepository.GetByVeterinarianAsync(veterinarian.Id, cancellationToken);
+        }
+        else if (_ownerAccess.IsPetOwner)
+        {
+            var ownerId = await _ownerAccess.GetOwnerIdAsync(cancellationToken);
+            appointments = ownerId is null
+                ? Array.Empty<Appointment>()
+                : await _appointmentRepository.GetByOwnerAsync(ownerId, cancellationToken);
+        }
+        else
+        {
+            appointments = await _appointmentRepository.GetAllAsync(cancellationToken);
+        }
+
+        var filtered = appointments.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(status)
+            && Enum.TryParse<AppointmentStatus>(status, ignoreCase: true, out var parsedStatus))
+        {
+            filtered = filtered.Where(a => a.Status == parsedStatus);
+        }
+
+        if (from is not null)
+        {
+            filtered = filtered.Where(a => a.Date >= from.Value);
+        }
+
+        if (to is not null)
+        {
+            filtered = filtered.Where(a => a.Date <= to.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(petId))
+        {
+            filtered = filtered.Where(a => a.PetId == petId);
+        }
+
+        return filtered
+            .OrderBy(a => a.Date)
+            .ThenBy(a => a.StartTime)
+            .Select(ToResponse)
+            .ToList();
     }
 
     public async Task<AppointmentResponse> CreateAppointmentAsync(CreateAppointmentRequest request, CancellationToken cancellationToken = default)
@@ -211,19 +279,8 @@ public class SchedulingService : ISchedulingService
             .Any(a => newStart < a.EndTime && newEnd > a.StartTime);
     }
 
-    private static AppointmentResponse ToResponse(Appointment appointment) => new()
-    {
-        Id = appointment.Id,
-        PetId = appointment.PetId,
-        VeterinarianId = appointment.VeterinarianId,
-        AppointmentSlotId = appointment.AppointmentSlotId,
-        ScheduledStart = appointment.Date.ToDateTime(appointment.StartTime),
-        ScheduledEnd = appointment.Date.ToDateTime(appointment.EndTime),
-        Status = appointment.Status.ToString(),
-        Notes = appointment.Notes,
-        CreatedAt = appointment.CreatedAt,
-        UpdatedAt = appointment.UpdatedAt
-    };
+    private static AppointmentResponse ToResponse(Appointment appointment) =>
+        AppointmentMapper.ToResponse(appointment);
 
     private static AppointmentSlotResponse ToSlotResponse(AppointmentSlot slot) => new()
     {

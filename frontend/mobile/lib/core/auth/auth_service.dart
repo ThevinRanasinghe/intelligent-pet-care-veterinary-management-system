@@ -38,6 +38,82 @@ class AuthService {
     }
   }
 
+  /// Public PetOwner self-registration (POST /auth/register/pet-owner).
+  /// Returns the created user summary; the caller still has to log in.
+  Future<void> registerPetOwner({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+    required String confirmPassword,
+  }) async {
+    try {
+      await _apiClient.post<dynamic>('/auth/register/pet-owner', body: {
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'password': password,
+        'confirmPassword': confirmPassword,
+      });
+    } on ApiError catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  /// PUT /auth/profile — updates first/last name and phone number.
+  /// Returns the updated full name when the API provides one.
+  Future<String?> updateProfile({
+    required String firstName,
+    required String lastName,
+    String? phoneNumber,
+  }) async {
+    try {
+      final json = await _apiClient.put<dynamic>('/auth/profile', body: {
+        'firstName': firstName,
+        'lastName': lastName,
+        'phoneNumber': phoneNumber,
+      });
+      if (json is Map<String, dynamic>) {
+        return json['fullName'] as String? ??
+            '${json['firstName'] ?? ''} ${json['lastName'] ?? ''}'.trim();
+      }
+      return null;
+    } on ApiError catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  /// PUT /auth/change-password — returns 204 on success.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmNewPassword,
+  }) async {
+    try {
+      await _apiClient.put<dynamic>('/auth/change-password', body: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+        'confirmNewPassword': confirmNewPassword,
+      });
+    } on ApiError catch (e) {
+      throw _mapError(e);
+    }
+  }
+
+  /// Persists a refreshed display name after a profile update.
+  Future<void> updateStoredName(String name) async {
+    final session = await _tokenStorage.getSession();
+    if (session == null) return;
+    await _tokenStorage.save(
+      token: session.token,
+      expiresAt: session.expiresAt,
+      userId: session.userId,
+      email: session.email,
+      name: name,
+      role: session.role,
+    );
+  }
+
   Future<void> logout() async {
     await _tokenStorage.clear();
     _apiClient.setToken(null);

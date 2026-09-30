@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { consultationService, type ConsultationRequestApi } from '../../services/api';
+import { getMyAppointments } from '../../services/schedulingService';
 import {
   getAllPrescriptions,
   getAllTreatmentRecords,
   getExaminations,
 } from '../../services/treatmentService';
 
-const ATTENTION_STATUSES = new Set(['Submitted', 'Processing', 'PendingApproval']);
 const ACTIVE_TREATMENT_STATUSES = new Set(['Planned', 'InProgress']);
 
 const cardStyle = {
@@ -19,14 +18,15 @@ const cardStyle = {
 
 /**
  * Veterinarian dashboard — clinical workload overview built from real
- * consultation, examination, treatment, and prescription data.
+ * appointment, examination, treatment, and prescription data.
  * Renders inside the shared DashboardLayout shell.
  */
 export function VeterinarianDashboard() {
-  const [consultations, setConsultations] = useState<ConsultationRequestApi[]>([]);
+  const [upcomingAppointments, setUpcomingAppointments] = useState(0);
   const [examinationCount, setExaminationCount] = useState(0);
   const [activeTreatments, setActiveTreatments] = useState(0);
   const [prescriptionCount, setPrescriptionCount] = useState(0);
+  const [todayAppointments, setTodayAppointments] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -35,17 +35,27 @@ export function VeterinarianDashboard() {
 
     async function load() {
       try {
-        const [consultationData, examinations, treatments, prescriptions] = await Promise.all([
-          consultationService.getAllConsultations(),
+        const today = new Date().toISOString().slice(0, 10);
+        const [examinations, treatments, prescriptions, myAppointments] = await Promise.all([
           getExaminations(),
           getAllTreatmentRecords(),
           getAllPrescriptions(),
+          getMyAppointments().catch(() => []),
         ]);
         if (!active) return;
-        setConsultations(consultationData);
+        setUpcomingAppointments(
+          myAppointments.filter(
+            (a) => a.scheduledStart.slice(0, 10) >= today && a.status === 'Confirmed',
+          ).length,
+        );
         setExaminationCount(examinations.length);
         setActiveTreatments(treatments.filter((t) => ACTIVE_TREATMENT_STATUSES.has(t.status)).length);
         setPrescriptionCount(prescriptions.length);
+        setTodayAppointments(
+          myAppointments.filter(
+            (a) => a.scheduledStart.slice(0, 10) === today && a.status !== 'Cancelled',
+          ).length,
+        );
       } catch {
         if (active) setError('Could not load dashboard data. Please try again shortly.');
       } finally {
@@ -57,20 +67,20 @@ export function VeterinarianDashboard() {
     return () => { active = false; };
   }, []);
 
-  const awaitingReview = consultations.filter((c) => ATTENTION_STATUSES.has(c.status));
-  const recentAwaiting = [...awaitingReview]
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 5);
-
   return (
     <>
       {error && <div className="notice error" role="alert">{error}</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
         <div style={cardStyle}>
-          <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>Requests Awaiting Review</div>
-          <div style={{ fontSize: '1.75rem', fontWeight: '900', color: '#111827', marginTop: '0.25rem' }}>{loading ? '…' : awaitingReview.length}</div>
-          <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>Submitted or in-progress consultations</div>
+          <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>Today&apos;s Appointments</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: '900', color: '#111827', marginTop: '0.25rem' }}>{loading ? '…' : todayAppointments}</div>
+          <Link to="/vet/appointments" style={{ fontSize: '0.8rem', color: '#0f6b5f', fontWeight: 700 }}>View my appointments</Link>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>Upcoming Appointments</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: '900', color: '#111827', marginTop: '0.25rem' }}>{loading ? '…' : upcomingAppointments}</div>
+          <Link to="/vet/appointments" style={{ fontSize: '0.8rem', color: '#0f6b5f', fontWeight: 700 }}>View my appointments</Link>
         </div>
         <div style={cardStyle}>
           <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>Examinations</div>
@@ -90,27 +100,13 @@ export function VeterinarianDashboard() {
       </div>
 
       <div style={{ ...cardStyle, padding: '1.75rem' }}>
-        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827', marginBottom: '0.5rem' }}>Consultations Needing Attention</h3>
-        {loading ? (
-          <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>Loading…</p>
-        ) : recentAwaiting.length === 0 ? (
-          <p style={{ color: '#6b7280', fontSize: '0.9rem', lineHeight: '1.6' }}>
-            No consultation requests are waiting for review right now.
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gap: '0.6rem' }}>
-            {recentAwaiting.map((request) => (
-              <div key={request.id} className="info-strip" style={{ justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div>
-                  <strong>{request.petName ?? 'Patient'}</strong>
-                  <span className="muted"> · {request.symptoms.length > 80 ? `${request.symptoms.slice(0, 80)}…` : request.symptoms}</span>
-                </div>
-                <span className="muted" style={{ fontSize: '0.8rem' }}>{request.status}</span>
-              </div>
-            ))}
-            <Link to="/consultations" style={{ fontSize: '0.85rem' }}>View all consultation requests →</Link>
-          </div>
-        )}
+        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#111827', marginBottom: '0.5rem' }}>My Work Queue</h3>
+        <p style={{ color: '#6b7280', fontSize: '0.9rem', lineHeight: '1.6' }}>
+          Your assigned appointments are the vet&apos;s work queue — open an
+          appointment to record the examination, diagnosis, treatment,
+          prescriptions, and follow-up requests.
+        </p>
+        <Link to="/vet/appointments" style={{ fontSize: '0.85rem' }}>Go to My Appointments →</Link>
       </div>
     </>
   );

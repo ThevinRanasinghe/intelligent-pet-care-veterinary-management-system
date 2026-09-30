@@ -19,20 +19,34 @@ namespace PetCare.Api.Controllers;
 [Authorize]
 public class QuotationsController : ControllerBase
 {
-    // Billing visibility: clinical staff and management (Inventory Officer
-    // has no billing responsibility).
+    // Billing visibility: clinical staff, management, and the inventory
+    // officer (who issues billed medicines).
     private const string ReadRoles =
-        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.SuperAdmin}";
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}";
+
+    // By-id/self views also allow the owning PetOwner (ownership is checked
+    // inside the action).
+    private const string OwnerOrStaffReadRoles =
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin},{Roles.PetOwner}";
 
     // Quotations/billing are managed by the Clinic Manager.
     private const string ManageRoles =
         $"{Roles.ClinicManager},{Roles.SuperAdmin}";
 
-    private readonly IBillingService _billingService;
+    // Recording payment is restricted to the inventory desk / admin —
+    // veterinarians and managers cannot mark a bill paid.
+    private const string PaymentRoles =
+        $"{Roles.InventoryOfficer},{Roles.SuperAdmin}";
 
-    public QuotationsController(IBillingService billingService)
+    private readonly IBillingService _billingService;
+    private readonly IOwnerAccessService _ownerAccess;
+
+    public QuotationsController(
+        IBillingService billingService,
+        IOwnerAccessService ownerAccess)
     {
         _billingService = billingService;
+        _ownerAccess = ownerAccess;
     }
 
     /// <summary>Gets all quotations.</summary>
@@ -45,15 +59,58 @@ public class QuotationsController : ControllerBase
         return Ok(quotations);
     }
 
+    /// <summary>The caller's (pet owner's) bills.</summary>
+    [HttpGet("mine")]
+    [Authorize(Roles = Roles.PetOwner)]
+    [ProducesResponseType(typeof(IReadOnlyList<QuotationResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<QuotationResponse>>> GetMyQuotations(CancellationToken cancellationToken)
+    {
+        var ownerId = await _ownerAccess.GetOwnerIdAsync(cancellationToken);
+        if (ownerId is null)
+        {
+            return Ok(new List<QuotationResponse>());
+        }
+
+        var quotations = await _billingService.GetQuotationsForOwnerAsync(ownerId, cancellationToken);
+        return Ok(quotations);
+    }
+
     /// <summary>Gets a single quotation by id.</summary>
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = ReadRoles)]
+    [Authorize(Roles = OwnerOrStaffReadRoles)]
     [ProducesResponseType(typeof(QuotationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<QuotationResponse>> GetQuotationById(Guid id, CancellationToken cancellationToken)
     {
         var quotation = await _billingService.GetQuotationByIdAsync(id, cancellationToken);
-        return quotation is null ? NotFound() : Ok(quotation);
+        if (quotation is null)
+        {
+            return NotFound();
+        }
+
+        // A pet owner may only read bills for their own pets.
+        if (_ownerAccess.IsPetOwner
+            && (quotation.PetId is null || !await _ownerAccess.OwnsPetAsync(quotation.PetId)))
+        {
+            return NotFound();
+        }
+
+        return Ok(quotation);
+    }
+
+    /// <summary>
+    /// Records payment for a Finalised bill. Restricted to the inventory
+    /// desk / administrator — veterinarians and managers get 403.
+    /// </summary>
+    [HttpPost("{id:guid}/mark-paid")]
+    [Authorize(Roles = PaymentRoles)]
+    [ProducesResponseType(typeof(QuotationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<QuotationResponse>> MarkPaid(Guid id, CancellationToken cancellationToken)
+    {
+        var quotation = await _billingService.MarkPaidAsync(id, cancellationToken);
+        return Ok(quotation);
     }
 
     /// <summary>

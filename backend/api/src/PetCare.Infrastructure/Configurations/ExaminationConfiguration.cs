@@ -25,6 +25,11 @@ public class ExaminationConfiguration : IEntityTypeConfiguration<Examination>
         builder.Property(e => e.ConsultationRequestId)
             .HasMaxLength(30);
 
+        builder.Property(e => e.VeterinarianCharge)
+            .IsRequired()
+            .HasColumnType("numeric(18,2)")
+            .HasDefaultValue(0m);
+
         builder.Property(e => e.Symptoms)
             .HasMaxLength(1000)
             .IsRequired();
@@ -58,6 +63,18 @@ public class ExaminationConfiguration : IEntityTypeConfiguration<Examination>
             .WithMany()
             .HasForeignKey(e => e.ConsultationRequestId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Examination -> Appointment (1:1, optional): at most one examination
+        // per appointment; deleting the appointment nulls the link.
+        builder.HasOne(e => e.Appointment)
+            .WithOne(a => a.Examination)
+            .HasForeignKey<Examination>(e => e.AppointmentId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(e => e.AppointmentId)
+            .IsUnique()
+            .HasFilter("\"AppointmentId\" IS NOT NULL")
+            .HasDatabaseName("IX_Examinations_AppointmentId");
 
         // Examination -> Diagnosis (1-to-1, Diagnosis has FK)
         builder.HasOne(e => e.Diagnosis)

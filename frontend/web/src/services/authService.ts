@@ -14,6 +14,8 @@ export interface LoginResponse {
   email: string;
   name: string;
   role: Role;
+  organizationId?: string | null;
+  organizationName?: string | null;
 }
 
 export async function login(email: string, password: string): Promise<StoredAuth> {
@@ -29,6 +31,8 @@ export async function login(email: string, password: string): Promise<StoredAuth
     email: response.email,
     name: response.name,
     role: response.role,
+    organizationId: response.organizationId ?? null,
+    organizationName: response.organizationName ?? null,
   };
 
   setStoredAuth(auth);
@@ -71,6 +75,8 @@ export interface RegisterOrganizationRequest {
   address: string;
   city: string;
   country: string;
+  latitude?: number | null;
+  longitude?: number | null;
   managerFirstName: string;
   managerLastName: string;
   managerEmail: string;

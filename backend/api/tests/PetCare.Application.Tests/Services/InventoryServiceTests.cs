@@ -41,6 +41,8 @@ public class InventoryServiceTests
         _tenant.Setup(t => t.GetOrganizationIdAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(OrganizationId);
         _tenant.Setup(t => t.IsOrganizationScoped).Returns(true);
+        _medicineRepository.Setup(m => m.RefreshCurrentValuesAsync(It.IsAny<Medicine>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         return new InventoryService(
             _medicineRepository.Object,

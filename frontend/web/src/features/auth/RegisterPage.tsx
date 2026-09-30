@@ -6,6 +6,7 @@ import AuthLayout from './components/AuthLayout';
 import AuthInput from './components/AuthInput';
 import PasswordInput from './components/PasswordInput';
 import { registerPetOwner, registerOrganization, type RegisterPetOwnerRequest, type RegisterOrganizationRequest } from '../../services/authService';
+import { LocationPickerMap, type MapLocation } from '../shared/maps/LocationPickerMap';
 import { messageFrom } from '../../utils/errors';
 
 type RegType = 'pet-owner' | 'organization';
@@ -141,6 +142,9 @@ export function RegisterPage() {
     confirmPassword: '',
   });
 
+  const [orgLocation, setOrgLocation] = useState<MapLocation | null>(null);
+  const [showOrgMap, setShowOrgMap] = useState(false);
+
   const [errors, setErrors] = useState<PetOwnerErrors | OrgErrors>({});
   const [apiError, setApiError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -257,6 +261,8 @@ export function RegisterPage() {
           address: orgForm.address.trim(),
           city: orgForm.city.trim(),
           country: orgForm.country.trim(),
+          latitude: orgLocation?.lat ?? null,
+          longitude: orgLocation?.lng ?? null,
           managerFirstName: orgForm.managerFirstName.trim(),
           managerLastName: orgForm.managerLastName.trim(),
           managerEmail: orgForm.managerEmail.trim(),
@@ -509,6 +515,53 @@ export function RegisterPage() {
                 required
                 disabled={submitting || success}
               />
+
+              <div className="field-group" style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '2px', fontSize: '11px', fontWeight: 700, color: '#4b4b4b' }}>
+                  Clinic Location <span style={{ fontWeight: 400, color: '#888888' }}>Optional</span>
+                </label>
+                <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#888888' }}>
+                  Add your clinic's exact location so pet owners can find you easily.
+                </p>
+
+                {orgLocation ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: '#3f7d2c' }}>
+                      ✓ Exact clinic location selected
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setShowOrgMap(true)}
+                      disabled={submitting || success}
+                    >
+                      Change Location
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowOrgMap(true)}
+                    disabled={submitting || success}
+                  >
+                    Select Location on Map
+                  </button>
+                )}
+
+                {showOrgMap && (
+                  <div style={{ marginTop: '10px' }}>
+                    <LocationPickerMap
+                      value={orgLocation ?? undefined}
+                      onConfirm={(location) => {
+                        setOrgLocation(location);
+                        setShowOrgMap(false);
+                      }}
+                      onCancel={() => setShowOrgMap(false)}
+                    />
+                  </div>
+                )}
+              </div>
 
               <div className="form-row">
                 <AuthInput

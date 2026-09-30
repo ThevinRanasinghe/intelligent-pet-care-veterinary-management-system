@@ -126,6 +126,7 @@ export function TreatmentPage() {
     const [prescriptionForm, setPrescriptionForm] = useState({
         medicineId: '',
         dosage: '',
+        route: '',
         durationDays: 5
     });
 
@@ -168,7 +169,8 @@ export function TreatmentPage() {
         setRecommendations(null);
 
         getDiagnosisByExamination(examinationId)
-            .then(async (d) => {
+            .then(async (list) => {
+                const d = list[0] ?? null;
                 setDiagnosis(d);
                 if (d && d.id) {
                     const records = await getTreatmentRecordsByDiagnosis(d.id);
@@ -484,10 +486,10 @@ export function TreatmentPage() {
             }
             await createPrescription({
                 treatmentRecordId: showPrescriptionModal,
-                ...prescriptionForm
+                items: [prescriptionForm]
             });
             setShowPrescriptionModal(null);
-            setPrescriptionForm({ medicineId: medicines[0]?.id || '', dosage: '', durationDays: 5 });
+            setPrescriptionForm({ medicineId: medicines[0]?.id || '', dosage: '', route: '', durationDays: 5 });
             if (expandedId) loadDetail(expandedId);
             setActionSuccess('Prescription assigned.');
             setTimeout(() => setActionSuccess(''), 4000);
@@ -864,7 +866,7 @@ export function TreatmentPage() {
                                                                                                         icon={<Pill size={14} />}
                                                                                                         onClick={() => {
                                                                                                             setShowPrescriptionModal(tr.id);
-                                                                                                            setPrescriptionForm({ medicineId: medicines[0]?.id || '', dosage: '', durationDays: 5 });
+                                                                                                            setPrescriptionForm({ medicineId: medicines[0]?.id || '', dosage: '', route: '', durationDays: 5 });
                                                                                                         }}
                                                                                                     >
                                                                                                         + Add Rx
@@ -1154,6 +1156,20 @@ export function TreatmentPage() {
                                 onChange={(e) => setPrescriptionForm({ ...prescriptionForm, dosage: e.target.value })}
                                 placeholder="e.g. 1 tablet twice daily with food, 5ml every 8 hours"
                             />
+                        </label>
+
+                        <label>
+                            Route
+                            <select
+                                aria-label="Route"
+                                value={prescriptionForm.route}
+                                onChange={(e) => setPrescriptionForm({ ...prescriptionForm, route: e.target.value })}
+                            >
+                                <option value="">—</option>
+                                {['Oral', 'Topical', 'Injectable', 'Otic', 'Ophthalmic', 'Other'].map((r) => (
+                                    <option key={r} value={r}>{r}</option>
+                                ))}
+                            </select>
                         </label>
 
                         <label>

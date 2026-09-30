@@ -42,6 +42,19 @@ class SchedulingService {
     return null;
   }
 
+  /// Role-aware appointment list: Veterinarian → own appointments,
+  /// PetOwner → own pets' appointments, staff → org-scoped list.
+  Future<List<Appointment>> getMyAppointments() async {
+    try {
+      return await _apiClient.getList<Appointment>(
+        '/appointments/mine',
+        fromJson: Appointment.fromJson,
+      );
+    } on ApiError {
+      rethrow;
+    }
+  }
+
   Future<List<Appointment>> getAppointments() async {
     try {
       return await _apiClient.getList<Appointment>(

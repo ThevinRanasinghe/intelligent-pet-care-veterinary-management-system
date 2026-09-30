@@ -18,6 +18,18 @@ class BillingService {
     }
   }
 
+  /// Pet owner's own bills — owner-scoped, not organization-scoped.
+  Future<List<Quotation>> getMyBills() async {
+    try {
+      return await _apiClient.getList<Quotation>(
+        '/quotations/mine',
+        fromJson: Quotation.fromJson,
+      );
+    } on ApiError {
+      rethrow;
+    }
+  }
+
   Future<Quotation> getQuotationById(String id) async {
     try {
       return await _apiClient.get<Quotation>(

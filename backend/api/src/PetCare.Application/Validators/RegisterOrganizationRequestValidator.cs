@@ -41,6 +41,18 @@ public class RegisterOrganizationRequestValidator : AbstractValidator<RegisterOr
         RuleFor(r => r.RegistrationNumber)
             .MaximumLength(100).WithMessage("Registration number must be 100 characters or fewer.");
 
+        RuleFor(r => r.Latitude)
+            .InclusiveBetween(-90, 90).WithMessage("Latitude must be between -90 and 90.")
+            .When(r => r.Latitude.HasValue);
+
+        RuleFor(r => r.Longitude)
+            .InclusiveBetween(-180, 180).WithMessage("Longitude must be between -180 and 180.")
+            .When(r => r.Longitude.HasValue);
+
+        RuleFor(r => r)
+            .Must(r => r.Latitude.HasValue == r.Longitude.HasValue)
+            .WithMessage("Latitude and longitude must be provided together.");
+
         // ── Primary Clinic Manager Account ──
         RuleFor(r => r.ManagerFirstName)
             .NotEmpty().WithMessage("Manager first name is required.")

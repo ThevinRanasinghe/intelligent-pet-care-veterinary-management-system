@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_states.dart';
+import '../../core/widgets/detail_row.dart';
+import '../../core/widgets/status_badge.dart';
 import 'approval_provider.dart';
 
 class ApprovalDetailPage extends StatefulWidget {
@@ -34,22 +38,11 @@ class _ApprovalDetailPageState extends State<ApprovalDetailPage> {
     switch (provider.detailState) {
       case LoadState.idle:
       case LoadState.loading:
-        return const Center(child: CircularProgressIndicator());
+        return const AppLoading();
       case LoadState.error:
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 8),
-              Text(provider.errorMessage, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => provider.loadApproval(widget.approvalId),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
+        return AppErrorState(
+          message: provider.errorMessage,
+          onRetry: () => provider.loadApproval(widget.approvalId),
         );
       case LoadState.success:
         final a = provider.approval;
@@ -60,16 +53,34 @@ class _ApprovalDetailPageState extends State<ApprovalDetailPage> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _row('Approval ID', a.id),
-            _row('Quotation ID', a.quotationId),
-            _row('Status', a.status),
-            _row('Quotation Total', 'LKR ${a.quotationTotal.toStringAsFixed(2)}'),
-            _row('Quotation Budget', 'LKR ${a.quotationBudget.toStringAsFixed(2)}'),
-            _row('Within Budget', withinBudget ? 'Yes' : 'No'),
-            if (a.reviewedBy != null) _row('Reviewed By', a.reviewedBy!),
-            if (a.reviewedAt != null) _row('Reviewed At', a.reviewedAt!),
-            if (a.comment != null && a.comment!.isNotEmpty)
-              _row('Comment', a.comment!),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DetailRow('Approval ID', value: a.id, labelWidth: 140),
+                  DetailRow('Quotation ID',
+                      value: a.quotationId, labelWidth: 140),
+                  DetailRow('Status',
+                      labelWidth: 140, child: StatusBadge(a.status)),
+                  DetailRow('Quotation Total',
+                      value: 'LKR ${a.quotationTotal.toStringAsFixed(2)}',
+                      labelWidth: 140),
+                  DetailRow('Quotation Budget',
+                      value: 'LKR ${a.quotationBudget.toStringAsFixed(2)}',
+                      labelWidth: 140),
+                  DetailRow('Within Budget',
+                      value: withinBudget ? 'Yes' : 'No', labelWidth: 140),
+                  if (a.reviewedBy != null)
+                    DetailRow('Reviewed By',
+                        value: a.reviewedBy!, labelWidth: 140),
+                  if (a.reviewedAt != null)
+                    DetailRow('Reviewed At',
+                        value: a.reviewedAt!, labelWidth: 140),
+                  if (a.comment != null && a.comment!.isNotEmpty)
+                    DetailRow('Comment', value: a.comment!, labelWidth: 140),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               icon: const Icon(Icons.history),
@@ -82,21 +93,5 @@ class _ApprovalDetailPageState extends State<ApprovalDetailPage> {
           ],
         );
     }
-  }
-
-  Widget _row(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
   }
 }

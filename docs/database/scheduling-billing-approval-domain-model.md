@@ -1,6 +1,6 @@
 # Scheduling / Billing / Approval Domain Model
 
-This document defines the normalized relational schema for the Scheduling, Billing and Approval modules: entities, PK/FK relationships, constraints, indexes, PostgreSQL column types, EF Core migration notes, seed data and transaction boundaries. The frontend UI types in `frontend/web/src/types/domain.ts` (`Veterinarian.name/specialisation/branch/active`) are consistent with the `Veterinarian` entity below; no backend persistence layer exists yet, so this is the target schema for the eventual EF Core / PostgreSQL implementation.
+This document defines the normalized relational schema for the Scheduling, Billing and Approval modules: entities, PK/FK relationships, constraints, indexes, PostgreSQL column types, EF Core migration notes, seed data and transaction boundaries. The schema is implemented by EF Core migrations — `InitialSchedulingBillingApproval` → `AddUsers` → `ConsolidatedDomainModel` → `WorkflowRedesign` (`20260926165049`, additive-only; **not yet applied to the shared Supabase database**) → `BookingRules` (`20260927070805`, adds `ConsultationRequests.OrganizationId` + index + FK → `Organizations`, `SetNull`) → `OrganizationLocation` (`20260927081008`, adds `Organizations.Latitude`/`Longitude` nullable `double precision`); the two newer migrations are also pending on Supabase. Columns marked † were added by `WorkflowRedesign`.
 
 ## Entities
 
@@ -13,6 +13,8 @@ This document defines the normalized relational schema for the Scheduling, Billi
 | Specialisation | `varchar(150)` | NOT NULL |
 | Branch | `varchar(100)` | NOT NULL |
 | Active | `boolean` | NOT NULL, default `true` |
+| OrganizationId †(Consolidated) | `uuid` | NULL, FK -> `Organization.Id` (tenant ownership) |
+| UserId † | `uuid` | NULL, UNIQUE filtered (`IS NOT NULL`), FK -> `User.Id` (`Restrict`) — links the vet profile to a login; only vets created via `POST /api/manager/users/veterinarians` get it |
 | CreatedAt | `timestamptz` | NOT NULL, default `now()` |
 | UpdatedAt | `timestamptz` | NOT NULL, default `now()` |
 
@@ -37,7 +39,7 @@ Constraint: `UNIQUE (VeterinarianId, Date, StartTime)` prevents double-booking t
 | Field | PostgreSQL Type | Constraints |
 |---|---|---|
 | Id | `uuid` | PK, default `gen_random_uuid()` |
-| PetId | `uuid` | NOT NULL, FK -> `Pet.Id` (Pet entity implemented by the other component; see [Relationships](#relationships-erd-summary)) |
+| PetId | `varchar(30)` | NOT NULL, FK -> `Pet.Id` (string business id — corrected in the pre-migration work; Pet entity owned by the pet module) |
 | VeterinarianId | `uuid` | NOT NULL, FK -> `Veterinarian.Id` |
 | AppointmentSlotId | `uuid` | NOT NULL, UNIQUE, FK -> `AppointmentSlot.Id` |
 | Date | `date` | NOT NULL |
@@ -45,6 +47,8 @@ Constraint: `UNIQUE (VeterinarianId, Date, StartTime)` prevents double-booking t
 | EndTime | `time` | NOT NULL, CHECK (`EndTime` > `StartTime`) |
 | Status | `varchar(20)` | NOT NULL, CHECK IN (`Available`, `Reserved`, `Confirmed`, `Completed`, `Cancelled`), default `Reserved` |
 | Notes | `text` | NULL |
+| ConsultationRequestId † | `varchar(30)` | NULL, FK -> `ConsultationRequest.Id` (`SetNull`), indexed — the request this appointment was scheduled from |
+| Type † | `varchar(20)` | NOT NULL, default `Initial` — `Initial`/`FollowUp` (`AppointmentType`), inherited from `ConsultationRequest.RequestType` |
 | CreatedAt | `timestamptz` | NOT NULL, default `now()` |
 | UpdatedAt | `timestamptz` | NOT NULL, default `now()` |
 
@@ -60,10 +64,13 @@ Constraint: `UNIQUE (VeterinarianId, Date, StartTime)` prevents double-booking t
 | Subtotal | `numeric(12,2)` | NOT NULL, CHECK (`Subtotal` >= 0), default `0` |
 | Total | `numeric(12,2)` | NOT NULL, CHECK (`Total` >= 0), default `0` |
 | Status | `varchar(20)` | NOT NULL, CHECK IN (`Draft`, `PendingApproval`, `Approved`, `Rejected`, `RevisionRequested`, `Finalised`), default `Draft` |
+| PaymentStatus † | `varchar(20)` | NOT NULL, default `Pending` — `Pending`/`Paid` (`PaymentStatus`); the Quotation doubles as the bill |
+| PaidAt † | `timestamptz` | NULL — stamped by `mark-paid` |
+| PaidByUserId † | `uuid` | NULL, FK -> `User.Id` (`SetNull`), indexed |
 | CreatedAt | `timestamptz` | NOT NULL, default `now()` |
 | UpdatedAt | `timestamptz` | NOT NULL, default `now()` |
 
-Derived rule: `Subtotal` = `SUM(QuotationItem.TotalPrice)`; `Total` = `Subtotal` (+ tax/fees if introduced later). Application/service layer should validate `Total <= Budget` before moving `Status` to `PendingApproval`.
+Derived rule: `Subtotal` = `SUM(QuotationItem.TotalPrice)`; `Total` = `Subtotal` (+ tax/fees if introduced later). Application/service layer should validate `Total <= Budget` before moving `Status` to `PendingApproval`. In the automated billing path the service builds the items itself — one `Examination` line (`VeterinarianCharge`) plus one `Medicine` line per `Issued` prescription — sets `Status = Finalised` directly, and never mutates a `Paid` bill. `InvoiceNumber` is derived at the API layer (`INV-` + first 8 hex chars of `Id`), not stored.
 
 ### QuotationItem
 
@@ -144,6 +151,14 @@ Matches the frontend `QuotationStatus` type.
 
 Matches the frontend `ApprovalStatus` type. Each transition here is mirrored by an `ApprovalHistory` row (`PreviousStatus` -> `NewStatus`).
 
+### WorkflowRedesign statuses †
+
+| Enum | Values | Stored on |
+|---|---|---|
+| `MedicineRequestStatus` | `Pending` (awaiting the inventory desk), `Issued` (reserved + dispensed), `Unavailable` (reason recorded) | `Prescription.RequestStatus` |
+| `PaymentStatus` | `Pending`, `Paid` | `Quotation.PaymentStatus` |
+| `AppointmentType` | `Initial`, `FollowUp` | `Appointment.Type`, mirrored from `ConsultationRequest.RequestType` |
+
 ## Business rules
 
 These are the business-specific operations (beyond CRUD) that the backend must enforce. They formalize logic already present in the frontend UI layer so behaviour stays identical when moved server-side.
@@ -220,6 +235,12 @@ Quotation
 - `IX_QuotationItem_QuotationId` on `QuotationItem (QuotationId)`.
 - `IX_Approval_Status` on `Approval (Status)` — pending-approval queue queries.
 - `IX_ApprovalHistory_ApprovalId_ChangedAt` on `ApprovalHistory (ApprovalId, ChangedAt)`.
+- `IX_Veterinarians_UserId` on `Veterinarian (UserId)` — UNIQUE, filtered `"UserId" IS NOT NULL` †.
+- `IX_Appointment_ConsultationRequestId` on `Appointment (ConsultationRequestId)` †.
+- `IX_Examinations_AppointmentId` on `Examination (AppointmentId)` — UNIQUE, filtered `IS NOT NULL` †.
+- `IX_Prescriptions_RequestStatus`, `IX_Prescriptions_ReservationId`, `IX_Prescriptions_ProcessedByUserId` †.
+- `IX_ConsultationRequests_RequestedByVeterinarianId` †.
+- `IX_Quotation_PaidByUserId` †.
 
 ## EF Core migrations
 
@@ -238,10 +259,18 @@ Quotation
 ## Transactions
 
 - **Booking a slot**: updating `AppointmentSlot.Status` to `Reserved`/`Confirmed` and inserting the `Appointment` row must happen in a single database transaction to avoid double-booking under concurrent requests; use `SERIALIZABLE` or row-level locking (`SELECT ... FOR UPDATE`) on the slot row, or rely on the `UNIQUE (VeterinarianId, Date, StartTime)` constraint plus retry-on-conflict.
+- **Veterinarian assignment †**: `ConsultationWorkflowService.AssignConsultationAsync` creates the `AppointmentSlot` (Reserved) + `Confirmed` `Appointment` (with `ConsultationRequestId`/`Type`), updates the request to `AppointmentConfirmed`, and appends the `ConsultationStatusHistory` row in one `IUnitOfWork.SaveChangesAsync`.
+- **Completing an appointment †**: `ExaminationService.CreateAsync` (with `AppointmentId`) inserts the `Examination` and marks the `Appointment` + `AppointmentSlot` `Completed` in one `SaveChangesAsync` — after checking the appointment belongs to the attending vet, isn't `Completed`/`Cancelled`, and has no existing examination (unique filtered index also guards this).
+- **Medicine-request fulfilment †**: `MedicineRequestService.IssueAsync` reserves then dispenses atomically through `IInventoryService` (insufficient stock → `InventoryConflictException` 409, never negative; a failed dispense releases the reservation), then sets `Issued` + `ReservationId` + `ProcessedByUserId`/`ProcessedAt` and refreshes the bill via `GenerateOrRefreshBillForExaminationAsync`.
+- **Payment †**: `BillingService.MarkPaidAsync` transitions `PaymentStatus` Pending→Paid with `PaidAt`/`PaidByUserId` — only for a `Finalised` quotation; a `Paid` bill is never mutated by later bill refreshes.
 - **Quotation approval**: transitioning `Approval.Status`, updating `Approval.ReviewedBy`/`ReviewedAt`, inserting the `ApprovalHistory` row, and updating `Quotation.Status` must all commit atomically within one transaction.
 - **Quotation total recalculation**: any insert/update/delete of a `QuotationItem` should recompute and persist `Quotation.Subtotal`/`Total` in the same transaction as the item change.
 
 ## Notes
 
 - This schema targets PostgreSQL with EF Core (Npgsql provider). The current frontend mock layer (`frontend/web/src/services/mockData.ts`, `frontend/web/src/types/domain.ts`) uses simplified string IDs and denormalised display fields (e.g. `veterinarianName` on slots); the backend implementation should expose normalized IDs and let the API/BFF layer join and denormalise for the UI.
-- `Pet` and `User` referenced above (`PetId`, `ReviewedBy`, `ChangedBy`) are owned by other modules and are out of scope for this document beyond the FK reference.
+- `Pet` and `User` referenced above (`PetId`, `ReviewedBy`, `ChangedBy`, `UserId`, `PaidByUserId`) are owned by other modules and are out of scope for this document beyond the FK reference.
+- † `WorkflowRedesign` (`20260926165049`) also touched tables owned by sibling modules: `Examinations` (`AppointmentId` unique FK, `VeterinarianCharge`), `Prescriptions` (`Quantity`, `Frequency`, `Instructions`, `RequestStatus`, `UnavailableReason`, `ReservationId`, `ProcessedByUserId`, `ProcessedAt`), and `ConsultationRequests` (`RequestType` + CHECK `'Initial','FollowUp'`, `RequestedByVeterinarianId`). The migration is additive-only (18 columns, 8 indexes, 7 FKs, 1 check constraint — no drops/renames) and is **not yet applied to the shared Supabase database**.
+
+- **`BookingRules` (`20260927070805`)** adds `ConsultationRequests.OrganizationId` (`uuid` nullable, indexed, FK → `Organizations` `SetNull`) — the clinic an owner books at; booking rules (09:00–18:00, nine 1-hour slots, hour-aligned starts, org slot capacity) live in `BookingRules`/validators. The pre-existing unique `IX_AppointmentSlots_VeterinarianId_Date_StartTime` converts concurrent same-vet/slot assigns into 23505 → 409.
+- **`OrganizationLocation` (`20260927081008`)** adds `Organizations.Latitude`/`Longitude` (nullable `double precision`) — optional clinic map coordinates captured at organization registration; feeds `GET /api/consultations/nearby-clinics` / `nearest-clinic` and the React `ClinicMap`. Also **not yet applied to Supabase** (verified on local disposable DBs only).

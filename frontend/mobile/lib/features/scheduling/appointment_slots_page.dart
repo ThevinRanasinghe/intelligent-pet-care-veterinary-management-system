@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_states.dart';
+import '../../core/widgets/status_badge.dart';
 import 'scheduling_provider.dart';
 import 'models/appointment_slot.dart';
 
@@ -33,26 +37,21 @@ class _AppointmentSlotsPageState extends State<AppointmentSlotsPage> {
     switch (provider.slotsState) {
       case LoadState.idle:
       case LoadState.loading:
-        return const Center(child: CircularProgressIndicator());
+        return const AppLoading();
       case LoadState.error:
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 8),
-              Text(provider.errorMessage, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: provider.loadSlots, child: const Text('Retry')),
-            ],
-          ),
+        return AppErrorState(
+          message: provider.errorMessage,
+          onRetry: provider.loadSlots,
         );
       case LoadState.success:
         if (provider.slots.isEmpty) {
           return ListView(
             children: const [
-              SizedBox(height: 200),
-              Center(child: Text('No available appointment slots')),
+              AppEmptyState(
+                message: 'No available appointment slots',
+                icon: Icons.event_busy,
+                padding: EdgeInsets.only(top: 200),
+              ),
             ],
           );
         }
@@ -74,17 +73,27 @@ class AppointmentSlotTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return AppCard(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.zero,
+      onTap: () {
+        Navigator.of(context).pushNamed('/slot-appointment', arguments: slot.id);
+      },
       child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.calendar_today)),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: const Icon(Icons.calendar_today,
+              color: AppColors.black, size: 20),
+        ),
         title: Text('Vet: ${slot.veterinarianId}'),
         subtitle: Text('${slot.date}  ${slot.startTime}–${slot.endTime}\nBranch: ${slot.branch}'),
         isThreeLine: true,
-        trailing: Chip(label: Text(slot.status)),
-        onTap: () {
-          Navigator.of(context).pushNamed('/slot-appointment', arguments: slot.id);
-        },
+        trailing: StatusBadge(slot.status),
       ),
     );
   }

@@ -34,6 +34,10 @@ class ApiClient {
     return _request<T>('POST', path, body: body, fromJson: fromJson);
   }
 
+  Future<T> put<T>(String path, {Map<String, dynamic>? body, T Function(Map<String, dynamic>)? fromJson}) {
+    return _request<T>('PUT', path, body: body, fromJson: fromJson);
+  }
+
   Future<void> delete(String path) async {
     await _requestRaw('DELETE', path);
   }

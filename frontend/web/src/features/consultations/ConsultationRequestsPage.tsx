@@ -22,6 +22,16 @@ import {
   Pet,
   PetOwner,
 } from "../../services/api";
+import {
+  getVeterinarians,
+  type ManagerVeterinarian,
+} from "../../services/managerService";
+import {
+  lookupsService,
+  type AvailabilitySlot,
+} from "../../services/lookupsService";
+import { messageFrom } from "../../utils/errors";
+import { SlotPicker } from "../shared/booking/SlotPicker";
 import { useAuth } from "../auth/AuthContext";
 
 /* ========================================================================== */
@@ -53,6 +63,8 @@ type ConsultationRequest = {
   preferredTime: string;
   clinic: string;
   status: ConsultationStatus;
+  /** "Initial" | "FollowUp" — veterinarian-requested re-checks show a badge. */
+  requestType: string;
 };
 
 /* ========================================================================== */
@@ -154,6 +166,20 @@ function getUrgencyClass(urgency: string): string {
 
 export function ConsultationRequestsPage() {
   const { user } = useAuth();
+  // Mirrors the backend ManageRoles rule: only owners, managers and admins
+  // may create/submit/cancel requests — clinical staff are read-only.
+  const canManageRequests =
+    user?.role === "PetOwner" ||
+    user?.role === "ClinicManager" ||
+    user?.role === "Administrator";
+  // Mirrors POST /consultations/{id}/assign — ClinicManager + Admin only.
+  const canAssignVeterinarian =
+    user?.role === "ClinicManager" || user?.role === "Administrator";
+  // Submitting a request is the requester's step (Pet Owner / Admin). The
+  // Clinic Manager receives already-submitted work — their actions are
+  // Assign Veterinarian / Cancel Request, never Submit.
+  const canSubmitRequest =
+    canManageRequests && user?.role !== "ClinicManager";
   const [search, setSearch] = useState("");
 
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -208,6 +234,23 @@ export function ConsultationRequestsPage() {
     useState(false);
 
   const [cancelError, setCancelError] = useState("");
+
+  /* ------------------------------------------------------------------------ */
+  /* Assign Veterinarian                                                      */
+  /* ------------------------------------------------------------------------ */
+
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
+  const [veterinarians, setVeterinarians] = useState<ManagerVeterinarian[]>([]);
+  const [veterinariansLoaded, setVeterinariansLoaded] = useState(false);
+  const [assignVeterinarianId, setAssignVeterinarianId] = useState("");
+  const [assignDate, setAssignDate] = useState("");
+  // Fixed one-hour slots — the manager picks a start; the end is implied.
+  const [assignSlotStart, setAssignSlotStart] = useState<string | null>(null);
+  const [assignSlots, setAssignSlots] = useState<AvailabilitySlot[] | null>(null);
+  const [assignSlotsLoading, setAssignSlotsLoading] = useState(false);
+  const [assignNotes, setAssignNotes] = useState("");
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [assignError, setAssignError] = useState("");
 
   /* ======================================================================== */
   /* Load Consultations                                                       */
@@ -298,9 +341,11 @@ export function ConsultationRequestsPage() {
 
           preferredTime: formatTime(item.preferredTime),
 
-          clinic: "Happy Paws Veterinary Hospital",
+          clinic: item.organizationName ?? "Happy Paws Veterinary Hospital",
 
           status: (item.status as ConsultationStatus) || "Draft",
+
+          requestType: item.requestType || "Initial",
         };
       });
 
@@ -596,6 +641,107 @@ export function ConsultationRequestsPage() {
   };
 
   /* ======================================================================== */
+  /* ASSIGN VETERINARIAN                                                      */
+  /* ======================================================================== */
+
+  const handleOpenAssign = async () => {
+    setIsAssignOpen(true);
+    setAssignError("");
+    // Prefill the date from the owner's preferred date when available.
+    if (!assignDate && selectedConsultation?.preferredDate) {
+      setAssignDate(selectedConsultation.preferredDate.substring(0, 10));
+    }
+    if (!veterinariansLoaded) {
+      try {
+        setVeterinarians(await getVeterinarians());
+      } catch (error) {
+        setAssignError(messageFrom(error));
+      } finally {
+        setVeterinariansLoaded(true);
+      }
+    }
+  };
+
+  /* The organization the slot availability is checked against: the
+     consultation's clinic, falling back to the manager's own org. */
+  const assignOrganizationId =
+    selectedConsultation?.organizationId ?? user?.organizationId ?? null;
+
+  /* Reload the day's slots whenever the assign date (or clinic) changes. */
+  useEffect(() => {
+    if (!isAssignOpen || !assignOrganizationId || !assignDate) {
+      setAssignSlots(null);
+      return;
+    }
+
+    let mounted = true;
+    setAssignSlotsLoading(true);
+
+    lookupsService
+      .getAvailability(assignOrganizationId, assignDate)
+      .then((day) => {
+        if (mounted) setAssignSlots(day.slots);
+      })
+      .catch((error) => {
+        console.error("Failed to load assign availability:", error);
+        if (mounted) {
+          setAssignSlots(null);
+          setAssignError(messageFrom(error));
+        }
+      })
+      .finally(() => {
+        if (mounted) setAssignSlotsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAssignOpen, assignOrganizationId, assignDate]);
+
+  const handleAssignSubmit = async () => {
+    if (!selectedConsultation) return;
+    if (!assignVeterinarianId || !assignDate || !assignSlotStart) {
+      setAssignError("Select a veterinarian, date, and a one-hour time slot.");
+      return;
+    }
+
+    try {
+      setIsAssigning(true);
+      setAssignError("");
+
+      // Fixed one-hour slots: the server derives endTime = start + 1h.
+      await consultationService.assignVeterinarian(selectedConsultation.id, {
+        veterinarianId: assignVeterinarianId,
+        date: assignDate,
+        startTime: `${assignSlotStart}:00`,
+        notes: assignNotes.trim() || undefined,
+      });
+
+      const vetName =
+        veterinarians.find((vet) => vet.id === assignVeterinarianId)?.name ??
+        "the selected veterinarian";
+
+      const refreshed = await consultationService.getConsultationById(
+        selectedConsultation.id,
+      );
+      setSelectedConsultation(refreshed);
+      setIsAssignOpen(false);
+
+      await loadConsultations();
+
+      const history = await consultationService.getStatusHistory(refreshed.id);
+      setStatusHistory(history);
+
+      setSuccessNotice(`Assigned to ${vetName} on ${assignDate} at ${assignSlotStart}.`);
+      window.setTimeout(() => setSuccessNotice(""), 4000);
+    } catch (error) {
+      setAssignError(messageFrom(error));
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  /* ======================================================================== */
   /* CLOSE DETAILS                                                            */
   /* ======================================================================== */
 
@@ -603,7 +749,8 @@ export function ConsultationRequestsPage() {
     if (
       isLoadingDetails ||
       isSubmittingConsultation ||
-      isCancellingConsultation
+      isCancellingConsultation ||
+      isAssigning
     ) {
       return;
     }
@@ -619,6 +766,14 @@ export function ConsultationRequestsPage() {
     setSubmitError("");
 
     setCancelError("");
+
+    setIsAssignOpen(false);
+    setAssignError("");
+    setAssignVeterinarianId("");
+    setAssignDate("");
+    setAssignSlotStart(null);
+    setAssignSlots(null);
+    setAssignNotes("");
   };
 
   /* ======================================================================== */
@@ -648,19 +803,21 @@ export function ConsultationRequestsPage() {
         {/* ------------------------------------------------------------------ */}
 
         <div className="heading-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setSuccessNotice("");
-              setErrorNotice("");
+          {canManageRequests && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setSuccessNotice("");
+                setErrorNotice("");
 
-              setIsNewConsultationOpen(true);
-            }}
-          >
-            <Plus size={16} />
-            New Consultation
-          </button>
+                setIsNewConsultationOpen(true);
+              }}
+            >
+              <Plus size={16} />
+              New Consultation
+            </button>
+          )}
         </div>
       </div>
 
@@ -852,6 +1009,10 @@ export function ConsultationRequestsPage() {
                       </div>
 
                       <div>
+                        {request.requestType === "FollowUp" && (
+                          <span className="badge badge-info">Follow-up</span>
+                        )}
+
                         <span className={getUrgencyClass(request.urgency)}>
                           {request.urgency}
                         </span>
@@ -1227,6 +1388,28 @@ export function ConsultationRequestsPage() {
                         {selectedConsultation.urgency}
                       </span>
                     </div>
+
+                    {selectedConsultation.requestType === "FollowUp" && (
+                      <div>
+                        <div
+                          style={{
+                            marginBottom: "5px",
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            color: "#777777",
+                          }}
+                        >
+                          REQUEST TYPE
+                        </div>
+
+                        <span className="badge badge-info">
+                          Follow-up
+                          {selectedConsultation.requestedByVeterinarianName
+                            ? ` — ${selectedConsultation.requestedByVeterinarianName}`
+                            : ""}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* ==================================================== */}
@@ -1504,7 +1687,8 @@ export function ConsultationRequestsPage() {
                           fontSize: "12px",
                         }}
                       >
-                        Happy Paws Veterinary Hospital
+                        {selectedConsultation.organizationName ??
+                          "Happy Paws Veterinary Hospital"}
                       </strong>
                     </div>
                   </div>
@@ -1545,6 +1729,211 @@ export function ConsultationRequestsPage() {
                         "No additional notes."}
                     </div>
                   </div>
+
+                  {/* ==================================================== */}
+                  {/* ASSIGN VETERINARIAN PANEL                             */}
+                  {/* ==================================================== */}
+
+                  {isAssignOpen && canAssignVeterinarian && (
+                    <div
+                      style={{
+                        marginBottom: "18px",
+                        padding: "16px",
+                        border: "1px solid #e8e8e2",
+                        borderRadius: "10px",
+                        background: "#fafaf7",
+                      }}
+                    >
+                      <div
+                        style={{
+                          marginBottom: "10px",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          color: "#333333",
+                        }}
+                      >
+                        Assign Veterinarian
+                      </div>
+
+                      <label
+                        htmlFor="assign-veterinarian"
+                        style={{
+                          display: "block",
+                          marginBottom: "5px",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          color: "#777777",
+                        }}
+                      >
+                        VETERINARIAN
+                      </label>
+                      <select
+                        id="assign-veterinarian"
+                        aria-label="Veterinarian"
+                        value={assignVeterinarianId}
+                        onChange={(event) =>
+                          setAssignVeterinarianId(event.target.value)
+                        }
+                        style={{
+                          width: "100%",
+                          marginBottom: "12px",
+                          padding: "9px 10px",
+                          border: "1px solid #d8d8d2",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                      >
+                        <option value="">Select a veterinarian…</option>
+                        {veterinarians.map((vet) => (
+                          <option key={vet.id} value={vet.id}>
+                            {vet.name} — {vet.specialisation}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div style={{ marginBottom: "12px" }}>
+                        <label
+                          htmlFor="assign-date"
+                          style={{
+                            display: "block",
+                            marginBottom: "5px",
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            color: "#777777",
+                          }}
+                        >
+                          DATE
+                        </label>
+                        <input
+                          id="assign-date"
+                          aria-label="Appointment date"
+                          type="date"
+                          value={assignDate}
+                          onChange={(event) => {
+                            setAssignDate(event.target.value);
+                            setAssignSlotStart(null);
+                          }}
+                          min={new Date().toISOString().split("T")[0]}
+                          style={{
+                            width: "100%",
+                            maxWidth: "220px",
+                            padding: "9px 10px",
+                            border: "1px solid #d8d8d2",
+                            borderRadius: "8px",
+                            fontSize: "12px",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+
+                      {/* Fixed one-hour slots — only slots where the chosen
+                          veterinarian is free stay enabled. */}
+                      <div
+                        style={{
+                          marginBottom: "5px",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          color: "#777777",
+                        }}
+                      >
+                        TIME SLOT (ONE HOUR)
+                      </div>
+
+                      {assignVeterinarianId ? (
+                        <div style={{ marginBottom: "12px" }}>
+                          <SlotPicker
+                            slots={assignSlots}
+                            selectedStart={assignSlotStart}
+                            onSelect={setAssignSlotStart}
+                            loading={assignSlotsLoading}
+                            isEnabled={(slot) =>
+                              slot.availableVeterinarianIds.includes(
+                                assignVeterinarianId,
+                              )
+                            }
+                            emptyHint={
+                              assignDate
+                                ? "No availability information for this day."
+                                : "Pick a date to see the free slots."
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="booking-slots-hint"
+                          style={{ marginBottom: "12px" }}
+                        >
+                          Select a veterinarian to see which slots are free.
+                        </div>
+                      )}
+
+                      <label
+                        htmlFor="assign-notes"
+                        style={{
+                          display: "block",
+                          marginBottom: "5px",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          color: "#777777",
+                        }}
+                      >
+                        NOTES (OPTIONAL)
+                      </label>
+                      <textarea
+                        id="assign-notes"
+                        aria-label="Assignment notes"
+                        value={assignNotes}
+                        onChange={(event) => setAssignNotes(event.target.value)}
+                        rows={2}
+                        style={{
+                          width: "100%",
+                          marginBottom: "12px",
+                          padding: "9px 10px",
+                          border: "1px solid #d8d8d2",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          resize: "vertical",
+                          boxSizing: "border-box",
+                        }}
+                      />
+
+                      {assignError && (
+                        <div
+                          style={{
+                            marginBottom: "10px",
+                            padding: "10px 12px",
+                            border: "1px solid #f2b8b5",
+                            borderRadius: "8px",
+                            background: "#fff1f0",
+                            color: "#b42318",
+                            fontSize: "12px",
+                          }}
+                        >
+                          {assignError}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => void handleAssignSubmit()}
+                        disabled={isAssigning}
+                        style={{
+                          height: "36px",
+                          padding: "0 16px",
+                          border: "none",
+                          borderRadius: "8px",
+                          background: "#f5c400",
+                          color: "#171717",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          cursor: isAssigning ? "not-allowed" : "pointer",
+                          opacity: isAssigning ? 0.65 : 1,
+                        }}
+                      >
+                        {isAssigning ? "Assigning…" : "Confirm assignment"}
+                      </button>
+                    </div>
+                  )}
 
                   {/* ==================================================== */}
                   {/* STATUS HISTORY                                        */}
@@ -1777,16 +2166,18 @@ export function ConsultationRequestsPage() {
               {/* Left side */}
 
               <div>
-                {selectedConsultation?.status === "Draft" && !submitError && (
-                  <span
-                    style={{
-                      fontSize: "10px",
-                      color: "#777777",
-                    }}
-                  >
-                    Review the request before submitting.
-                  </span>
-                )}
+                {selectedConsultation?.status === "Draft" &&
+                  canSubmitRequest &&
+                  !submitError && (
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        color: "#777777",
+                      }}
+                    >
+                      Review the request before submitting.
+                    </span>
+                  )}
               </div>
 
               {/* Right side */}
@@ -1812,10 +2203,46 @@ export function ConsultationRequestsPage() {
                 </button>
 
                 {/* ====================================================== */}
+                {/* ASSIGN VETERINARIAN BUTTON                             */}
+                {/* ====================================================== */}
+
+                {selectedConsultation &&
+                  canAssignVeterinarian &&
+                  ["Submitted", "Processing"].includes(
+                    selectedConsultation.status,
+                  ) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenAssign()}
+                      disabled={isAssigning || isCancellingConsultation}
+                      style={{
+                        minWidth: "125px",
+                        height: "38px",
+                        padding: "0 16px",
+                        border: "1px solid #d8d8d2",
+                        borderRadius: "8px",
+                        background: "#ffffff",
+                        color: "#171717",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        cursor:
+                          isAssigning || isCancellingConsultation
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          isAssigning || isCancellingConsultation ? 0.65 : 1,
+                      }}
+                    >
+                      Assign Veterinarian
+                    </button>
+                  )}
+
+                {/* ====================================================== */}
                 {/* CANCEL REQUEST BUTTON                                  */}
                 {/* ====================================================== */}
 
                 {selectedConsultation &&
+                  canManageRequests &&
                   ["Draft", "Submitted", "Processing"].includes(
                     selectedConsultation.status,
                   ) && (
@@ -1855,7 +2282,7 @@ export function ConsultationRequestsPage() {
                 {/* SUBMIT REQUEST BUTTON                                   */}
                 {/* ====================================================== */}
 
-                {selectedConsultation?.status === "Draft" && (
+                {selectedConsultation?.status === "Draft" && canSubmitRequest && (
                   <button
                     type="button"
                     onClick={handleSubmitConsultation}

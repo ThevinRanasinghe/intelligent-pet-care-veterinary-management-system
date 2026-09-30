@@ -30,6 +30,18 @@ public class ConsultationRequestDto
 
     public string Status { get; set; } = string.Empty;
 
+    /// <summary>The clinic the consultation is booked at (null for legacy rows).</summary>
+    public Guid? OrganizationId { get; set; }
+
+    public string? OrganizationName { get; set; }
+
+    /// <summary>"Initial" (owner-filed) | "FollowUp" (vet-requested).</summary>
+    public string RequestType { get; set; } = "Initial";
+
+    public Guid? RequestedByVeterinarianId { get; set; }
+
+    public string? RequestedByVeterinarianName { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

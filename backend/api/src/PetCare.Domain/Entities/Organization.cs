@@ -26,6 +26,14 @@ public class Organization : AuditableEntity
     public string Country { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional clinic location captured at registration — powers the
+    /// owner-facing clinic map and nearest-clinic lookup.
+    /// </summary>
+    public double? Latitude { get; set; }
+
+    public double? Longitude { get; set; }
+
+    /// <summary>
     /// Lifecycle state. New registrations start as
     /// <see cref="OrganizationStatus.Pending"/> and must be verified by a
     /// SuperAdmin before staff can log in.

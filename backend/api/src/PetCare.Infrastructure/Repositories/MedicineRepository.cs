@@ -80,4 +80,7 @@ public class MedicineRepository : IMedicineRepository
             .ExecuteUpdateAsync(setters =>
                 setters.SetProperty(m => m.ReservedQuantity, m => m.ReservedQuantity - quantity), ct);
     }
+
+    public async Task RefreshCurrentValuesAsync(Medicine medicine, CancellationToken ct = default) =>
+        await _context.Entry(medicine).ReloadAsync(ct);
 }

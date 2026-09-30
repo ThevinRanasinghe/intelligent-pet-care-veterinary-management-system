@@ -25,6 +25,15 @@ public class Veterinarian : AuditableEntity
 
     public Organization? Organization { get; set; }
 
+    /// <summary>
+    /// FK to the authentication account that signs in as this veterinarian
+    /// (Role = Veterinarian). Null for scheduling rows not yet linked to a
+    /// login — a linked user resolves their veterinarian profile through it.
+    /// </summary>
+    public Guid? UserId { get; set; }
+
+    public User? User { get; set; }
+
     public ICollection<AppointmentSlot> AppointmentSlots { get; set; } = new List<AppointmentSlot>();
 
     public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();

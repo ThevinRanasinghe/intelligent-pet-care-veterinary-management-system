@@ -28,6 +28,30 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
         builder.Property(p => p.DurationDays)
             .IsRequired();
 
+        builder.Property(p => p.Quantity)
+            .IsRequired()
+            .HasDefaultValue(1);
+
+        builder.Property(p => p.Frequency)
+            .HasMaxLength(100);
+
+        builder.Property(p => p.Route)
+            .HasMaxLength(100);
+
+        builder.Property(p => p.Instructions)
+            .HasMaxLength(500);
+
+        builder.Property(p => p.RequestStatus)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasConversion<string>()
+            .HasDefaultValue(Domain.Enums.MedicineRequestStatus.Pending);
+
+        builder.Property(p => p.UnavailableReason)
+            .HasMaxLength(500);
+
+        builder.Property(p => p.ProcessedAt);
+
         builder.Property(p => p.CreatedAt);
 
         // Prescription -> TreatmentRecord (many-to-1)
@@ -41,5 +65,27 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
             .WithMany()
             .HasForeignKey(p => p.MedicineId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Prescription -> MedicineReservation (many-to-1, optional)
+        builder.HasOne(p => p.Reservation)
+            .WithMany()
+            .HasForeignKey(p => p.ReservationId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(p => p.ReservationId)
+            .HasDatabaseName("IX_Prescriptions_ReservationId");
+
+        // Prescription -> User (processed by, many-to-1, optional)
+        builder.HasOne(p => p.ProcessedBy)
+            .WithMany()
+            .HasForeignKey(p => p.ProcessedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(p => p.ProcessedByUserId)
+            .HasDatabaseName("IX_Prescriptions_ProcessedByUserId");
+
+        // Prescription request workflow indexes
+        builder.HasIndex(p => p.RequestStatus)
+            .HasDatabaseName("IX_Prescriptions_RequestStatus");
     }
 }

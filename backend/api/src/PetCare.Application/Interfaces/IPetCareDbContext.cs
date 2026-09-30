@@ -13,5 +13,11 @@ public interface IPetCareDbContext
 
     DbSet<ConsultationStatusHistory> ConsultationStatusHistories { get; }
 
+    DbSet<Organization> Organizations { get; }
+
+    DbSet<Veterinarian> Veterinarians { get; }
+
+    DbSet<Appointment> Appointments { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

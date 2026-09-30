@@ -22,6 +22,12 @@ public sealed class RegisterOrganizationRequest
 
     public string Country { get; set; } = string.Empty;
 
+    /// <summary>Optional clinic location picked on the map — both must be
+    /// provided together or both left null.</summary>
+    public double? Latitude { get; set; }
+
+    public double? Longitude { get; set; }
+
     // ── Primary Clinic Manager Account ──
     public string ManagerFirstName { get; set; } = string.Empty;
 

@@ -144,8 +144,9 @@ void main() {
 
     testWidgets('navigates to ApprovalHistoryPage via View History button', (tester) async {
       final client = FakeApiClient();
-      // Set history before detail so path matching resolves correctly
-      client.setResponse('/history', [
+      // The detail path is a prefix of the history path, so stub the
+      // history endpoint with its full path (longest key wins).
+      client.setResponse('/approvals/apr-1/history', [
         {'id': 'h1', 'approvalId': 'apr-1', 'previousStatus': 'Pending', 'newStatus': 'Approved', 'changedBy': '12345678-1234-1234-1234-123456789012', 'reason': 'Looks good', 'changedAt': '2026-01-02T00:00:00'},
       ]);
       client.setResponse('/approvals/apr-1', {

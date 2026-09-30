@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
+using PetCare.Domain.Enums;
 using PetCare.Infrastructure;
 
 namespace PetCare.Api.Controllers;
@@ -50,5 +51,20 @@ public class LookupsController : ControllerBase
 
         var medicines = await query.ToListAsync();
         return Ok(medicines);
+    }
+
+    // Active clinics for the booking flow — any authenticated role may pick
+    // an organization (the owner selects where to book).
+    [HttpGet("organizations")]
+    public async Task<ActionResult<IEnumerable<object>>> GetOrganizations()
+    {
+        var organizations = await _context.Organizations
+            .AsNoTracking()
+            .Where(o => o.Status == OrganizationStatus.Active && o.IsActive)
+            .OrderBy(o => o.Name)
+            .Select(o => new { o.Id, o.Name, o.City, o.Address, o.Latitude, o.Longitude })
+            .ToListAsync();
+
+        return Ok(organizations);
     }
 }

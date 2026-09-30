@@ -3,7 +3,6 @@
 export type AppointmentStatus = 'Available' | 'Reserved' | 'Confirmed' | 'Completed' | 'Cancelled';
 export type QuotationStatus = 'Draft' | 'PendingApproval' | 'Approved' | 'Rejected' | 'RevisionRequested' | 'Finalised';
 export type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected' | 'RevisionRequested';
-export type WorkflowStatus = 'Draft' | 'Planning' | 'Validating' | 'PendingManagerApproval' | 'Approved' | 'Rejected' | 'RevisionRequested' | 'Completed' | 'Failed';
 
 export interface Veterinarian {
   id: string;
@@ -35,6 +34,9 @@ export interface QuoteLineItem {
   unitPrice: number;
 }
 
+export type PaymentStatus = 'Pending' | 'Paid';
+export type MedicineRequestStatus = 'Pending' | 'Issued' | 'Unavailable';
+
 export interface Quotation {
   id: string;
   requestId: string;
@@ -52,6 +54,25 @@ export interface Quotation {
   items: QuoteLineItem[];
   createdAt: string;
   updatedAt: string;
+  // Workflow-redesign billing fields
+  invoiceNumber?: string;
+  paymentStatus?: PaymentStatus;
+  paidAt?: string | null;
+  petId?: string | null;
+  ownerId?: string | null;
+  ownerEmail?: string | null;
+  ownerPhone?: string | null;
+  veterinarianId?: string | null;
+  examinationId?: string | null;
+  examinationDate?: string | null;
+  veterinarianChargeTotal?: number;
+  medicineTotal?: number;
+  // Owner-facing detail fields
+  clinicName?: string | null;
+  appointmentStartTime?: string | null;
+  appointmentEndTime?: string | null;
+  /** Every medicine prescribed under the examination (any request status). */
+  medications?: Prescription[];
 }
 
 export interface ValidationCheck {
@@ -80,25 +101,6 @@ export interface ApprovalProposal {
   validationChecks: ValidationCheck[];
 }
 
-export interface WorkflowStep {
-  id: string;
-  name: string;
-  responsibility: string;
-  status: 'Pending' | 'Running' | 'Completed' | 'Blocked' | 'Skipped';
-  startedAt?: string;
-  completedAt?: string;
-}
-
-export interface AIWorkflow {
-  id: string;
-  requestId: string;
-  objective: string;
-  status: WorkflowStatus;
-  createdAt: string;
-  steps: WorkflowStep[];
-  note?: string;
-}
-
 export type DiagnosisSeverity = 'Low' | 'Moderate' | 'High' | 'Critical';
 export type TreatmentStatus = 'Planned' | 'InProgress' | 'Completed' | 'Cancelled';
 
@@ -106,6 +108,9 @@ export interface Examination {
   id: string;
   petId: string;
   veterinarianId: string;
+  consultationRequestId?: string | null;
+  appointmentId?: string | null;
+  veterinarianCharge?: number;
   symptoms: string;
   notes: string;
   examinationDate: string;
@@ -138,6 +143,28 @@ export interface Prescription {
   dosage: string;
   durationDays: number;
   createdAt: string;
+  // Medicine-request workflow fields (denormalised by the backend)
+  prescriptionNumber?: string;
+  quantity?: number;
+  frequency?: string | null;
+  route?: string | null;
+  instructions?: string | null;
+  medicineStrength?: string | null;
+  medicineDosageForm?: string | null;
+  requestStatus?: MedicineRequestStatus;
+  unavailableReason?: string | null;
+  reservationId?: string | null;
+  processedAt?: string | null;
+  medicineName?: string | null;
+  medicineUnitPrice?: number | null;
+  petId?: string | null;
+  petName?: string | null;
+  ownerName?: string | null;
+  veterinarianId?: string | null;
+  veterinarianName?: string | null;
+  examinationId?: string | null;
+  appointmentId?: string | null;
+  veterinarianCharge?: number;
 }
 
 export interface Medicine {

@@ -14,6 +14,19 @@ public interface ISchedulingService
 
     Task<AppointmentResponse?> GetAppointmentByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Appointments relevant to the caller: a Veterinarian sees their own
+    /// schedule, a PetOwner sees appointments for their pets, and staff
+    /// (ClinicManager/Administrator) see the organization-wide list.
+    /// Optional filters apply on top.
+    /// </summary>
+    Task<IReadOnlyList<AppointmentResponse>> GetMyAppointmentsAsync(
+        string? status,
+        DateOnly? from,
+        DateOnly? to,
+        string? petId,
+        CancellationToken cancellationToken = default);
+
     Task<AppointmentResponse> CreateAppointmentAsync(CreateAppointmentRequest request, CancellationToken cancellationToken = default);
 
     Task<AppointmentResponse> UpdateAppointmentAsync(Guid id, UpdateAppointmentRequest request, CancellationToken cancellationToken = default);

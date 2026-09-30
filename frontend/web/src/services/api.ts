@@ -3,6 +3,7 @@
  * The base URL is configured through VITE_API_BASE_URL (see .env).
  */
 import { clearStoredAuth, getStoredAuth } from '../utils/authStorage';
+import type { AppointmentResponse } from './schedulingService';
 
 export const API_BASE_URL =
   ((import.meta as unknown as { env: Record<string, string> }).env.VITE_API_BASE_URL) ??
@@ -119,14 +120,45 @@ export type ConsultationRequestApi = {
   symptomPhotoUrl?: string | null;
   urgency: string;
   preferredDate?: string | null;
+  /** One-hour slot start "HH:mm:ss" (derived from the booked slot). */
   preferredTime?: string | null;
+  /** The clinic the consultation is booked at (null for legacy rows). */
+  organizationId?: string | null;
+  organizationName?: string | null;
   budget?: number | null;
   latitude?: number | null;
   longitude?: number | null;
   additionalNotes?: string | null;
   status: string;
+  /** "Initial" (owner-filed) | "FollowUp" (veterinarian-requested). */
+  requestType?: string;
+  requestedByVeterinarianId?: string | null;
+  requestedByVeterinarianName?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AssignVeterinarianPayload = {
+  veterinarianId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Hour-aligned slot start "HH:mm" — a one-hour slot is implied. */
+  startTime: string;
+  /** Optional — the server computes start + 1h; when sent it must match. */
+  endTime?: string | null;
+  notes?: string;
+};
+
+export type CreateFollowUpPayload = {
+  petId: string;
+  /** Anchors the follow-up to the treating clinic (required). */
+  examinationId: string;
+  /** YYYY-MM-DD */
+  preferredDate: string;
+  /** One-hour slot start "HH:mm" — required. */
+  preferredTime: string;
+  reason: string;
+  notes?: string;
 };
 
 /* ========================================================================== */
@@ -146,6 +178,7 @@ export type ConsultationStatusHistoryApi = {
 /* ========================================================================== */
 
 export type NearestClinicApi = {
+  id: string;
   name: string;
   address: string;
   latitude: number;
@@ -156,11 +189,15 @@ export type NearestClinicApi = {
 export type CreateConsultationPayload = {
   petId: string;
   ownerId: string;
+  /** The clinic the owner is booking at (required). */
+  organizationId: string;
   symptoms: string;
   symptomPhotoUrl?: string | null;
   urgency?: string;
-  preferredDate?: string | null;
-  preferredTime?: string | null;
+  /** Booking date "YYYY-MM-DD" — required. */
+  preferredDate: string;
+  /** One-hour slot start "HH:mm:ss" — required; end is always start+1h. */
+  preferredTime: string;
   budget?: number | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -338,4 +375,28 @@ export const consultationService = {
         method: "PATCH",
       },
     ),
+
+  /**
+   * Assign a veterinarian to a Submitted/Processing request — books a
+   * Confirmed appointment in the same operation.
+   * POST /api/consultations/{id}/assign (ClinicManager/Admin)
+   */
+  assignVeterinarian: (id: string, payload: AssignVeterinarianPayload) =>
+    apiRequest<AppointmentResponse>(
+      `/consultations/${encodeURIComponent(id)}/assign`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  /**
+   * Veterinarian files a follow-up consultation request for a pet.
+   * POST /api/consultations/follow-up (Veterinarian/Admin)
+   */
+  createFollowUp: (payload: CreateFollowUpPayload) =>
+    apiRequest<ConsultationRequestApi>("/consultations/follow-up", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

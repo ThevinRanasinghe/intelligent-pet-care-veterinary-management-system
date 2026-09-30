@@ -40,6 +40,9 @@ public class TenantContext : ITenantContext
     public bool IsPlatformAdmin =>
         _httpContextAccessor.HttpContext?.User.IsInRole(Roles.SuperAdmin) == true;
 
+    public bool IsInRole(string role) =>
+        _httpContextAccessor.HttpContext?.User.IsInRole(role) == true;
+
     public bool IsOrganizationScoped =>
         UserId is not null
         && !IsPlatformAdmin

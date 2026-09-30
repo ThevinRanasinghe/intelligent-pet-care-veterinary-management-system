@@ -1,4 +1,4 @@
-import type { AIWorkflow, ApprovalProposal, AppointmentSlot, Quotation, Veterinarian } from '../types/domain';
+import type { ApprovalProposal, AppointmentSlot, Quotation, Veterinarian } from '../types/domain';
 
 export const veterinarians: Veterinarian[] = [
   { id: 'vet-01', name: 'Dr. Anika Perera', specialisation: 'Small Animal Medicine', branch: 'Colombo', active: true },
@@ -58,19 +58,6 @@ export const approvalProposals: ApprovalProposal[] = [
       { key: 'slot', label: 'Appointment conflict', passed: true, detail: 'Selected slot has no overlap.' },
       { key: 'budget', label: 'Budget rule', passed: true, detail: 'Quotation is within the owner budget.' },
       { key: 'quote', label: 'Quotation detail', passed: false, detail: 'Medication description requires revision.' },
-    ],
-  },
-];
-
-export const workflows: AIWorkflow[] = [
-  {
-    id: 'WF-2026-031', requestId: 'REQ-1048', objective: 'Find an urgent conflict-free veterinary consultation for Max this week before 6 PM within LKR 15,000.', status: 'PendingManagerApproval', createdAt: '2026-08-18T09:55:00', note: 'UI-only monitor. No agent execution is connected in this phase.',
-    steps: [
-      { id: 's1', name: 'Plan objective', responsibility: 'Planning Agent', status: 'Completed', completedAt: '2026-08-18T09:56:00' },
-      { id: 's2', name: 'Analyse symptoms', responsibility: 'Diagnosis Analysis Agent', status: 'Completed', completedAt: '2026-08-18T09:58:00' },
-      { id: 's3', name: 'Check medicine availability', responsibility: 'Inventory & Medicine Agent', status: 'Completed', completedAt: '2026-08-18T10:02:00' },
-      { id: 's4', name: 'Find vet + appointment + validate', responsibility: 'Scheduling & Validation Agent', status: 'Completed', completedAt: '2026-08-18T10:15:00' },
-      { id: 's5', name: 'Manager approval', responsibility: 'Human approval checkpoint', status: 'Running', startedAt: '2026-08-18T10:25:00' },
     ],
   },
 ];

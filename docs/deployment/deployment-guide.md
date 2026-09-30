@@ -34,23 +34,24 @@ Single shared database for web + mobile (assignment requirement). All clients au
 | `Cors:AllowedOrigins` | must include the deployed web origin (dev: `http://localhost:5173`) |
 | `ASPNETCORE_ENVIRONMENT` | `Production` disables Swagger (`Program.cs` gates it to Development) |
 | `VITE_API_BASE_URL` | web build-time env → deployed API URL |
+| `VITE_GOOGLE_MAPS_API_KEY` | web build-time env — enables `LocationPickerMap`/`ClinicMap`; **optional** — without it the registration picker shows a retryable "temporarily unavailable" notice and the booking map falls back to plain clinic cards; registration + booking still work (see `frontend/web/.env.example`) |
 | `API_BASE_URL` | mobile `--dart-define` at build time |
 
 ## Secrets handling
 
 - **Never in Git:** connection strings, JWT keys, passwords — enforced by empty appsettings values + comments, user secrets locally, environment variables in deployment.
-- Staff accounts are created by an Administrator with a server-generated one-time temporary password (`MustChangePassword = true`) — no email/SMS channel exists yet; handoff is out-of-band (documented limitation).
+- Staff accounts are created by the organization's **ClinicManager** (`POST /api/manager/users/veterinarians`, `/inventory-officers`) with a server-generated one-time temporary password (`MustChangePassword = true`) — no email/SMS channel exists yet; handoff is out-of-band (documented limitation).
 
 ## Startup order
 
-1. PostgreSQL reachable + migrations applied (`dotnet ef database update` against the target, or confirm `__EFMigrationsHistory` — already applied to Supabase)
+1. PostgreSQL reachable + migrations applied (`dotnet ef database update` against the target, or confirm `__EFMigrationsHistory`). Supabase has the first three migrations; **`20260926165049_WorkflowRedesign`, `20260927070805_BookingRules`, and `20260927081008_OrganizationLocation` must still be applied** before the new API build runs against it (all additive-only; verified on local disposable databases only).
 2. API (`dotnet run` / published binary)
 3. Web SPA (static files — no server-side dependency)
 4. Mobile (independent; needs the API reachable)
 
 ## Database deployment
 
-Supabase is the shared DB. Schema is owned by EF Core migrations — `InitialSchedulingBillingApproval` → `AddUsers` → `ConsolidatedDomainModel` are applied; never use `EnsureCreated()`. `dotnet ef` resolves its connection via `PETCARE_DB_CONNECTION` only (not user secrets).
+Supabase is the shared DB. Schema is owned by EF Core migrations — `InitialSchedulingBillingApproval` → `AddUsers` → `ConsolidatedDomainModel` are applied; `WorkflowRedesign`, `BookingRules`, and `OrganizationLocation` (all additive-only) are pending apply; never use `EnsureCreated()`. `dotnet ef` resolves its connection via `PETCARE_DB_CONNECTION` only (not user secrets).
 
 ## Evaluator access
 

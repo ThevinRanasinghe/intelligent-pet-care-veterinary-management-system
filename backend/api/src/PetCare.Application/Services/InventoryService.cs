@@ -253,6 +253,12 @@ public class InventoryService : IInventoryService
     }
 
     var medicine = await _medicines.GetByIdAsync(reservation.MedicineId, ct)!;
+
+    // If the reservation was created in the same unit of work/scope, the
+    // tracked entity still holds pre-reserve counters (TryReserveAsync uses an
+    // atomic UPDATE that bypasses the change tracker). Re-read so the
+    // decrement lands on the real values and can't go negative.
+    await _medicines.RefreshCurrentValuesAsync(medicine!, ct);
     medicine!.TotalQuantity -= reservation.Quantity;
     medicine.ReservedQuantity -= reservation.Quantity;
 

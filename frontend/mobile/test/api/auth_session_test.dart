@@ -20,11 +20,11 @@ void main() {
 
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
-  Map<String, dynamic> sessionJson() => {
+  Map<String, dynamic> sessionJson({String role = 'PetOwner'}) => {
     'token': 'test-token',
     'expiresAt': DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
     'userId': 'user-1', 'email': 'test@example.test', 'name': 'Test User',
-    'role': 'ClinicManager',
+    'role': role,
   };
 
   Future<AuthService> signIn(ApiClient client, TokenStorage storage) async {
@@ -132,14 +132,43 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(client.token, 'test-token');
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      // Logout lives on the Profile tab of the owner shell (below the
+      // menu card — scroll it into view first).
+      await tester.tap(find.text('Profile'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Logout (Test User)'));
+      // Scroll Logout fully clear of the bottom navigation bar.
+      await tester.scrollUntilVisible(
+          find.text('Logout'), 200,
+          scrollable: find.byType(Scrollable).last);
+      await tester.drag(find.byType(Scrollable).last, const Offset(0, -80));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Logout'));
       await tester.pumpAndSettle();
       expect(find.byType(LoginPage), findsOneWidget);
       expect(client.token, isNull);
       expect(await storage.getToken(), isNull);
     }
+  });
+
+  testWidgets('staff login lands on the blocked screen, not the owner UI', (tester) async {
+    final transport = MockClient((request) async => request.url.path.endsWith('/auth/login')
+        ? http.Response(jsonEncode(sessionJson(role: 'ClinicManager')), 200)
+        : http.Response('[]', 200));
+    addTearDown(transport.close);
+    final client = ApiClient(client: transport);
+    await tester.pumpWidget(PetCareApp(apiClient: client, authService: AuthService(client, TokenStorage())));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'staff@example.test');
+    await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
+    await tester.tap(find.text('Sign In'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('This app is for Pet Owners'), findsWidgets);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.text('Book a Consultation'), findsNothing);
+    // Logout returns to the login screen.
+    await tester.tap(find.text('Logout'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginPage), findsOneWidget);
   });
 
   for (final status in [401, 403]) {

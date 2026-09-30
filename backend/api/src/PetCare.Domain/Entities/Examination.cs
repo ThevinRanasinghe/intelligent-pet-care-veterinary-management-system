@@ -17,6 +17,15 @@ public class Examination
     public string? ConsultationRequestId { get; set; }
     public ConsultationRequest? ConsultationRequest { get; set; }
 
+    // FK to the appointment this examination completed (optional, UNIQUE —
+    // an appointment has at most one examination).
+    public Guid? AppointmentId { get; set; }
+    public Appointment? Appointment { get; set; }
+
+    /// <summary>The veterinarian's fee for this examination, billed onto the
+    /// appointment's quotation. Zero for unbilled/legacy examinations.</summary>
+    public decimal VeterinarianCharge { get; set; }
+
     public string Symptoms { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
     public DateTime ExaminationDate { get; set; }

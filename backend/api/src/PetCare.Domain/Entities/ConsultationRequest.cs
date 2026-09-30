@@ -26,6 +26,25 @@ public class ConsultationRequest
 
     public string? StatusNotes { get; set; }
 
+    /// <summary>"Initial" for owner-filed requests, "FollowUp" for
+    /// veterinarian-requested follow-up consultations.</summary>
+    public string RequestType { get; set; } = "Initial";
+
+    /// <summary>The veterinarian who requested a follow-up consultation
+    /// (null for owner-filed requests).</summary>
+    public Guid? RequestedByVeterinarianId { get; set; }
+
+    public Veterinarian? RequestedByVeterinarian { get; set; }
+
+    /// <summary>
+    /// The clinic the owner booked the consultation at. Selected by the
+    /// owner at booking time; null only for legacy rows filed before
+    /// organization selection existed.
+    /// </summary>
+    public Guid? OrganizationId { get; set; }
+
+    public Organization? Organization { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

@@ -8,7 +8,12 @@ public class ConsultationRequestConfiguration : IEntityTypeConfiguration<Consult
 {
     public void Configure(EntityTypeBuilder<ConsultationRequest> builder)
     {
-        builder.ToTable("ConsultationRequests");
+        builder.ToTable("ConsultationRequests", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_ConsultationRequest_RequestType_Allowed",
+                "\"RequestType\" IN ('Initial', 'FollowUp')");
+        });
 
         builder.HasKey(x => x.Id);
 
@@ -52,6 +57,11 @@ public class ConsultationRequestConfiguration : IEntityTypeConfiguration<Consult
         builder.Property(x => x.StatusNotes)
             .HasMaxLength(1000);
 
+        builder.Property(x => x.RequestType)
+            .HasMaxLength(20)
+            .IsRequired()
+            .HasDefaultValue("Initial");
+
         builder.Property(x => x.CreatedAt);
 
         builder.Property(x => x.UpdatedAt);
@@ -70,5 +80,24 @@ public class ConsultationRequestConfiguration : IEntityTypeConfiguration<Consult
             .WithOne(x => x.ConsultationRequest)
             .HasForeignKey(x => x.ConsultationRequestId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // ConsultationRequest -> Veterinarian (follow-up requester, optional)
+        builder.HasOne(x => x.RequestedByVeterinarian)
+            .WithMany()
+            .HasForeignKey(x => x.RequestedByVeterinarianId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(x => x.RequestedByVeterinarianId)
+            .HasDatabaseName("IX_ConsultationRequests_RequestedByVeterinarianId");
+
+        // ConsultationRequest -> Organization (booked clinic, optional for
+        // legacy rows; SetNull so removing an org keeps the request).
+        builder.HasOne(x => x.Organization)
+            .WithMany()
+            .HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(x => x.OrganizationId)
+            .HasDatabaseName("IX_ConsultationRequests_OrganizationId");
     }
 }

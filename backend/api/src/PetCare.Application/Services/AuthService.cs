@@ -65,9 +65,10 @@ public class AuthService : IAuthService
         // in until a SuperAdmin activates the organization. PetOwner and
         // SuperAdmin accounts are not affiliated with an organization and
         // are unaffected by this check.
+        Organization? organization = null;
         if (user.OrganizationId is not null)
         {
-            var organization = await _organizationRepository.GetByIdAsync(user.OrganizationId.Value, cancellationToken);
+            organization = await _organizationRepository.GetByIdAsync(user.OrganizationId.Value, cancellationToken);
             if (organization is null || !organization.IsActive || organization.Status != OrganizationStatus.Active)
             {
                 throw new OrganizationPendingException(
@@ -85,7 +86,9 @@ public class AuthService : IAuthService
             UserId = user.Id,
             Email = user.Email,
             Name = user.Name,
-            Role = user.Role
+            Role = user.Role,
+            OrganizationId = organization?.Id,
+            OrganizationName = organization?.Name,
         };
     }
 
@@ -179,6 +182,8 @@ public class AuthService : IAuthService
             Address = request.Address.Trim(),
             City = request.City.Trim(),
             Country = request.Country.Trim(),
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
             Status = OrganizationStatus.Pending,
             IsActive = false,
             CreatedAt = DateTimeOffset.UtcNow,

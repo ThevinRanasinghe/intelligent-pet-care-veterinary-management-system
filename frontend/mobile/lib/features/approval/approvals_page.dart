@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_states.dart';
+import '../../core/widgets/status_badge.dart';
 import 'approval_provider.dart';
 import 'models/approval.dart';
 
@@ -33,26 +37,21 @@ class _ApprovalsPageState extends State<ApprovalsPage> {
     switch (provider.listState) {
       case LoadState.idle:
       case LoadState.loading:
-        return const Center(child: CircularProgressIndicator());
+        return const AppLoading();
       case LoadState.error:
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 8),
-              Text(provider.errorMessage, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: provider.loadPendingApprovals, child: const Text('Retry')),
-            ],
-          ),
+        return AppErrorState(
+          message: provider.errorMessage,
+          onRetry: provider.loadPendingApprovals,
         );
       case LoadState.success:
         if (provider.approvals.isEmpty) {
           return ListView(
             children: const [
-              SizedBox(height: 200),
-              Center(child: Text('No pending approvals')),
+              AppEmptyState(
+                message: 'No pending approvals',
+                icon: Icons.approval,
+                padding: EdgeInsets.only(top: 200),
+              ),
             ],
           );
         }
@@ -75,10 +74,23 @@ class ApprovalTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final withinBudget = approval.quotationTotal <= approval.quotationBudget;
-    return Card(
+    return AppCard(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.zero,
+      onTap: () {
+        Navigator.of(context).pushNamed('/approval', arguments: approval.id);
+      },
       child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.approval)),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child:
+              const Icon(Icons.approval, color: AppColors.black, size: 20),
+        ),
         title: Text('Approval ${_shortId(approval.id)}'),
         subtitle: Text(
           'Quotation: ${_shortId(approval.quotationId)}\n'
@@ -90,18 +102,17 @@ class ApprovalTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Chip(label: Text(approval.status)),
+            StatusBadge(approval.status),
             const SizedBox(width: 4),
             Icon(
               withinBudget ? Icons.check_circle : Icons.warning,
-              color: withinBudget ? Colors.green : Colors.orange,
+              color: withinBudget
+                  ? AppColors.successText
+                  : AppColors.warningText,
               size: 16,
             ),
           ],
         ),
-        onTap: () {
-          Navigator.of(context).pushNamed('/approval', arguments: approval.id);
-        },
       ),
     );
   }

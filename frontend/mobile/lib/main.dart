@@ -10,9 +10,18 @@ import 'features/billing/billing_service.dart';
 import 'features/billing/billing_provider.dart';
 import 'features/approval/approval_service.dart';
 import 'features/approval/approval_provider.dart';
+import 'features/pets/pet_service.dart';
+import 'features/pets/pet_provider.dart';
+import 'features/consultations/consultation_service.dart';
+import 'features/consultations/consultation_provider.dart';
+import 'features/history/history_service.dart';
+import 'features/history/history_provider.dart';
 import 'features/auth/login_page.dart';
-import 'features/home/home_page.dart';
+import 'features/auth/staff_blocked_page.dart';
+import 'features/home/main_shell.dart';
+import 'features/home/splash_page.dart';
 import 'core/routing/app_router.dart';
+import 'core/theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +36,9 @@ void main() {
   ));
 }
 
+/// PetOwner-only application: the branded splash covers session restore;
+/// afterwards a PetOwner session lands on [MainShell], a staff session on
+/// [StaffBlockedPage], and no session on [LoginPage].
 class PetCareApp extends StatefulWidget {
   final ApiClient apiClient;
   final AuthService authService;
@@ -46,6 +58,9 @@ class _PetCareAppState extends State<PetCareApp> {
   late final SchedulingProvider _schedulingProvider;
   late final BillingProvider _billingProvider;
   late final ApprovalProvider _approvalProvider;
+  late final PetProvider _petProvider;
+  late final ConsultationProvider _consultationProvider;
+  late final HistoryProvider _historyProvider;
   bool _initialized = false;
 
   @override
@@ -56,6 +71,10 @@ class _PetCareAppState extends State<PetCareApp> {
     _schedulingProvider = SchedulingProvider(SchedulingService(widget.apiClient));
     _billingProvider = BillingProvider(BillingService(widget.apiClient));
     _approvalProvider = ApprovalProvider(ApprovalService(widget.apiClient));
+    _petProvider = PetProvider(PetService(widget.apiClient));
+    _consultationProvider =
+        ConsultationProvider(ConsultationService(widget.apiClient));
+    _historyProvider = HistoryProvider(HistoryService(widget.apiClient));
 
     _authProvider.init().then((_) {
       if (mounted) setState(() => _initialized = true);
@@ -66,21 +85,22 @@ class _PetCareAppState extends State<PetCareApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<ApiClient>.value(value: widget.apiClient),
         ChangeNotifierProvider.value(value: _authProvider),
         ChangeNotifierProvider.value(value: _schedulingProvider),
         ChangeNotifierProvider.value(value: _billingProvider),
         ChangeNotifierProvider.value(value: _approvalProvider),
+        ChangeNotifierProvider.value(value: _petProvider),
+        ChangeNotifierProvider.value(value: _consultationProvider),
+        ChangeNotifierProvider.value(value: _historyProvider),
       ],
       child: Consumer<AuthProvider>(
         builder: (context, auth, _) => MaterialApp(
           key: ValueKey(auth.isAuthenticated),
-          title: 'PetCare AI',
-          theme: ThemeData(
-            colorSchemeSeed: Colors.teal,
-            useMaterial3: true,
-          ),
+          title: 'Beacon Pet Health',
+          theme: AppTheme.light,
           onGenerateRoute: AppRouter.onGenerateRoute,
-          home: _initialized ? _buildHome() : const Scaffold(body: Center(child: CircularProgressIndicator())),
+          home: _initialized ? _buildHome() : const SplashPage(),
         ),
       ),
     );
@@ -89,10 +109,11 @@ class _PetCareAppState extends State<PetCareApp> {
   Widget _buildHome() {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
-        if (auth.isAuthenticated) {
-          return const HomePage();
-        }
-        return const LoginPage();
+        if (!auth.isAuthenticated) return const LoginPage();
+        if (auth.isPetOwner) return const MainShell();
+        // Authenticated but not a PetOwner — staff workflows live on the
+        // React web application.
+        return const StaffBlockedPage();
       },
     );
   }

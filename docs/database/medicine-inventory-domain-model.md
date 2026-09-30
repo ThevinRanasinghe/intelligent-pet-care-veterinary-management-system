@@ -144,14 +144,21 @@ When a reservation is cancelled:
 
 | Action | HTTP Endpoint | Allowed Roles |
 |---|---|---|
-| Search / List Medicines | `GET /api/medicines` | All authenticated users |
-| View Medicine Details | `GET /api/medicines/{id}` | All authenticated users |
+| Search / List Medicines | `GET /api/medicines` | `Veterinarian`, `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
+| View Medicine Details | `GET /api/medicines/{id}` | `Veterinarian`, `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
+| View Low-Stock / Expiring | `GET /api/medicines/low-stock`, `/expiring` | `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
 | View Batches (FEFO) | `GET /api/medicines/{id}/batches` | `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
 | View Transaction Ledger | `GET /api/medicines/{id}/transactions` | `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
-| Create Medicine | `POST /api/medicines` | `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
-| Stock-In (Consignment) | `POST /api/medicines/{id}/stock-in` | `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
-| Create Reservation | `POST /api/medicine-reservations` | `Veterinarian`, `ClinicManager`, `SuperAdmin` |
-| Cancel Reservation | `POST /api/medicine-reservations/{id}/cancel` | `Veterinarian`, `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
-| Dispense Reservation | `POST /api/medicine-reservations/{id}/dispense` | `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
-| List Suppliers | `GET /api/suppliers` | `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
-| Create Supplier | `POST /api/suppliers` | `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
+| Create Medicine | `POST /api/medicines` | `InventoryOfficer`, `SuperAdmin` |
+| Stock-In (Consignment) | `POST /api/medicines/{id}/stock-in` | `InventoryOfficer`, `SuperAdmin` |
+| List Reservations | `GET /api/medicine-reservations` | `Veterinarian`, `InventoryOfficer`, `ClinicManager`, `SuperAdmin` |
+| Create Reservation | `POST /api/medicine-reservations` | `Veterinarian`, `InventoryOfficer`, `SuperAdmin` |
+| Cancel Reservation | `POST /api/medicine-reservations/{id}/cancel` | `Veterinarian`, `InventoryOfficer`, `SuperAdmin` |
+| Dispense Reservation | `POST /api/medicine-reservations/{id}/dispense` | `InventoryOfficer`, `SuperAdmin` |
+| List Suppliers | `GET /api/suppliers` | `InventoryOfficer`, `ClinicManager`, `SuperAdmin` |
+| Create Supplier | `POST /api/suppliers` | `InventoryOfficer`, `SuperAdmin` |
+| List Medicine Requests | `GET /api/prescriptions/requests` | `Veterinarian`, `ClinicManager`, `InventoryOfficer`, `SuperAdmin` |
+| Issue Medicine Request | `POST /api/prescriptions/{id}/issue` | `InventoryOfficer`, `SuperAdmin` |
+| Mark Request Unavailable | `POST /api/prescriptions/{id}/unavailable` | `InventoryOfficer`, `SuperAdmin` |
+
+Role sets verified against the controller `[Authorize]` attributes (post-hardening). Prescriptions double as medicine requests to the inventory desk (`RequestStatus` Pending → Issued/Unavailable); issuing reserves + dispenses atomically through the same stock rules above.

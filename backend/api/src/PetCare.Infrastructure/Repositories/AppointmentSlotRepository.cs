@@ -45,4 +45,10 @@ public class AppointmentSlotRepository : IAppointmentSlotRepository
 
         return await query.ToListAsync(cancellationToken);
     }
+
+    public Task AddAsync(AppointmentSlot slot, CancellationToken cancellationToken = default)
+    {
+        _context.AppointmentSlots.Add(slot);
+        return Task.CompletedTask;
+    }
 }

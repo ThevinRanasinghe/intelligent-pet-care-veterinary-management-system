@@ -2,9 +2,10 @@ import { ApiError } from '../services/api';
 
 export function messageFrom(err: unknown): string {
   if (err instanceof ApiError) {
-    const body = err.body as { detail?: string; title?: string } | undefined;
+    const body = err.body as { detail?: string; title?: string; message?: string } | undefined;
     if (body?.detail) return body.detail;
     if (body?.title) return body.title;
+    if (body?.message) return body.message;
     if (typeof err.body === 'string') return err.body;
     return err.message;
   }

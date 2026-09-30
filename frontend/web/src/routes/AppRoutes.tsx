@@ -5,7 +5,6 @@ import { PlaceholderPage } from '../pages/PlaceholderPage';
 import { SchedulingPage } from '../features/scheduling/SchedulingPage';
 import { BillingPage } from '../features/billing/BillingPage';
 import { ApprovalPage } from '../features/approvals/ApprovalPage';
-import { AIWorkflowsPage } from '../features/ai-workflows/AIWorkflowsPage';
 import { InventoryPage } from '../features/inventory/InventoryPage';
 import { StockBatchesPage } from '../features/inventory/StockBatchesPage';
 import { ReservationsPage } from '../features/inventory/ReservationsPage';
@@ -31,6 +30,11 @@ import { AdminUsersPage } from '../features/admin/AdminUsersPage';
 import { AdminOrganizationsPage } from '../features/admin/AdminOrganizationsPage';
 import { AdminRolesPage } from '../features/admin/AdminRolesPage';
 import { AdminSystemPage } from '../features/admin/AdminSystemPage';
+import { StaffAccountsPage } from '../features/manager/StaffAccountsPage';
+import { VeterinarianHistoryPage } from '../features/manager/VeterinarianHistoryPage';
+import { MyAppointmentsPage } from '../features/vet/MyAppointmentsPage';
+import { MedicineRequestsPage } from '../features/inventory/MedicineRequestsPage';
+import { BillsPage } from '../features/inventory/BillsPage';
 import { useAuth } from '../features/auth/AuthContext';
 import {
   CLINICAL_ROLES,
@@ -77,8 +81,17 @@ export function AppRoutes() {
       <Route path="/manager" element={
         <RoleRoute allowedRoles={['ClinicManager', 'Administrator']}><ClinicManagerDashboard /></RoleRoute>
       } />
+      <Route path="/manager/staff" element={
+        <RoleRoute allowedRoles={['ClinicManager']}><StaffAccountsPage /></RoleRoute>
+      } />
+      <Route path="/manager/vets" element={
+        <RoleRoute allowedRoles={['ClinicManager']}><VeterinarianHistoryPage /></RoleRoute>
+      } />
       <Route path="/vet" element={
         <RoleRoute allowedRoles={['Veterinarian', 'Administrator']}><VeterinarianDashboard /></RoleRoute>
+      } />
+      <Route path="/vet/appointments" element={
+        <RoleRoute allowedRoles={['Veterinarian', 'Administrator']}><MyAppointmentsPage /></RoleRoute>
       } />
       <Route path="/inventory-dashboard" element={
         <RoleRoute allowedRoles={['InventoryOfficer', 'Administrator']}><InventoryDashboard /></RoleRoute>
@@ -90,7 +103,7 @@ export function AppRoutes() {
       {/* Feature pages */}
       <Route path="/dashboard" element={<RoleRoute allowedRoles={MANAGEMENT_ROLES}><DashboardPage /></RoleRoute>} />
       <Route path="/pets" element={<RoleRoute allowedRoles={CLINICAL_ROLES}><PetsPage /></RoleRoute>} />
-      <Route path="/consultations" element={<RoleRoute allowedRoles={CLINICAL_ROLES}><ConsultationRequestsPage /></RoleRoute>} />
+      <Route path="/consultations" element={<RoleRoute allowedRoles={['PetOwner', 'ClinicManager', 'Administrator']}><ConsultationRequestsPage /></RoleRoute>} />
       <Route path="/care-history" element={<RoleRoute allowedRoles={['PetOwner', 'Administrator']}><OwnerCareHistoryPage /></RoleRoute>} />
       <Route path="/prescriptions" element={<RoleRoute allowedRoles={['PetOwner', 'Veterinarian', 'ClinicManager', 'Administrator']}><PrescriptionsEntry /></RoleRoute>} />
       <Route path="/medical-history" element={<RoleRoute allowedRoles={['Veterinarian', 'ClinicManager', 'Administrator']}><MedicalHistoryPage /></RoleRoute>} />
@@ -100,11 +113,12 @@ export function AppRoutes() {
       <Route path="/inventory/suppliers" element={<RoleRoute allowedRoles={INVENTORY_ROLES}><InventoryPage initialTab="suppliers" /></RoleRoute>} />
       <Route path="/inventory/batches" element={<RoleRoute allowedRoles={INVENTORY_ROLES}><StockBatchesPage /></RoleRoute>} />
       <Route path="/inventory/reservations" element={<RoleRoute allowedRoles={INVENTORY_ROLES}><ReservationsPage /></RoleRoute>} />
+      <Route path="/inventory/requests" element={<RoleRoute allowedRoles={INVENTORY_ROLES}><MedicineRequestsPage /></RoleRoute>} />
+      <Route path="/inventory/bills" element={<RoleRoute allowedRoles={['InventoryOfficer', 'Administrator']}><BillsPage /></RoleRoute>} />
       <Route path="/inventory/alerts" element={<RoleRoute allowedRoles={INVENTORY_ROLES}><InventoryPage initialTab="lowStock" /></RoleRoute>} />
       <Route path="/scheduling" element={<RoleRoute allowedRoles={MANAGEMENT_ROLES}><SchedulingPage /></RoleRoute>} />
       <Route path="/billing" element={<RoleRoute allowedRoles={MANAGEMENT_ROLES}><BillingPage /></RoleRoute>} />
       <Route path="/approvals" element={<RoleRoute allowedRoles={MANAGEMENT_ROLES}><ApprovalPage /></RoleRoute>} />
-      <Route path="/ai-workflows" element={<RoleRoute allowedRoles={MANAGEMENT_ROLES}><AIWorkflowsPage /></RoleRoute>} />
       <Route path="/reports" element={<RoleRoute allowedRoles={MANAGEMENT_ROLES}><PlaceholderPage title="Reports & Analytics" /></RoleRoute>} />
       <Route path="/settings" element={<RoleRoute allowedRoles={['Administrator']}><AdminUsersPage /></RoleRoute>} />
       <Route path="/admin/organizations" element={<RoleRoute allowedRoles={['Administrator']}><AdminOrganizationsPage /></RoleRoute>} />

@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using PetCare.Application.DTOs;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
+using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
+using PetCare.Domain.Enums;
 using PetCare.Infrastructure;
 using PetCare.Infrastructure.Repositories;
 
@@ -60,31 +62,98 @@ public class ExaminationService : IExaminationService
 
     public async Task<ExaminationResponseDto> CreateAsync(CreateExaminationDto dto)
     {
+        // Veterinarian callers always examine under their own profile — the
+        // client-supplied VeterinarianId is ignored for them.
+        var veterinarianId = dto.VeterinarianId;
+        if (_tenant.IsInRole(Roles.Veterinarian))
+        {
+            var userId = _tenant.UserId;
+            var ownVeterinarian = userId is null
+                ? null
+                : await _context.Veterinarians
+                    .FirstOrDefaultAsync(v => v.UserId == userId.Value);
+            if (ownVeterinarian is null)
+            {
+                throw new ForbiddenException(
+                    "Your account is not linked to a veterinarian profile.");
+            }
+            veterinarianId = ownVeterinarian.Id;
+        }
+
         // The attending veterinarian determines the examination's
         // organization; reject references to a veterinarian outside the
         // caller's organization.
         var veterinarianInScope = await (await _context.Veterinarians
                 .ScopeToOrganizationAsync(_tenant, v => v.OrganizationId))
-            .AnyAsync(v => v.Id == dto.VeterinarianId);
+            .AnyAsync(v => v.Id == veterinarianId);
         if (!veterinarianInScope)
         {
-            throw new NotFoundException($"Veterinarian '{dto.VeterinarianId}' was not found.");
+            throw new NotFoundException($"Veterinarian '{veterinarianId}' was not found.");
+        }
+
+        // When completing an appointment, the examination inherits its
+        // pet/consultation links and the appointment is marked Completed.
+        Appointment? appointment = null;
+        if (dto.AppointmentId is not null)
+        {
+            appointment = await (await _context.Appointments
+                    .ScopeToOrganizationAsync(_tenant, a => a.Veterinarian.OrganizationId))
+                .Include(a => a.AppointmentSlot)
+                .FirstOrDefaultAsync(a => a.Id == dto.AppointmentId.Value);
+            if (appointment is null)
+            {
+                throw new NotFoundException($"Appointment '{dto.AppointmentId}' was not found.");
+            }
+
+            if (appointment.VeterinarianId != veterinarianId)
+            {
+                throw new SchedulingConflictException(
+                    "The appointment does not belong to the attending veterinarian.");
+            }
+
+            if (appointment.Status is AppointmentStatus.Completed or AppointmentStatus.Cancelled)
+            {
+                throw new SchedulingConflictException(
+                    $"Appointment '{appointment.Id}' is '{appointment.Status}' and cannot be examined.");
+            }
+
+            var alreadyExamined = await _context.Examinations
+                .AnyAsync(e => e.AppointmentId == appointment.Id);
+            if (alreadyExamined)
+            {
+                throw new SchedulingConflictException(
+                    $"Appointment '{appointment.Id}' already has an examination.");
+            }
         }
 
         var examination = new Examination
         {
             Id = Guid.NewGuid(),
-            PetId = dto.PetId,
-            VeterinarianId = dto.VeterinarianId,
-            ConsultationRequestId = dto.ConsultationRequestId,
+            PetId = appointment?.PetId ?? dto.PetId,
+            VeterinarianId = veterinarianId,
+            ConsultationRequestId = appointment?.ConsultationRequestId ?? dto.ConsultationRequestId,
+            AppointmentId = appointment?.Id,
             Symptoms = dto.Symptoms,
             Notes = dto.Notes,
-            ExaminationDate = dto.ExaminationDate,
+            // Clients send local-time or unspecified-kind timestamps; timestamptz requires UTC.
+            // ToUniversalTime treats Unspecified as local and leaves Utc untouched.
+            ExaminationDate = dto.ExaminationDate.ToUniversalTime(),
+            VeterinarianCharge = dto.VeterinarianCharge,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         _context.Examinations.Add(examination);
+
+        if (appointment is not null)
+        {
+            appointment.Status = AppointmentStatus.Completed;
+            if (appointment.AppointmentSlot is not null)
+            {
+                appointment.AppointmentSlot.Status = AppointmentSlotStatus.Completed;
+            }
+        }
+
         await _context.SaveChangesAsync();
 
         return MapToResponseDto(examination);
@@ -99,7 +168,8 @@ public class ExaminationService : IExaminationService
 
         examination.Symptoms = dto.Symptoms;
         examination.Notes = dto.Notes;
-        examination.ExaminationDate = dto.ExaminationDate;
+        examination.ExaminationDate = dto.ExaminationDate.ToUniversalTime();
+        examination.VeterinarianCharge = dto.VeterinarianCharge;
         examination.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -255,18 +325,6 @@ public class ExaminationService : IExaminationService
         return result;
     }
 
-    private static ExaminationResponseDto MapToResponseDto(Examination examination)
-    {
-        return new ExaminationResponseDto
-        {
-            Id = examination.Id,
-            PetId = examination.PetId,
-            VeterinarianId = examination.VeterinarianId,
-            ConsultationRequestId = examination.ConsultationRequestId,
-            Symptoms = examination.Symptoms,
-            Notes = examination.Notes,
-            ExaminationDate = examination.ExaminationDate,
-            CreatedAt = examination.CreatedAt
-        };
-    }
+    private static ExaminationResponseDto MapToResponseDto(Examination examination) =>
+        ExaminationMapper.ToDto(examination);
 }

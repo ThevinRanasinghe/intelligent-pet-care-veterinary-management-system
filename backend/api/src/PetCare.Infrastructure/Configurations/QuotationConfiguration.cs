@@ -40,6 +40,14 @@ public class QuotationConfiguration : IEntityTypeConfiguration<Quotation>
             .HasConversion<string>()
             .HasDefaultValue(Domain.Enums.QuotationStatus.Draft);
 
+        builder.Property(q => q.PaymentStatus)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasConversion<string>()
+            .HasDefaultValue(Domain.Enums.PaymentStatus.Pending);
+
+        builder.Property(q => q.PaidAt);
+
         builder.Property(q => q.CreatedAt)
             .IsRequired()
             .HasDefaultValueSql("now()");
@@ -64,5 +72,14 @@ public class QuotationConfiguration : IEntityTypeConfiguration<Quotation>
             .WithOne(a => a.Quotation)
             .HasForeignKey<Approval>(a => a.QuotationId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Quotation -> User (paid by, many-to-1, optional)
+        builder.HasOne(q => q.PaidBy)
+            .WithMany()
+            .HasForeignKey(q => q.PaidByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(q => q.PaidByUserId)
+            .HasDatabaseName("IX_Quotation_PaidByUserId");
     }
 }

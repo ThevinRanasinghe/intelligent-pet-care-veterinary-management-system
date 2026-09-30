@@ -157,6 +157,7 @@ export function ClinicManagerDashboard() {
           </div>
         )}
       </div>
+
     </>
   );
 }

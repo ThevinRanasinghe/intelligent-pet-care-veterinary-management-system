@@ -21,4 +21,26 @@ public class VeterinarianRepository : IVeterinarianRepository
             .ScopeToOrganizationAsync(_tenant, v => v.OrganizationId, cancellationToken);
         return await query.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
     }
+
+    public async Task<Veterinarian?> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        // Identity resolution, not data access: a user must always find
+        // their own veterinarian profile regardless of organization scope.
+        return await _context.Veterinarians
+            .FirstOrDefaultAsync(v => v.UserId == userId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Veterinarian>> GetActiveByOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Veterinarians
+            .Where(v => v.OrganizationId == organizationId && v.Active)
+            .OrderBy(v => v.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task AddAsync(Veterinarian veterinarian, CancellationToken cancellationToken = default)
+    {
+        _context.Veterinarians.Add(veterinarian);
+        return Task.CompletedTask;
+    }
 }

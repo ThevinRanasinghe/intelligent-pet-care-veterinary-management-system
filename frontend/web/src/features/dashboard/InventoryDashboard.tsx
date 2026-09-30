@@ -7,6 +7,7 @@ import {
   getReservations,
   getSuppliers,
 } from '../../services/inventoryService';
+import { getMedicineRequests } from '../../services/treatmentService';
 import type { Medicine, MedicineBatch, MedicineReservation, Supplier } from '../../types/domain';
 
 const cardStyle = {
@@ -26,6 +27,7 @@ export function InventoryDashboard() {
   const [expiring, setExpiring] = useState<MedicineBatch[]>([]);
   const [reservations, setReservations] = useState<MedicineReservation[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [pendingRequests, setPendingRequests] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -34,12 +36,13 @@ export function InventoryDashboard() {
 
     async function load() {
       try {
-        const [paged, low, exp, res, sup] = await Promise.all([
+        const [paged, low, exp, res, sup, pendingRx] = await Promise.all([
           getMedicines({ page: 1, pageSize: 500 }),
           getLowStock(),
           getExpiring(30),
           getReservations(),
           getSuppliers(),
+          getMedicineRequests('Pending').catch(() => []),
         ]);
         if (!active) return;
         setMedicines(paged.items);
@@ -47,6 +50,7 @@ export function InventoryDashboard() {
         setExpiring(exp);
         setReservations(res);
         setSuppliers(sup);
+        setPendingRequests(pendingRx.length);
       } catch {
         if (active) setError('Could not load inventory data. Please try again shortly.');
       } finally {
@@ -87,6 +91,11 @@ export function InventoryDashboard() {
           <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>Pending Reservations</div>
           <div style={{ fontSize: '1.75rem', fontWeight: '900', color: '#111827', marginTop: '0.25rem' }}>{loading ? '…' : pendingReservations.length}</div>
           <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>Awaiting dispense or cancel</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>Pending Medicine Requests</div>
+          <div style={{ fontSize: '1.75rem', fontWeight: '900', color: pendingRequests > 0 ? '#F59E0B' : '#111827', marginTop: '0.25rem' }}>{loading ? '…' : pendingRequests}</div>
+          <Link to="/inventory/requests" style={{ fontSize: '0.8rem', color: '#0f6b5f', fontWeight: 700 }}>Process medicine requests</Link>
         </div>
         <div style={cardStyle}>
           <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: '500' }}>Active Suppliers</div>

@@ -49,6 +49,18 @@ public class VeterinarianConfiguration : IEntityTypeConfiguration<Veterinarian>
             .HasForeignKey(v => v.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Optional 1:1 link to the login account (Role = Veterinarian).
+        // Unique where present so one user maps to one vet profile.
+        builder.HasIndex(v => v.UserId)
+            .IsUnique()
+            .HasFilter("\"UserId\" IS NOT NULL")
+            .HasDatabaseName("IX_Veterinarians_UserId");
+
+        builder.HasOne(v => v.User)
+            .WithMany()
+            .HasForeignKey(v => v.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasMany(v => v.AppointmentSlots)
             .WithOne(s => s.Veterinarian)
             .HasForeignKey(s => s.VeterinarianId)

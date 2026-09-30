@@ -15,6 +15,10 @@ export interface CreateExaminationInput {
     petId: string;
     veterinarianId: string;
     consultationRequestId?: string | null;
+    /** The appointment this examination completes (vet appointment flow). */
+    appointmentId?: string | null;
+    /** The veterinarian's fee — billed onto the appointment's quotation. */
+    veterinarianCharge?: number;
     symptoms: string;
     notes: string;
     examinationDate: string;
@@ -39,11 +43,23 @@ export interface CreateTreatmentRecordInput {
     notes: string;
 }
 
-export interface CreatePrescriptionInput {
-    treatmentRecordId: string;
+/** One medicine line inside a vet's medicine request. */
+export interface CreatePrescriptionItemInput {
     medicineId: string;
     dosage: string;
     durationDays: number;
+    /** Units requested from inventory (≥ 1); defaults to 1 server-side. */
+    quantity?: number;
+    frequency?: string;
+    /** Route/method of administration recorded by the vet, e.g. "Oral". */
+    route?: string;
+    instructions?: string;
+}
+
+/** One medicine request can hold 1–10 different medicines. */
+export interface CreatePrescriptionInput {
+    treatmentRecordId: string;
+    items: CreatePrescriptionItemInput[];
 }
 
 export interface UpdateDiagnosisInput {
@@ -95,7 +111,7 @@ export function getAllDiagnoses() {
 }
 
 export function getDiagnosisByExamination(examinationId: string) {
-    return apiRequest<Diagnosis>(`/diagnoses/examination/${examinationId}`);
+    return apiRequest<Diagnosis[]>(`/diagnoses/examination/${examinationId}`);
 }
 
 export function createDiagnosis(input: CreateDiagnosisInput) {
@@ -139,8 +155,9 @@ export function getPrescriptionsByTreatment(treatmentRecordId: string) {
     return apiRequest<Prescription[]>(`/prescriptions/treatment/${treatmentRecordId}`);
 }
 
+/** Creates a medicine request — the response contains one row per item. */
 export function createPrescription(input: CreatePrescriptionInput) {
-    return apiRequest<Prescription>('/prescriptions', {
+    return apiRequest<Prescription[]>('/prescriptions', {
         method: 'POST',
         body: JSON.stringify(input),
     });
@@ -208,5 +225,29 @@ export function getPetsLookup() {
 
 export function getMedicinesLookup() {
     return apiRequest<MedicineLookup[]>('/lookups/medicines');
+}
+
+// ---- Medicine Requests (inventory officer workflow) ----
+
+/** Full prescription row returned by GET /prescriptions/requests —
+ *  denormalised with pet, owner, veterinarian and medicine fields. */
+export type MedicineRequest = Prescription;
+
+export function getMedicineRequests(status?: 'Pending' | 'Issued' | 'Unavailable') {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return apiRequest<MedicineRequest[]>(`/prescriptions/requests${query}`);
+}
+
+export function issueMedicineRequest(prescriptionId: string) {
+    return apiRequest<MedicineRequest>(`/prescriptions/${prescriptionId}/issue`, {
+        method: 'POST',
+    });
+}
+
+export function markMedicineRequestUnavailable(prescriptionId: string, reason: string) {
+    return apiRequest<MedicineRequest>(`/prescriptions/${prescriptionId}/unavailable`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+    });
 }
 

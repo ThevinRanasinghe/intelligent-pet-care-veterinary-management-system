@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
+import '../../core/state/load_state.dart';
+
+export '../../core/state/load_state.dart' show LoadState;
 import '../../core/network/api_error.dart';
 import 'billing_service.dart';
 import 'models/quotation.dart';
 
-enum LoadState { idle, loading, success, error }
 
 class BillingProvider extends ChangeNotifier {
   final BillingService _service;
@@ -22,12 +24,16 @@ class BillingProvider extends ChangeNotifier {
   Quotation? get quotation => _quotation;
   String get errorMessage => _errorMessage;
 
-  Future<void> loadQuotations() async {
+  /// Loads the org-scoped list for staff, or the owner-scoped list
+  /// (/quotations/mine) when the signed-in role is PetOwner.
+  Future<void> loadQuotations({bool mine = false}) async {
     _listState = LoadState.loading;
     _errorMessage = '';
     notifyListeners();
     try {
-      _quotations = await _service.getQuotations();
+      _quotations = mine
+          ? await _service.getMyBills()
+          : await _service.getQuotations();
       _listState = LoadState.success;
     } on ApiError catch (e) {
       _errorMessage = _extractMessage(e);

@@ -22,6 +22,8 @@ public class BillingService : IBillingService
 {
     private readonly IQuotationRepository _quotationRepository;
     private readonly IAppointmentRepository _appointmentRepository;
+    private readonly IExaminationRepository _examinationRepository;
+    private readonly ITenantContext _tenant;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IValidator<CreateQuotationRequest> _createValidator;
     private readonly IValidator<UpdateQuotationRequest> _updateValidator;
@@ -29,12 +31,16 @@ public class BillingService : IBillingService
     public BillingService(
         IQuotationRepository quotationRepository,
         IAppointmentRepository appointmentRepository,
+        IExaminationRepository examinationRepository,
+        ITenantContext tenant,
         IUnitOfWork unitOfWork,
         IValidator<CreateQuotationRequest> createValidator,
         IValidator<UpdateQuotationRequest> updateValidator)
     {
         _quotationRepository = quotationRepository;
         _appointmentRepository = appointmentRepository;
+        _examinationRepository = examinationRepository;
+        _tenant = tenant;
         _unitOfWork = unitOfWork;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
@@ -164,6 +170,139 @@ public class BillingService : IBillingService
         return ToResponse(quotation);
     }
 
+    public async Task<QuotationResponse?> GenerateOrRefreshBillForExaminationAsync(
+        Guid examinationId,
+        Guid actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var examination = await _examinationRepository.GetByIdAsync(examinationId, cancellationToken);
+
+        // No appointment means there is nothing to bill against — this is a
+        // normal outcome for standalone examinations, not an error.
+        if (examination?.AppointmentId is null)
+        {
+            return null;
+        }
+
+        var quotation = await _quotationRepository.GetByAppointmentIdAsync(
+            examination.AppointmentId.Value, cancellationToken);
+
+        // A paid bill is a financial record — never mutate it afterwards.
+        if (quotation is not null && quotation.PaymentStatus == PaymentStatus.Paid)
+        {
+            return ToResponse(quotation);
+        }
+
+        var items = BuildBillItems(examination);
+
+        if (quotation is null)
+        {
+            quotation = new Quotation
+            {
+                AppointmentId = examination.AppointmentId.Value,
+                Items = items
+            };
+            await _quotationRepository.AddAsync(quotation, cancellationToken);
+        }
+        else
+        {
+            // Replace the line items; cascade delete removes the old rows
+            // (same pattern as UpdateQuotationAsync).
+            quotation.Items.Clear();
+            foreach (var item in items)
+            {
+                quotation.Items.Add(item);
+            }
+        }
+
+        quotation.Subtotal = CalculateSubtotal(quotation.Items);
+        quotation.Total = quotation.Subtotal;
+        if (quotation.Budget == 0)
+        {
+            quotation.Budget = quotation.Total;
+        }
+
+        quotation.Status = QuotationStatus.Finalised;
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ToResponse(quotation);
+    }
+
+    public async Task<QuotationResponse> MarkPaidAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var quotation = await _quotationRepository.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException($"Quotation '{id}' does not exist.");
+
+        if (quotation.Status != QuotationStatus.Finalised || quotation.PaymentStatus != PaymentStatus.Pending)
+        {
+            throw new BillingConflictException(
+                $"Only a Finalised quotation with a Pending payment can be marked as paid. " +
+                $"Current status: '{quotation.Status}', payment status: '{quotation.PaymentStatus}'.");
+        }
+
+        var userId = _tenant.UserId
+            ?? throw new ForbiddenException("A signed-in account is required to record a payment.");
+
+        quotation.PaymentStatus = PaymentStatus.Paid;
+        quotation.PaidAt = DateTimeOffset.UtcNow;
+        quotation.PaidByUserId = userId;
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return ToResponse(quotation);
+    }
+
+    public async Task<IReadOnlyList<QuotationResponse>> GetQuotationsForOwnerAsync(
+        string ownerId,
+        CancellationToken cancellationToken = default)
+    {
+        var quotations = await _quotationRepository.GetByOwnerAsync(ownerId, cancellationToken);
+        return quotations.Select(ToResponse).ToList();
+    }
+
+    /// <summary>
+    /// One Examination line for the veterinarian charge plus one Medicine
+    /// line per Issued prescription under this examination. Pending and
+    /// Unavailable requests are never billed.
+    /// </summary>
+    private static List<QuotationItem> BuildBillItems(Examination examination)
+    {
+        var items = new List<QuotationItem>();
+
+        if (examination.VeterinarianCharge > 0)
+        {
+            items.Add(new QuotationItem
+            {
+                Category = "Examination",
+                Description = $"Veterinarian charge — Dr. {examination.Veterinarian?.Name}",
+                Quantity = 1,
+                UnitPrice = examination.VeterinarianCharge,
+                TotalPrice = examination.VeterinarianCharge
+            });
+        }
+
+        var issuedPrescriptions = examination.Diagnosis?.TreatmentRecords
+            .SelectMany(t => t.Prescriptions)
+            .Where(p => p.RequestStatus == MedicineRequestStatus.Issued)
+            ?? Enumerable.Empty<Prescription>();
+
+        foreach (var prescription in issuedPrescriptions)
+        {
+            var unitPrice = prescription.Medicine?.UnitPrice ?? 0m;
+            items.Add(new QuotationItem
+            {
+                Category = "Medicine",
+                Description = $"{prescription.Medicine?.Name ?? "Medicine"} ({prescription.Dosage})",
+                Quantity = prescription.Quantity,
+                UnitPrice = unitPrice,
+                TotalPrice = prescription.Quantity * unitPrice
+            });
+        }
+
+        return items;
+    }
+
     /// <summary>
     /// Approved/Finalised quotations are read-only per the domain model's
     /// Approval business rule 5: "Approved quotations cannot be casually
@@ -201,27 +340,6 @@ public class BillingService : IBillingService
         return items.Sum(i => i.Quantity * i.UnitPrice);
     }
 
-    private static QuotationResponse ToResponse(Quotation quotation) => new()
-    {
-        Id = quotation.Id,
-        AppointmentId = quotation.AppointmentId,
-        Budget = quotation.Budget,
-        Subtotal = quotation.Subtotal,
-        Total = quotation.Total,
-        IsWithinBudget = quotation.Total <= quotation.Budget,
-        Status = quotation.Status.ToString(),
-        Items = quotation.Items.Select(ToItemResponse).ToList(),
-        CreatedAt = quotation.CreatedAt,
-        UpdatedAt = quotation.UpdatedAt
-    };
-
-    private static QuotationItemResponse ToItemResponse(QuotationItem item) => new()
-    {
-        Id = item.Id,
-        Category = item.Category,
-        Description = item.Description,
-        Quantity = item.Quantity,
-        UnitPrice = item.UnitPrice,
-        TotalPrice = item.TotalPrice
-    };
+    private static QuotationResponse ToResponse(Quotation quotation) =>
+        QuotationMapper.ToResponse(quotation);
 }

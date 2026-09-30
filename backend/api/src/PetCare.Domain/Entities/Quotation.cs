@@ -26,6 +26,16 @@ public class Quotation : AuditableEntity
 
     public QuotationStatus Status { get; set; } = QuotationStatus.Draft;
 
+    /// <summary>Payment state of the bill once it is Finalised.</summary>
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
+
+    public DateTimeOffset? PaidAt { get; set; }
+
+    /// <summary>The staff account (InventoryOfficer/Admin) that recorded payment.</summary>
+    public Guid? PaidByUserId { get; set; }
+
+    public User? PaidBy { get; set; }
+
     public ICollection<QuotationItem> Items { get; set; } = new List<QuotationItem>();
 
     /// <summary>

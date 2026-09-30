@@ -20,14 +20,26 @@ public class PrescriptionsController : ControllerBase
     private const string ClinicalWriteRoles =
         $"{Roles.Veterinarian},{Roles.SuperAdmin}";
 
+    // The medicine-request queue is the Inventory Officer's responsibility;
+    // veterinarians and managers can see it for visibility.
+    private const string MedicineRequestReadRoles =
+        $"{Roles.Veterinarian},{Roles.ClinicManager},{Roles.InventoryOfficer},{Roles.SuperAdmin}";
+
+    // Issuing stock / marking unavailable is restricted to the inventory desk.
+    private const string MedicineRequestProcessRoles =
+        $"{Roles.InventoryOfficer},{Roles.SuperAdmin}";
+
     private readonly IPrescriptionService _prescriptionService;
+    private readonly IMedicineRequestService _medicineRequests;
     private readonly IOwnerAccessService _ownerAccess;
 
     public PrescriptionsController(
         IPrescriptionService prescriptionService,
+        IMedicineRequestService medicineRequests,
         IOwnerAccessService ownerAccess)
     {
         _prescriptionService = prescriptionService;
+        _medicineRequests = medicineRequests;
         _ownerAccess = ownerAccess;
     }
 
@@ -68,12 +80,64 @@ public class PrescriptionsController : ControllerBase
         return Ok(prescriptions);
     }
 
+    /// <summary>
+    /// Creates one medicine request holding 1–10 medicine items; each item
+    /// becomes a Pending prescription row the inventory desk can process
+    /// independently.
+    /// </summary>
     [HttpPost]
     [Authorize(Roles = ClinicalWriteRoles)]
-    public async Task<ActionResult<PrescriptionResponseDto>> Create(CreatePrescriptionDto dto)
+    public async Task<ActionResult<IReadOnlyList<PrescriptionResponseDto>>> Create(CreatePrescriptionDto dto)
     {
-        var createdPrescription = await _prescriptionService.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = createdPrescription.Id }, createdPrescription);
+        var created = await _prescriptionService.CreateAsync(dto);
+        return CreatedAtAction(nameof(GetByTreatmentRecordId), new { treatmentRecordId = dto.TreatmentRecordId }, created);
+    }
+
+    /// <summary>
+    /// Medicine-request queue: prescriptions awaiting (or already)
+    /// fulfillment, optionally filtered by status
+    /// (Pending | Issued | Unavailable), newest first.
+    /// </summary>
+    [HttpGet("requests")]
+    [Authorize(Roles = MedicineRequestReadRoles)]
+    [ProducesResponseType(typeof(IReadOnlyList<PrescriptionResponseDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<PrescriptionResponseDto>>> GetRequests(
+        [FromQuery] string? status,
+        CancellationToken cancellationToken)
+    {
+        var requests = await _medicineRequests.GetRequestsAsync(status, cancellationToken);
+        return Ok(requests);
+    }
+
+    /// <summary>
+    /// Issues stock for a pending request: reserves + dispenses atomically,
+    /// then refreshes the appointment's bill.
+    /// </summary>
+    [HttpPost("{id:guid}/issue")]
+    [Authorize(Roles = MedicineRequestProcessRoles)]
+    [ProducesResponseType(typeof(PrescriptionResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PrescriptionResponseDto>> Issue(Guid id, CancellationToken cancellationToken)
+    {
+        var prescription = await _medicineRequests.IssueAsync(id, cancellationToken);
+        return Ok(prescription);
+    }
+
+    /// <summary>Marks a pending request Unavailable with a required reason.</summary>
+    [HttpPost("{id:guid}/unavailable")]
+    [Authorize(Roles = MedicineRequestProcessRoles)]
+    [ProducesResponseType(typeof(PrescriptionResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PrescriptionResponseDto>> MarkUnavailable(
+        Guid id,
+        [FromBody] MarkPrescriptionUnavailableRequest request,
+        CancellationToken cancellationToken)
+    {
+        var prescription = await _medicineRequests.MarkUnavailableAsync(id, request.Reason, cancellationToken);
+        return Ok(prescription);
     }
 
     [HttpDelete("{id}")]

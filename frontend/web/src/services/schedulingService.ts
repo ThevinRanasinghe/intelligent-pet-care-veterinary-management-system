@@ -20,8 +20,23 @@ export interface AppointmentResponse {
   scheduledEnd: string;
   status: string;
   notes?: string;
+  // Workflow-redesign fields (denormalised by the backend)
+  consultationRequestId?: string | null;
+  type?: 'Initial' | 'FollowUp' | string;
+  petName?: string | null;
+  ownerName?: string | null;
+  veterinarianName?: string | null;
+  symptoms?: string | null;
+  examinationId?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MyAppointmentsParams {
+  status?: string;
+  from?: string;
+  to?: string;
+  petId?: string;
 }
 
 export interface CreateAppointmentRequest {
@@ -66,6 +81,20 @@ export async function getAppointmentSlots(): Promise<AppointmentSlot[]> {
 
 export async function getAppointments(): Promise<AppointmentResponse[]> {
   return await apiRequest<AppointmentResponse[]>('/appointments');
+}
+
+/**
+ * Role-aware appointment list: Veterinarian → own appointments, PetOwner →
+ * own pets' appointments, staff → the org-scoped list.
+ */
+export async function getMyAppointments(params?: MyAppointmentsParams): Promise<AppointmentResponse[]> {
+  const query = new URLSearchParams();
+  if (params?.status) query.append('status', params.status);
+  if (params?.from) query.append('from', params.from);
+  if (params?.to) query.append('to', params.to);
+  if (params?.petId) query.append('petId', params.petId);
+  const queryString = query.toString();
+  return apiRequest<AppointmentResponse[]>(`/appointments/mine${queryString ? `?${queryString}` : ''}`);
 }
 
 export async function getAppointmentById(id: string): Promise<AppointmentResponse | null> {
