@@ -20,14 +20,17 @@ class AppSpacing {
       EdgeInsets.symmetric(horizontal: pageHorizontal);
 }
 
-/// Corner radii per the design spec: cards 16–20, buttons/fields 12–14.
+/// Corner radii per the Beacon spec: inputs/buttons 12, normal cards 16,
+/// hero/detail cards & bottom sheets 24, pills fully rounded.
 class AppRadius {
   AppRadius._();
 
-  static const double card = 18;
+  static const double control = 12;
+  static const double card = 16;
   static const double cardSmall = 14;
-  static const double control = 13;
+  static const double large = 24;
   static const double chip = 999;
+  static const double pill = 999;
 }
 
 /// Durations for the "animate changes, not everything" animation spec.

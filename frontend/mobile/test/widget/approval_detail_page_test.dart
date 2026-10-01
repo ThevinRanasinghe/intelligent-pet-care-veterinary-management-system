@@ -17,8 +17,11 @@ void main() {
     testWidgets('shows loading indicator initially', (tester) async {
       final client = FakeApiClient();
       client.setResponse('/approvals/apr-1', {
-        'id': 'apr-1', 'quotationId': 'q1', 'quotationTotal': 4500.0,
-        'quotationBudget': 10000.0, 'status': 'Pending',
+        'id': 'apr-1',
+        'quotationId': 'q1',
+        'quotationTotal': 4500.0,
+        'quotationBudget': 10000.0,
+        'status': 'Pending',
       });
       final provider = ApprovalProvider(ApprovalService(client));
 
@@ -37,9 +40,13 @@ void main() {
     testWidgets('renders approval detail fields on success', (tester) async {
       final client = FakeApiClient();
       client.setResponse('/approvals/apr-1', {
-        'id': 'apr-1', 'quotationId': 'q1', 'quotationTotal': 4500.0,
-        'quotationBudget': 10000.0, 'status': 'Pending',
-        'reviewedBy': 'manager-1', 'reviewedAt': '2026-01-02T12:00:00Z',
+        'id': 'apr-1',
+        'quotationId': 'q1',
+        'quotationTotal': 4500.0,
+        'quotationBudget': 10000.0,
+        'status': 'Pending',
+        'reviewedBy': 'manager-1',
+        'reviewedAt': '2026-01-02T12:00:00Z',
         'comment': 'Looks reasonable',
       });
       final provider = ApprovalProvider(ApprovalService(client));
@@ -70,7 +77,8 @@ void main() {
 
     testWidgets('shows error state on 404 not-found', (tester) async {
       final client = FakeApiClient();
-      client.setError('/approvals/apr-missing', ApiError(404, 'Approval not found'));
+      client.setError(
+          '/approvals/apr-missing', ApiError(404, 'Approval not found'));
       final provider = ApprovalProvider(ApprovalService(client));
 
       await tester.pumpWidget(
@@ -89,7 +97,8 @@ void main() {
 
     testWidgets('shows error state on API failure', (tester) async {
       final client = FakeApiClient();
-      client.setError('/approvals/apr-1', ApiError(500, 'Server error', {'detail': 'Approval service down'}));
+      client.setError('/approvals/apr-1',
+          ApiError(500, 'Server error', {'detail': 'Approval service down'}));
       final provider = ApprovalProvider(ApprovalService(client));
 
       await tester.pumpWidget(
@@ -120,7 +129,8 @@ void main() {
         );
       });
       addTearDown(transport.close);
-      final provider = ApprovalProvider(ApprovalService(ApiClient(client: transport)));
+      final provider =
+          ApprovalProvider(ApprovalService(ApiClient(client: transport)));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -142,16 +152,28 @@ void main() {
       expect(find.text('Pending'), findsOneWidget);
     });
 
-    testWidgets('navigates to ApprovalHistoryPage via View History button', (tester) async {
+    testWidgets('navigates to ApprovalHistoryPage via View History button',
+        (tester) async {
       final client = FakeApiClient();
       // The detail path is a prefix of the history path, so stub the
       // history endpoint with its full path (longest key wins).
       client.setResponse('/approvals/apr-1/history', [
-        {'id': 'h1', 'approvalId': 'apr-1', 'previousStatus': 'Pending', 'newStatus': 'Approved', 'changedBy': '12345678-1234-1234-1234-123456789012', 'reason': 'Looks good', 'changedAt': '2026-01-02T00:00:00'},
+        {
+          'id': 'h1',
+          'approvalId': 'apr-1',
+          'previousStatus': 'Pending',
+          'newStatus': 'Approved',
+          'changedBy': '12345678-1234-1234-1234-123456789012',
+          'reason': 'Looks good',
+          'changedAt': '2026-01-02T00:00:00'
+        },
       ]);
       client.setResponse('/approvals/apr-1', {
-        'id': 'apr-1', 'quotationId': 'q1', 'quotationTotal': 4500.0,
-        'quotationBudget': 10000.0, 'status': 'Pending',
+        'id': 'apr-1',
+        'quotationId': 'q1',
+        'quotationTotal': 4500.0,
+        'quotationBudget': 10000.0,
+        'status': 'Pending',
       });
       final provider = ApprovalProvider(ApprovalService(client));
 

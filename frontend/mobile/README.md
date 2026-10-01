@@ -18,8 +18,9 @@ the web app; this app covers the pet-owner journey end to end:
 
 ## Navigation
 
-Five-tab bottom navigation (Material `NavigationBar`, `IndexedStack` so tab
-state survives switching):
+Five-tab bottom navigation (custom `AppBottomNav`, `PageView` with
+`NeverScrollableScrollPhysics` — taps animate a 280ms directional slide and
+keep-alive wrappers preserve tab state):
 
 `Home · My Pets · Appointments · Bills · Profile`
 

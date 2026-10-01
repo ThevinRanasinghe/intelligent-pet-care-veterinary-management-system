@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/motion/app_motion.dart';
+import '../../core/widgets/app_bottom_nav.dart';
 import '../billing/quotations_page.dart';
 import '../pets/pets_page.dart';
 import '../profile/profile_page.dart';
@@ -17,7 +19,7 @@ class MainShell extends StatefulWidget {
   /// (used by the booking success screen to land on Appointments).
   static void replaceWithTab(BuildContext context, int index) {
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => MainShell(initialIndex: index)),
+      MotionPageRoute(page: MainShell(initialIndex: index)),
       (_) => false,
     );
   }
@@ -27,9 +29,31 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
+  late final PageController _pageController =
+      PageController(initialPage: widget.initialIndex);
   late int _currentIndex = widget.initialIndex;
 
-  void _goToTab(int index) => setState(() => _currentIndex = index);
+  /// Tab taps drive a horizontal carousel: the outgoing page slides out
+  /// and the incoming page slides in simultaneously — left when moving
+  /// to a higher-index tab, right when moving to a lower-index tab.
+  void _goToTab(int index) {
+    if (index == _currentIndex) return;
+    if (AppMotion.reduceMotion(context)) {
+      _pageController.jumpToPage(index);
+      return;
+    }
+    _pageController.animateToPage(
+      index,
+      duration: AppMotion.tabSlide,
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,39 +64,59 @@ class _MainShellState extends State<MainShell> {
       // QuotationsPage already renders its own 'My Bills' scaffold for the
       // PetOwner role and loads /quotations/mine.
       const QuotationsPage(),
-      const ProfilePage(),
+      ProfilePage(onNavigateToTab: _goToTab),
     ];
 
     if (_currentIndex >= pages.length) _currentIndex = 0;
 
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: _goToTab,
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home'),
-          NavigationDestination(
-              icon: Icon(Icons.pets_outlined),
-              selectedIcon: Icon(Icons.pets),
-              label: 'My Pets'),
-          NavigationDestination(
-              icon: Icon(Icons.event_outlined),
-              selectedIcon: Icon(Icons.event),
-              label: 'Appointments'),
-          NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long),
-              label: 'Bills'),
-          NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profile'),
+      // PageView provides the simultaneous slide-out/slide-in; swipe
+      // gestures stay disabled — the bottom nav owns navigation.
+      body: PageView(
+        controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(),
+        onPageChanged: (index) => setState(() => _currentIndex = index),
+        children: [
+          for (final page in pages) _KeepAliveTab(child: page),
+        ],
+      ),
+      // Beacon bottom nav: light translucent bar, yellow capsule on the
+      // active item. Fixed — only the page area above it slides.
+      bottomNavigationBar: AppBottomNav(
+        currentIndex: _currentIndex,
+        onSelected: _goToTab,
+        items: const [
+          AppNavItem(icon: Icons.home_outlined, label: 'Home'),
+          AppNavItem(icon: Icons.pets_outlined, label: 'My Pets'),
+          AppNavItem(icon: Icons.event_outlined, label: 'Appointments'),
+          AppNavItem(icon: Icons.receipt_long_outlined, label: 'Bills'),
+          AppNavItem(icon: Icons.person_outline, label: 'Profile'),
         ],
       ),
     );
+  }
+}
+
+/// Keeps a tab's state alive while it is off-screen (PageView would
+/// otherwise dispose non-visible children), matching the previous
+/// IndexedStack behaviour.
+class _KeepAliveTab extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAliveTab({required this.child});
+
+  @override
+  State<_KeepAliveTab> createState() => _KeepAliveTabState();
+}
+
+class _KeepAliveTabState extends State<_KeepAliveTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

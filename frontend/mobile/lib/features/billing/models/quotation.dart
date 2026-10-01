@@ -40,6 +40,7 @@ class Quotation {
   final String updatedAt;
   // Workflow-redesign billing fields (all optional — absent on older records).
   final String? invoiceNumber;
+
   /// 'Pending' | 'Paid' — defaults to 'Pending' when absent.
   final String paymentStatus;
   final String? paidAt;
@@ -93,7 +94,8 @@ class Quotation {
       ownerName: json['ownerName'] as String?,
       veterinarianName: json['veterinarianName'] as String?,
       examinationDate: json['examinationDate'] as String?,
-      veterinarianChargeTotal: (json['veterinarianChargeTotal'] as num?)?.toDouble() ?? 0,
+      veterinarianChargeTotal:
+          (json['veterinarianChargeTotal'] as num?)?.toDouble() ?? 0,
       medicineTotal: (json['medicineTotal'] as num?)?.toDouble() ?? 0,
     );
   }

@@ -13,7 +13,8 @@ import '../helpers/fake_api_client.dart';
 
 Map<String, String> sessionValues(String role) => {
       'petcare.token': 'test-token',
-      'petcare.expiresAt': DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+      'petcare.expiresAt':
+          DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
       'petcare.userId': 'user-1',
       'petcare.email': 'test@example.test',
       'petcare.name': 'Test User',
@@ -25,7 +26,8 @@ Widget appFor(FakeApiClient client, AuthProvider auth) {
     home: MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: auth),
-        ChangeNotifierProvider.value(value: BillingProvider(BillingService(client))),
+        ChangeNotifierProvider.value(
+            value: BillingProvider(BillingService(client))),
       ],
       child: const QuotationsPage(),
     ),
@@ -44,12 +46,25 @@ void main() {
       final client = FakeApiClient();
       client.setResponse('/quotations', [
         {
-          'id': 'q1', 'appointmentId': 'a1', 'budget': 10000.0, 'subtotal': 4000.0,
-          'total': 4500.0, 'isWithinBudget': true, 'status': 'PendingApproval',
+          'id': 'q1',
+          'appointmentId': 'a1',
+          'budget': 10000.0,
+          'subtotal': 4000.0,
+          'total': 4500.0,
+          'isWithinBudget': true,
+          'status': 'PendingApproval',
           'items': [
-            {'id': 'i1', 'category': 'Consultation', 'description': 'Check-up', 'quantity': 1, 'unitPrice': 2500.0, 'totalPrice': 2500.0},
+            {
+              'id': 'i1',
+              'category': 'Consultation',
+              'description': 'Check-up',
+              'quantity': 1,
+              'unitPrice': 2500.0,
+              'totalPrice': 2500.0
+            },
           ],
-          'createdAt': '2026-01-01', 'updatedAt': '2026-01-01',
+          'createdAt': '2026-01-01',
+          'updatedAt': '2026-01-01',
         },
       ]);
       final auth = staffAuth(client);
@@ -82,7 +97,8 @@ void main() {
     testWidgets('shows error state on API failure', (tester) async {
       FlutterSecureStorage.setMockInitialValues(sessionValues('ClinicManager'));
       final client = FakeApiClient();
-      client.setError('/quotations', ApiError(500, 'Server error', {'detail': 'Billing service down'}));
+      client.setError('/quotations',
+          ApiError(500, 'Server error', {'detail': 'Billing service down'}));
 
       await tester.pumpWidget(appFor(client, staffAuth(client)));
 
@@ -91,20 +107,38 @@ void main() {
       expect(find.text('Retry'), findsOneWidget);
     });
 
-    testWidgets('PetOwner sees My Bills loaded from /quotations/mine', (tester) async {
+    testWidgets('PetOwner sees My Bills loaded from /quotations/mine',
+        (tester) async {
       FlutterSecureStorage.setMockInitialValues(sessionValues('PetOwner'));
       final client = FakeApiClient();
       client.setResponse('/quotations/mine', [
         {
-          'id': 'q1', 'invoiceNumber': 'INV-AAAA0001', 'appointmentId': 'a1',
-          'budget': 2800.0, 'subtotal': 2800.0, 'total': 2800.0,
-          'isWithinBudget': true, 'status': 'Finalised', 'paymentStatus': 'Paid',
-          'petName': 'Shadow', 'ownerName': 'Amal', 'veterinarianName': 'Dr. Silva',
-          'veterinarianChargeTotal': 2500.0, 'medicineTotal': 300.0,
+          'id': 'q1',
+          'invoiceNumber': 'INV-AAAA0001',
+          'appointmentId': 'a1',
+          'budget': 2800.0,
+          'subtotal': 2800.0,
+          'total': 2800.0,
+          'isWithinBudget': true,
+          'status': 'Finalised',
+          'paymentStatus': 'Paid',
+          'petName': 'Shadow',
+          'ownerName': 'Amal',
+          'veterinarianName': 'Dr. Silva',
+          'veterinarianChargeTotal': 2500.0,
+          'medicineTotal': 300.0,
           'items': [
-            {'id': 'i1', 'category': 'Examination', 'description': 'Vet charge', 'quantity': 1, 'unitPrice': 2500.0, 'totalPrice': 2500.0},
+            {
+              'id': 'i1',
+              'category': 'Examination',
+              'description': 'Vet charge',
+              'quantity': 1,
+              'unitPrice': 2500.0,
+              'totalPrice': 2500.0
+            },
           ],
-          'createdAt': '2026-01-01', 'updatedAt': '2026-01-01',
+          'createdAt': '2026-01-01',
+          'updatedAt': '2026-01-01',
         },
       ]);
       final auth = AuthProvider(AuthService(client, TokenStorage()));

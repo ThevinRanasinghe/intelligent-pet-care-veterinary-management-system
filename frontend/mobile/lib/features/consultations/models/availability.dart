@@ -39,7 +39,8 @@ class DayAvailability {
   final bool isPast;
   final List<AvailabilitySlot> slots;
 
-  DayAvailability({required this.date, this.isPast = false, this.slots = const []});
+  DayAvailability(
+      {required this.date, this.isPast = false, this.slots = const []});
 
   factory DayAvailability.fromJson(Map<String, dynamic> json) {
     return DayAvailability(

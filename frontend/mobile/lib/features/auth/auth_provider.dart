@@ -21,7 +21,9 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> init() async {
     _session = await _authService.restoreSession();
-    _status = _session != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
+    _status = _session != null
+        ? AuthStatus.authenticated
+        : AuthStatus.unauthenticated;
     notifyListeners();
   }
 

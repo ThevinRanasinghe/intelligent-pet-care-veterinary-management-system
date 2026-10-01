@@ -77,7 +77,8 @@ class AppointmentSlotTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       padding: EdgeInsets.zero,
       onTap: () {
-        Navigator.of(context).pushNamed('/slot-appointment', arguments: slot.id);
+        Navigator.of(context)
+            .pushNamed('/slot-appointment', arguments: slot.id);
       },
       child: ListTile(
         leading: Container(
@@ -91,7 +92,8 @@ class AppointmentSlotTile extends StatelessWidget {
               color: AppColors.black, size: 20),
         ),
         title: Text('Vet: ${slot.veterinarianId}'),
-        subtitle: Text('${slot.date}  ${slot.startTime}–${slot.endTime}\nBranch: ${slot.branch}'),
+        subtitle: Text(
+            '${slot.date}  ${slot.startTime}–${slot.endTime}\nBranch: ${slot.branch}'),
         isThreeLine: true,
         trailing: StatusBadge(slot.status),
       ),

@@ -9,6 +9,52 @@ import 'app_colors.dart';
 class AppTextStyles {
   AppTextStyles._();
 
+  /// Hero text — ~30px black weight (login greeting, focal screens).
+  static const TextStyle hero = TextStyle(
+    fontSize: 30,
+    fontWeight: FontWeight.w900,
+    letterSpacing: -0.8,
+    color: AppColors.black,
+    height: 1.15,
+  );
+
+  /// Page title — ~18px extra-bold (TopBar titles).
+  static const TextStyle pageTitle = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.4,
+    color: AppColors.black,
+  );
+
+  /// Money totals — ~18px extra-bold.
+  static const TextStyle money = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.3,
+    color: AppColors.black,
+  );
+
+  /// Status pill text — 10–11px bold.
+  static const TextStyle status = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w800,
+  );
+
+  /// Field label above inputs — 12px semibold.
+  static const TextStyle fieldLabel = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+    color: AppColors.black,
+  );
+
+  /// Small yellow eyebrow label used on the dark action card.
+  static const TextStyle eyebrow = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 1.2,
+    color: AppColors.primary,
+  );
+
   static const TextStyle display = TextStyle(
     fontSize: 26,
     fontWeight: FontWeight.w800,

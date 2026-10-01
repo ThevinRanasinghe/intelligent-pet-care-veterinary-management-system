@@ -41,6 +41,7 @@ class Appointment {
   final String? notes;
   // Workflow-redesign denormalised fields (optional).
   final String? consultationRequestId;
+
   /// 'Initial' | 'FollowUp'.
   final String? type;
   final String? petName;

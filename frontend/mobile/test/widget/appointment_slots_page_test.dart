@@ -12,16 +12,22 @@ import '../helpers/fake_api_client.dart';
 
 void main() {
   group('AppointmentSlotsPage widget tests', () {
-    testWidgets('retry recovers from API error and empty list supports pull refresh', (tester) async {
+    testWidgets(
+        'retry recovers from API error and empty list supports pull refresh',
+        (tester) async {
       var calls = 0;
       final transport = MockClient((_) async {
         calls++;
         return calls == 1 ? http.Response('', 500) : http.Response('[]', 200);
       });
       addTearDown(transport.close);
-      final provider = SchedulingProvider(SchedulingService(ApiClient(client: transport)));
-      await tester.pumpWidget(MaterialApp(home: Scaffold(body: ChangeNotifierProvider.value(
-        value: provider, child: const AppointmentSlotsPage(),
+      final provider =
+          SchedulingProvider(SchedulingService(ApiClient(client: transport)));
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: ChangeNotifierProvider.value(
+        value: provider,
+        child: const AppointmentSlotsPage(),
       ))));
       await tester.pumpAndSettle();
       expect(find.text('Retry'), findsOneWidget);
@@ -33,11 +39,28 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls, 3);
     });
-    testWidgets('shows loading indicator initially, then slot data', (tester) async {
+    testWidgets('shows loading indicator initially, then slot data',
+        (tester) async {
       final client = FakeApiClient();
       client.setResponse('available-slots', [
-        {'id': 's1', 'veterinarianId': 'vet-1', 'date': '2026-01-10', 'startTime': '09:00:00', 'endTime': '09:30:00', 'branch': 'Colombo', 'status': 'Available'},
-        {'id': 's2', 'veterinarianId': 'vet-2', 'date': '2026-01-11', 'startTime': '10:00:00', 'endTime': '10:30:00', 'branch': 'Galle', 'status': 'Available'},
+        {
+          'id': 's1',
+          'veterinarianId': 'vet-1',
+          'date': '2026-01-10',
+          'startTime': '09:00:00',
+          'endTime': '09:30:00',
+          'branch': 'Colombo',
+          'status': 'Available'
+        },
+        {
+          'id': 's2',
+          'veterinarianId': 'vet-2',
+          'date': '2026-01-11',
+          'startTime': '10:00:00',
+          'endTime': '10:30:00',
+          'branch': 'Galle',
+          'status': 'Available'
+        },
       ]);
       final provider = SchedulingProvider(SchedulingService(client));
 
@@ -82,7 +105,8 @@ void main() {
 
     testWidgets('shows error state on API failure', (tester) async {
       final client = FakeApiClient();
-      client.setError('available-slots', ApiError(500, 'Server error', {'detail': 'Service unavailable'}));
+      client.setError('available-slots',
+          ApiError(500, 'Server error', {'detail': 'Service unavailable'}));
       final provider = SchedulingProvider(SchedulingService(client));
 
       await tester.pumpWidget(

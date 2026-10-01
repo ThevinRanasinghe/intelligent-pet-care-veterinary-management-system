@@ -10,7 +10,8 @@ class AppointmentDetailPage extends StatefulWidget {
   final String appointmentId;
   final bool forSlot;
 
-  const AppointmentDetailPage({super.key, required this.appointmentId, this.forSlot = false});
+  const AppointmentDetailPage(
+      {super.key, required this.appointmentId, this.forSlot = false});
 
   @override
   State<AppointmentDetailPage> createState() => _AppointmentDetailPageState();
@@ -21,7 +22,9 @@ class _AppointmentDetailPageState extends State<AppointmentDetailPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SchedulingProvider>().loadAppointment(widget.appointmentId, forSlot: widget.forSlot);
+      context
+          .read<SchedulingProvider>()
+          .loadAppointment(widget.appointmentId, forSlot: widget.forSlot);
     });
   }
 
@@ -43,14 +46,16 @@ class _AppointmentDetailPageState extends State<AppointmentDetailPage> {
       case LoadState.error:
         return AppErrorState(
           message: provider.errorMessage,
-          onRetry: () => provider.loadAppointment(widget.appointmentId, forSlot: widget.forSlot),
+          onRetry: () => provider.loadAppointment(widget.appointmentId,
+              forSlot: widget.forSlot),
         );
       case LoadState.success:
         final appt = provider.appointment;
         if (appt == null) {
-          return Center(child: Text(widget.forSlot
-              ? 'No appointment has been booked for this slot'
-              : 'Appointment not found'));
+          return Center(
+              child: Text(widget.forSlot
+                  ? 'No appointment has been booked for this slot'
+                  : 'Appointment not found'));
         }
         return ListView(
           padding: const EdgeInsets.all(16),

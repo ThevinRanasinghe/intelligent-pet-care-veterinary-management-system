@@ -5,8 +5,7 @@ import 'package:petcare_mobile/core/widgets/step_dots.dart';
 import 'package:petcare_mobile/core/widgets/status_timeline.dart';
 import 'package:petcare_mobile/features/pets/models/pet.dart';
 
-Widget host(Widget child) =>
-    MaterialApp(home: Scaffold(body: child));
+Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
   group('PetCard', () {

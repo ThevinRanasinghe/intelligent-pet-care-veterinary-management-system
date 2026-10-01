@@ -6,7 +6,6 @@ import '../../core/network/api_error.dart';
 import 'approval_service.dart';
 import 'models/approval.dart';
 
-
 class ApprovalProvider extends ChangeNotifier {
   final ApprovalService _service;
 

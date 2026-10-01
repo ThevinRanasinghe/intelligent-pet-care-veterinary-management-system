@@ -10,7 +10,15 @@ void main() {
     test('getAvailableSlots returns parsed slots on success', () async {
       final client = FakeApiClient();
       client.setResponse('available-slots', [
-        {'id': 's1', 'veterinarianId': 'vet-1', 'date': '2026-01-10', 'startTime': '09:00:00', 'endTime': '09:30:00', 'branch': 'Colombo', 'status': 'Available'},
+        {
+          'id': 's1',
+          'veterinarianId': 'vet-1',
+          'date': '2026-01-10',
+          'startTime': '09:00:00',
+          'endTime': '09:30:00',
+          'branch': 'Colombo',
+          'status': 'Available'
+        },
       ]);
       final service = SchedulingService(client);
       final slots = await service.getAvailableSlots();
@@ -38,9 +46,16 @@ void main() {
       final client = FakeApiClient();
       client.setResponse('/quotations', [
         {
-          'id': 'q1', 'appointmentId': 'a1', 'budget': 10000.0, 'subtotal': 4000.0,
-          'total': 4500.0, 'isWithinBudget': true, 'status': 'PendingApproval',
-          'items': [], 'createdAt': '2026-01-01', 'updatedAt': '2026-01-01',
+          'id': 'q1',
+          'appointmentId': 'a1',
+          'budget': 10000.0,
+          'subtotal': 4000.0,
+          'total': 4500.0,
+          'isWithinBudget': true,
+          'status': 'PendingApproval',
+          'items': [],
+          'createdAt': '2026-01-01',
+          'updatedAt': '2026-01-01',
         },
       ]);
       final service = BillingService(client);
@@ -68,7 +83,13 @@ void main() {
     test('getPendingApprovals returns parsed approvals on success', () async {
       final client = FakeApiClient();
       client.setResponse('/approvals/pending', [
-        {'id': 'apr-1', 'quotationId': 'q1', 'quotationTotal': 4500.0, 'quotationBudget': 10000.0, 'status': 'Pending'},
+        {
+          'id': 'apr-1',
+          'quotationId': 'q1',
+          'quotationTotal': 4500.0,
+          'quotationBudget': 10000.0,
+          'status': 'Pending'
+        },
       ]);
       final service = ApprovalService(client);
       final approvals = await service.getPendingApprovals();
@@ -79,7 +100,15 @@ void main() {
     test('getApprovalHistory returns parsed history on success', () async {
       final client = FakeApiClient();
       client.setResponse('/history', [
-        {'id': 'h1', 'approvalId': 'apr-1', 'previousStatus': 'Pending', 'newStatus': 'Approved', 'changedBy': 'mgr-1', 'reason': 'OK', 'changedAt': '2026-01-02'},
+        {
+          'id': 'h1',
+          'approvalId': 'apr-1',
+          'previousStatus': 'Pending',
+          'newStatus': 'Approved',
+          'changedBy': 'mgr-1',
+          'reason': 'OK',
+          'changedAt': '2026-01-02'
+        },
       ]);
       final service = ApprovalService(client);
       final history = await service.getApprovalHistory('apr-1');

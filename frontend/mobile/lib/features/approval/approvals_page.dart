@@ -88,8 +88,7 @@ class ApprovalTile extends StatelessWidget {
             color: AppColors.primarySoft,
             borderRadius: BorderRadius.circular(11),
           ),
-          child:
-              const Icon(Icons.approval, color: AppColors.black, size: 20),
+          child: const Icon(Icons.approval, color: AppColors.black, size: 20),
         ),
         title: Text('Approval ${_shortId(approval.id)}'),
         subtitle: Text(
@@ -106,9 +105,8 @@ class ApprovalTile extends StatelessWidget {
             const SizedBox(width: 4),
             Icon(
               withinBudget ? Icons.check_circle : Icons.warning,
-              color: withinBudget
-                  ? AppColors.successText
-                  : AppColors.warningText,
+              color:
+                  withinBudget ? AppColors.successText : AppColors.warningText,
               size: 16,
             ),
           ],

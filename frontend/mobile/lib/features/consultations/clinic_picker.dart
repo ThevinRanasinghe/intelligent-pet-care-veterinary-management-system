@@ -1,7 +1,14 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/fade_slide_in.dart';
+import '../../core/widgets/list_icon_tile.dart';
+import '../../core/widgets/selectable_card.dart';
 import 'models/clinic.dart';
 
 /// Google Maps directions URL for a clinic pin.
@@ -77,7 +84,13 @@ class _ClinicPickerState extends State<ClinicPicker> {
 
     return Column(
       children: [
-        if (widget.showMap && mappable.isNotEmpty)
+        if (widget.showMap &&
+            mappable.isNotEmpty &&
+            // GoogleMap ships Android/iOS/web implementations — the list
+            // below remains the working picker on desktop.
+            (kIsWeb ||
+                defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS))
           SizedBox(
             height: 220,
             child: GoogleMap(
@@ -88,81 +101,91 @@ class _ClinicPickerState extends State<ClinicPicker> {
             ),
           ),
         if (_focused != null)
-          Card(
-            margin: const EdgeInsets.all(8),
+          AppCard(
+            margin: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.pageHorizontal, vertical: 6),
             color: AppColors.selectedBg,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(17),
-              side: const BorderSide(color: AppColors.selectedBorder),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(_focused!.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.black)),
-                  Text(_focused!.addressLabel,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.muted)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () => widget.onSelected(_focused!),
-                          child: const Text('Select Clinic'),
-                        ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(_focused!.name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, color: AppColors.black)),
+                Text(_focused!.addressLabel,
+                    style:
+                        const TextStyle(fontSize: 12, color: AppColors.muted)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => widget.onSelected(_focused!),
+                        child: const Text('Select Clinic'),
                       ),
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: () => _openDirections(_focused!),
-                        icon: const Icon(Icons.directions),
-                        label: const Text('Get Directions'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _openDirections(_focused!),
+                      icon: const Icon(Icons.directions),
+                      label: const Text('Get Directions'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
+        // Clinic cards: soft-yellow icon tile + name/address; the selected
+        // card animates to a yellow ring + tint + popping check.
         Expanded(
           child: ListView.builder(
             shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.pageHorizontal, vertical: 4),
             itemCount: widget.clinics.length,
             itemBuilder: (context, index) {
               final clinic = widget.clinics[index];
               final selected = clinic.id == widget.selectedId;
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                color: selected ? AppColors.selectedBg : null,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(17),
-                  side: BorderSide(
-                    color: selected
-                        ? AppColors.selectedBorder
-                        : AppColors.line,
-                  ),
-                ),
-                child: ListTile(
-                  leading: Icon(
-                    selected
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_off,
-                    color: selected ? AppColors.primaryDark : AppColors.neutral,
-                  ),
-                  title: Text(clinic.name),
-                  subtitle: Text(clinic.addressLabel),
-                  trailing: clinic.hasLocation
-                      ? IconButton(
-                          icon: const Icon(Icons.directions_outlined),
+              return FadeSlideIn(
+                delay: Duration(milliseconds: 50 * index.clamp(0, 6)),
+                distance: 8,
+                child: SelectableCard(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+                  selected: selected,
+                  onTap: () => widget.onSelected(clinic),
+                  child: Row(
+                    children: [
+                      const ListIconTile(
+                          icon: Icons.local_hospital_outlined, size: 44),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              clinic.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.black,
+                              ),
+                            ),
+                            Text(
+                              clinic.addressLabel,
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (clinic.hasLocation)
+                        IconButton(
+                          icon: const Icon(Icons.directions_outlined,
+                              size: 20, color: AppColors.muted),
                           tooltip: 'Get Directions',
                           onPressed: () => _openDirections(clinic),
-                        )
-                      : null,
-                  onTap: () => widget.onSelected(clinic),
+                        ),
+                    ],
+                  ),
                 ),
               );
             },

@@ -47,7 +47,8 @@ class FakeApiClient extends ApiClient {
   }
 
   @override
-  Future<T> get<T>(String path, {T Function(Map<String, dynamic>)? fromJson}) async {
+  Future<T> get<T>(String path,
+      {T Function(Map<String, dynamic>)? fromJson}) async {
     requestedPaths.add(path);
     _checkError('GET', path);
     final data = _findResponse('GET', path);
@@ -59,16 +60,21 @@ class FakeApiClient extends ApiClient {
   }
 
   @override
-  Future<List<T>> getList<T>(String path, {required T Function(Map<String, dynamic>) fromJson}) async {
+  Future<List<T>> getList<T>(String path,
+      {required T Function(Map<String, dynamic>) fromJson}) async {
     requestedPaths.add(path);
     _checkError('GET', path);
     final data = _findResponse('GET', path);
     if (data == null) return [];
-    return (data as List<dynamic>).map((e) => fromJson(e as Map<String, dynamic>)).toList();
+    return (data as List<dynamic>)
+        .map((e) => fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   @override
-  Future<T> post<T>(String path, {Map<String, dynamic>? body, T Function(Map<String, dynamic>)? fromJson}) async {
+  Future<T> post<T>(String path,
+      {Map<String, dynamic>? body,
+      T Function(Map<String, dynamic>)? fromJson}) async {
     requestedPaths.add(path);
     bodyLog.add((method: 'POST', path: path, body: body));
     _checkError('POST', path);
@@ -81,7 +87,9 @@ class FakeApiClient extends ApiClient {
   }
 
   @override
-  Future<T> put<T>(String path, {Map<String, dynamic>? body, T Function(Map<String, dynamic>)? fromJson}) async {
+  Future<T> put<T>(String path,
+      {Map<String, dynamic>? body,
+      T Function(Map<String, dynamic>)? fromJson}) async {
     requestedPaths.add(path);
     bodyLog.add((method: 'PUT', path: path, body: body));
     _checkError('PUT', path);
@@ -120,12 +128,14 @@ class FakeApiClient extends ApiClient {
 
   /// Longest keys first so more specific stubs win.
   List<MapEntry<String, T>> _sortedEntries<T>(Map<String, T> map) =>
-      map.entries.toList()..sort((a, b) => b.key.length.compareTo(a.key.length));
+      map.entries.toList()
+        ..sort((a, b) => b.key.length.compareTo(a.key.length));
 
   bool _matches(String key, String method, String path) {
     if (key.contains(' ')) {
       final sp = key.indexOf(' ');
-      return key.substring(0, sp) == method && path.contains(key.substring(sp + 1));
+      return key.substring(0, sp) == method &&
+          path.contains(key.substring(sp + 1));
     }
     return path.contains(key);
   }

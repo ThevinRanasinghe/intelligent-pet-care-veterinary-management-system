@@ -8,15 +8,15 @@ import 'app_colors.dart';
 abstract final class AppTheme {
   static ThemeData get light {
     const border = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
+      borderRadius: BorderRadius.all(Radius.circular(12)),
       borderSide: BorderSide(color: AppColors.line),
     );
     const focusedBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
+      borderRadius: BorderRadius.all(Radius.circular(12)),
       borderSide: BorderSide(color: AppColors.primary, width: 2),
     );
     const errorBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(10)),
+      borderRadius: BorderRadius.all(Radius.circular(12)),
       borderSide: BorderSide(color: AppColors.danger),
     );
 
@@ -40,6 +40,7 @@ abstract final class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'Nunito',
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.cream,
       dividerColor: AppColors.line,
@@ -78,25 +79,25 @@ abstract final class AppTheme {
             )),
       ),
 
-      // .card: white, radius 17, 1px #e2e9e6 border, soft shadow.
+      // Beacon card: white, radius 16, 1px border, subtle shadow.
       cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 1.5,
         shadowColor: const Color(0x0F142D29),
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(17),
+          borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: AppColors.line),
         ),
       ),
 
-      // .login-form input / .form-input: filled soft surface, radius 10,
-      // #e2e9e6 border, yellow focus border.
+      // Beacon input: white fill, 1px border, radius 12, 16h/12v padding,
+      // yellow focus ring.
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceSoft,
+        fillColor: AppColors.surface,
         isDense: true,
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         labelStyle: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
@@ -110,45 +111,45 @@ abstract final class AppTheme {
         focusedErrorBorder: errorBorder,
       ),
 
-      // Primary action: yellow bg + near-black text (modal/dashboard CTAs).
+      // Primary action: dark #111 bg + white text, radius 12 (Beacon CTA).
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.onPrimary,
+          backgroundColor: AppColors.black,
+          foregroundColor: Colors.white,
           disabledBackgroundColor: AppColors.neutral.withValues(alpha: 0.4),
           disabledForegroundColor: AppColors.muted,
           minimumSize: const Size(64, 44),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.onPrimary,
+          backgroundColor: AppColors.black,
+          foregroundColor: Colors.white,
           minimumSize: const Size(64, 44),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
 
-      // .btn-secondary: white bg + #e2e9e6 border + dark text.
+      // Secondary: white bg + #E8E4D8 border + dark text.
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.black,
           backgroundColor: AppColors.surface,
           side: const BorderSide(color: AppColors.line),
-          minimumSize: const Size(64, 40),
+          minimumSize: const Size(64, 44),
           padding: const EdgeInsets.symmetric(horizontal: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
 
@@ -212,11 +213,20 @@ abstract final class AppTheme {
 
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         titleTextStyle: const TextStyle(
           color: AppColors.black,
           fontSize: 18,
           fontWeight: FontWeight.w800,
+        ),
+      ),
+
+      // Beacon bottom sheet: white, 24px top corners.
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
 
@@ -230,9 +240,12 @@ abstract final class AppTheme {
         linearTrackColor: AppColors.primarySoft,
       ),
 
+      // Pet "Add" FAB: 56x56 dark circle with a white icon.
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
+        backgroundColor: AppColors.black,
+        foregroundColor: Colors.white,
+        elevation: 6,
+        shape: CircleBorder(),
       ),
 
       textTheme: const TextTheme(

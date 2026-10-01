@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:petcare_mobile/core/auth/auth_service.dart';
+import 'package:petcare_mobile/core/widgets/app_bottom_nav.dart';
 import 'package:petcare_mobile/core/auth/token_storage.dart';
 import 'package:petcare_mobile/core/network/api_client.dart';
 import 'package:petcare_mobile/core/network/api_error.dart';
@@ -21,11 +22,14 @@ void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
   Map<String, dynamic> sessionJson({String role = 'PetOwner'}) => {
-    'token': 'test-token',
-    'expiresAt': DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
-    'userId': 'user-1', 'email': 'test@example.test', 'name': 'Test User',
-    'role': role,
-  };
+        'token': 'test-token',
+        'expiresAt':
+            DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+        'userId': 'user-1',
+        'email': 'test@example.test',
+        'name': 'Test User',
+        'role': role,
+      };
 
   Future<AuthService> signIn(ApiClient client, TokenStorage storage) async {
     final service = AuthService(client, storage);
@@ -33,11 +37,13 @@ void main() {
     return service;
   }
 
-  test('login stores session and attaches exact Bearer header to API requests', () async {
+  test('login stores session and attaches exact Bearer header to API requests',
+      () async {
     final transport = MockClient((request) async {
       if (request.url.path.endsWith('/auth/login')) {
         expect(request.method, 'POST');
-        expect(jsonDecode(request.body), {'email': 'test@example.test', 'password': 'test-password'});
+        expect(jsonDecode(request.body),
+            {'email': 'test@example.test', 'password': 'test-password'});
         return http.Response(jsonEncode(sessionJson()), 200);
       }
       expect(request.headers['Authorization'], 'Bearer test-token');
@@ -51,8 +57,11 @@ void main() {
     await client.get<dynamic>('/quotations');
   });
 
-  test('restoration loads valid saved session and logout clears storage and token', () async {
-    final transport = MockClient((_) async => http.Response(jsonEncode(sessionJson()), 200));
+  test(
+      'restoration loads valid saved session and logout clears storage and token',
+      () async {
+    final transport =
+        MockClient((_) async => http.Response(jsonEncode(sessionJson()), 200));
     addTearDown(transport.close);
     final storage = TokenStorage();
     await signIn(ApiClient(client: transport), storage);
@@ -71,8 +80,13 @@ void main() {
 
   test('expired session is not restored', () async {
     final storage = TokenStorage();
-    await storage.save(token: 'expired', expiresAt: '2000-01-01T00:00:00Z',
-      userId: 'user-1', email: 'test@example.test', name: 'Test', role: 'ClinicManager');
+    await storage.save(
+        token: 'expired',
+        expiresAt: '2000-01-01T00:00:00Z',
+        userId: 'user-1',
+        email: 'test@example.test',
+        name: 'Test',
+        role: 'ClinicManager');
     final transport = MockClient((_) async => http.Response('', 500));
     addTearDown(transport.close);
     final client = ApiClient(client: transport);
@@ -81,11 +95,14 @@ void main() {
     expect(client.token, isNull);
   });
 
-  test('invalid login reports API message without creating a session', () async {
-    final transport = MockClient((_) async => http.Response('{"detail":"Invalid credentials"}', 401));
+  test('invalid login reports API message without creating a session',
+      () async {
+    final transport = MockClient(
+        (_) async => http.Response('{"detail":"Invalid credentials"}', 401));
     addTearDown(transport.close);
     final storage = TokenStorage();
-    final provider = AuthProvider(AuthService(ApiClient(client: transport), storage));
+    final provider =
+        AuthProvider(AuthService(ApiClient(client: transport), storage));
     addTearDown(provider.dispose);
     expect(await provider.login('test@example.test', 'incorrect'), isFalse);
     expect(provider.errorMessage, 'Invalid credentials');
@@ -97,7 +114,8 @@ void main() {
     final transport = MockClient((_) async => http.Response('', 401));
     addTearDown(transport.close);
     final client = ApiClient(client: transport)..setToken('expired');
-    await expectLater(client.get<dynamic>('/quotations'), throwsA(isA<ApiError>()));
+    await expectLater(
+        client.get<dynamic>('/quotations'), throwsA(isA<ApiError>()));
     expect(client.token, isNull);
   });
 
@@ -105,7 +123,12 @@ void main() {
     final transport = MockClient((_) async => http.Response('', 403));
     addTearDown(transport.close);
     var unauthorizedCalls = 0;
-    final client = ApiClient(client: transport, onUnauthorized: () { unauthorizedCalls++; })..setToken('valid');
+    final client = ApiClient(
+        client: transport,
+        onUnauthorized: () {
+          unauthorizedCalls++;
+        })
+      ..setToken('valid');
     final provider = BillingProvider(BillingService(client));
     addTearDown(provider.dispose);
     await provider.loadQuotations();
@@ -115,30 +138,34 @@ void main() {
     expect(unauthorizedCalls, 0);
   });
 
-  testWidgets('login logout and login again switch screens without stale routes', (tester) async {
-    final transport = MockClient((request) async => request.url.path.endsWith('/auth/login')
-        ? http.Response(jsonEncode(sessionJson()), 200)
-        : http.Response('[]', 200));
+  testWidgets(
+      'login logout and login again switch screens without stale routes',
+      (tester) async {
+    final transport = MockClient((request) async =>
+        request.url.path.endsWith('/auth/login')
+            ? http.Response(jsonEncode(sessionJson()), 200)
+            : http.Response('[]', 200));
     addTearDown(transport.close);
     final client = ApiClient(client: transport);
     final storage = TokenStorage();
-    await tester.pumpWidget(PetCareApp(apiClient: client, authService: AuthService(client, storage)));
+    await tester.pumpWidget(PetCareApp(
+        apiClient: client, authService: AuthService(client, storage)));
     await tester.pumpAndSettle();
     for (var attempt = 0; attempt < 2; attempt++) {
       expect(find.byType(LoginPage), findsOneWidget);
-      await tester.enterText(find.byType(TextFormField).at(0), 'test@example.test');
+      await tester.enterText(
+          find.byType(TextFormField).at(0), 'test@example.test');
       await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
       await tester.tap(find.text('Sign In'));
       await tester.pumpAndSettle();
-      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(AppBottomNav), findsOneWidget);
       expect(client.token, 'test-token');
       // Logout lives on the Profile tab of the owner shell (below the
       // menu card — scroll it into view first).
       await tester.tap(find.text('Profile'));
       await tester.pumpAndSettle();
       // Scroll Logout fully clear of the bottom navigation bar.
-      await tester.scrollUntilVisible(
-          find.text('Logout'), 200,
+      await tester.scrollUntilVisible(find.text('Logout'), 200,
           scrollable: find.byType(Scrollable).last);
       await tester.drag(find.byType(Scrollable).last, const Offset(0, -80));
       await tester.pumpAndSettle();
@@ -150,20 +177,24 @@ void main() {
     }
   });
 
-  testWidgets('staff login lands on the blocked screen, not the owner UI', (tester) async {
-    final transport = MockClient((request) async => request.url.path.endsWith('/auth/login')
-        ? http.Response(jsonEncode(sessionJson(role: 'ClinicManager')), 200)
-        : http.Response('[]', 200));
+  testWidgets('staff login lands on the blocked screen, not the owner UI',
+      (tester) async {
+    final transport = MockClient((request) async =>
+        request.url.path.endsWith('/auth/login')
+            ? http.Response(jsonEncode(sessionJson(role: 'ClinicManager')), 200)
+            : http.Response('[]', 200));
     addTearDown(transport.close);
     final client = ApiClient(client: transport);
-    await tester.pumpWidget(PetCareApp(apiClient: client, authService: AuthService(client, TokenStorage())));
+    await tester.pumpWidget(PetCareApp(
+        apiClient: client, authService: AuthService(client, TokenStorage())));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).at(0), 'staff@example.test');
+    await tester.enterText(
+        find.byType(TextFormField).at(0), 'staff@example.test');
     await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
     await tester.tap(find.text('Sign In'));
     await tester.pumpAndSettle();
     expect(find.textContaining('This app is for Pet Owners'), findsWidgets);
-    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(AppBottomNav), findsNothing);
     expect(find.text('Book a Consultation'), findsNothing);
     // Logout returns to the login screen.
     await tester.tap(find.text('Logout'));
@@ -172,7 +203,9 @@ void main() {
   });
 
   for (final status in [401, 403]) {
-    testWidgets('$status updates app session and handles a pushed route correctly', (tester) async {
+    testWidgets(
+        '$status updates app session and handles a pushed route correctly',
+        (tester) async {
       var responseStatus = 200;
       final transport = MockClient((request) async {
         if (request.url.path.endsWith('/auth/login')) {
@@ -184,16 +217,18 @@ void main() {
       final client = ApiClient(client: transport);
       final storage = TokenStorage();
       final service = await signIn(client, storage);
-      await tester.pumpWidget(PetCareApp(apiClient: client, authService: service));
+      await tester
+          .pumpWidget(PetCareApp(apiClient: client, authService: service));
       await tester.pumpAndSettle();
-      final context = tester.element(find.byType(NavigationBar));
+      final context = tester.element(find.byType(AppBottomNav));
       final auth = context.read<AuthProvider>();
       Navigator.of(context).push(MaterialPageRoute<void>(
         builder: (_) => const Scaffold(body: Text('Protected detail')),
       ));
       await tester.pumpAndSettle();
       responseStatus = status;
-      await expectLater(client.get<dynamic>('/quotations'), throwsA(isA<ApiError>()));
+      await expectLater(
+          client.get<dynamic>('/quotations'), throwsA(isA<ApiError>()));
       await tester.pumpAndSettle();
       if (status == 401) {
         expect(auth.isAuthenticated, isFalse);

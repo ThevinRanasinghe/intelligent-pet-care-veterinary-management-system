@@ -6,7 +6,6 @@ import '../../core/network/api_error.dart';
 import 'billing_service.dart';
 import 'models/quotation.dart';
 
-
 class BillingProvider extends ChangeNotifier {
   final BillingService _service;
 
@@ -31,9 +30,8 @@ class BillingProvider extends ChangeNotifier {
     _errorMessage = '';
     notifyListeners();
     try {
-      _quotations = mine
-          ? await _service.getMyBills()
-          : await _service.getQuotations();
+      _quotations =
+          mine ? await _service.getMyBills() : await _service.getQuotations();
       _listState = LoadState.success;
     } on ApiError catch (e) {
       _errorMessage = _extractMessage(e);

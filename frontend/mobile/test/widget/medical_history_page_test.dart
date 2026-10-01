@@ -87,7 +87,8 @@ Widget historyApp(FakeApiClient client, {Pet? forPet}) {
 
 void main() {
   group('MedicalHistoryPage', () {
-    testWidgets('renders the examination timeline with diagnosis, '
+    testWidgets(
+        'renders the examination timeline with diagnosis, '
         'treatment and prescription', (tester) async {
       final client = FakeApiClient();
       stubHistory(client);
@@ -102,12 +103,10 @@ void main() {
       expect(find.text('Treatment: Cold compress'), findsOneWidget);
       expect(find.textContaining('Meloxicam'), findsOneWidget);
       expect(client.requestedPaths, contains('/examinations/pet/p1'));
-      expect(client.requestedPaths,
-          contains('/diagnoses/examination/exam-1'));
+      expect(client.requestedPaths, contains('/diagnoses/examination/exam-1'));
       expect(client.requestedPaths,
           contains('/treatmentrecords/diagnosis/diag-1'));
-      expect(client.requestedPaths,
-          contains('/prescriptions/treatment/tr-1'));
+      expect(client.requestedPaths, contains('/prescriptions/treatment/tr-1'));
     });
 
     testWidgets('empty history shows the empty state', (tester) async {
@@ -123,14 +122,12 @@ void main() {
     testWidgets('API failure shows a friendly error with retry',
         (tester) async {
       final client = FakeApiClient();
-      client.setError(
-          '/examinations/pet/p1', ApiError(500, 'Server error'));
+      client.setError('/examinations/pet/p1', ApiError(500, 'Server error'));
 
       await tester.pumpWidget(historyApp(client, forPet: pet()));
       await tester.pumpAndSettle();
 
-      expect(
-          find.textContaining('Unable to load medical history'),
+      expect(find.textContaining('Unable to load medical history'),
           findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
     });
@@ -150,7 +147,8 @@ void main() {
       expect(find.text('Diagnosis: Soft tissue strain'), findsOneWidget);
     });
 
-    testWidgets('without a pet the selector row lists pets and selection '
+    testWidgets(
+        'without a pet the selector row lists pets and selection '
         'loads history', (tester) async {
       final client = FakeApiClient();
       client.setResponse('/pets', [
@@ -168,8 +166,8 @@ void main() {
       await tester.pumpWidget(historyApp(client));
       await tester.pumpAndSettle();
 
-      expect(find.text('Select a pet to see its medical history'),
-          findsOneWidget);
+      expect(
+          find.text('Select a pet to see its medical history'), findsOneWidget);
       await tester.tap(find.text('Shadow'));
       await tester.pumpAndSettle();
 

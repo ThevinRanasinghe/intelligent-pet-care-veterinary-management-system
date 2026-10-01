@@ -3,11 +3,15 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/motion/app_motion.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_states.dart';
+import '../../core/widgets/fade_slide_in.dart';
+import '../../core/widgets/filter_pills.dart';
 import '../../core/widgets/list_icon_tile.dart';
 import '../../core/widgets/pet_card.dart';
 import '../../core/widgets/status_badge.dart';
+import '../../core/widgets/top_bar.dart';
 import '../pets/models/pet.dart';
 import '../pets/pet_provider.dart';
 import 'history_provider.dart';
@@ -56,7 +60,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
     final pets = context.watch<PetProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Medical History')),
+      appBar: const TopBar(title: 'Medical History'),
       body: RefreshIndicator(
         onRefresh: () async {
           final pet = _selectedPet;
@@ -77,7 +81,14 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                 selected: _selectedPet,
                 onSelected: _selectPet,
               ),
-            _buildTimeline(history),
+            // Pet-filter and load-state swaps crossfade — no page flash.
+            AnimatedSwitcher(
+              duration: AppMotion.standard,
+              child: KeyedSubtree(
+                key: ValueKey('${_selectedPet?.id ?? 'none'}-${history.state}'),
+                child: _buildTimeline(history),
+              ),
+            ),
           ],
         ),
       ),
@@ -117,10 +128,14 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
         return Column(
           children: [
             for (var i = 0; i < history.entries.length; i++)
-              _HistoryTimelineItem(
-                entry: history.entries[i],
-                isLast: i == history.entries.length - 1,
-                delayIndex: i,
+              FadeSlideIn(
+                delay: Duration(milliseconds: 60 * i.clamp(0, 6)),
+                distance: 10,
+                child: _HistoryTimelineItem(
+                  entry: history.entries[i],
+                  isLast: i == history.entries.length - 1,
+                  delayIndex: i,
+                ),
               ),
           ],
         );
@@ -155,26 +170,18 @@ class _PetSelector extends StatelessWidget {
         icon: Icons.pets,
       );
     }
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.pageHorizontal,
-            vertical: AppSpacing.sm),
-        itemCount: pets.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
-        itemBuilder: (context, i) {
-          final pet = pets[i];
-          final isSelected = pet.id == selected?.id;
-          return ChoiceChip(
-            avatar: Text(petSpeciesEmoji(pet.species),
-                style: const TextStyle(fontSize: 16)),
-            label: Text(pet.name),
-            selected: isSelected,
-            onSelected: (_) => onSelected(pet),
-          );
-        },
+    // Beacon filter pills: selected = dark pill, unselected = white.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: FilterPills(
+        items: [
+          for (final pet in pets)
+            FilterPillItem(pet.name, emoji: petSpeciesEmoji(pet.species)),
+        ],
+        selectedIndex: selected == null
+            ? -1
+            : pets.indexWhere((p) => p.id == selected!.id),
+        onSelected: (i) => onSelected(pets[i]),
       ),
     );
   }
@@ -194,8 +201,18 @@ class _HistoryTimelineItem extends StatelessWidget {
   });
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   String get _dateLabel {
@@ -222,8 +239,8 @@ class _HistoryTimelineItem extends StatelessWidget {
                   Expanded(
                     child: Container(
                       width: 2,
-                      margin: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.xxs),
+                      margin:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
                       color: AppColors.line,
                     ),
                   ),
@@ -234,8 +251,7 @@ class _HistoryTimelineItem extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(
-                  right: AppSpacing.pageHorizontal,
-                  bottom: AppSpacing.lg),
+                  right: AppSpacing.pageHorizontal, bottom: AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -282,6 +298,8 @@ class _HistoryTimelineItem extends StatelessWidget {
   }
 }
 
+/// Clinical detail block with the strong left accent line the Beacon spec
+/// calls for (diagnosis → treatment → prescription).
 class _DiagnosisBlock extends StatelessWidget {
   final HistoryDiagnosis diagnosis;
 
@@ -289,6 +307,18 @@ class _DiagnosisBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.only(left: AppSpacing.sm),
+      decoration: const BoxDecoration(
+        border: Border(
+          left: BorderSide(color: AppColors.primaryDark, width: 3),
+        ),
+      ),
+      child: _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -297,12 +327,10 @@ class _DiagnosisBlock extends StatelessWidget {
             Expanded(
               child: Text(
                 'Diagnosis: ${diagnosis.conditionName}',
-                style: AppTextStyles.body
-                    .copyWith(fontWeight: FontWeight.w600),
+                style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
-            if (diagnosis.severity.isNotEmpty)
-              StatusBadge(diagnosis.severity),
+            if (diagnosis.severity.isNotEmpty) StatusBadge(diagnosis.severity),
           ],
         ),
         if (diagnosis.description.isNotEmpty) ...[
@@ -350,13 +378,11 @@ class _PrescriptionRow extends StatelessWidget {
     final name = rx.medicineName ?? 'Medicine';
     final strength =
         rx.medicineStrength != null ? ' ${rx.medicineStrength}' : '';
-    final duration =
-        rx.durationDays > 0 ? ' · ${rx.durationDays} days' : '';
+    final duration = rx.durationDays > 0 ? ' · ${rx.durationDays} days' : '';
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.medication_outlined,
-            size: 16, color: AppColors.muted),
+        const Icon(Icons.medication_outlined, size: 16, color: AppColors.muted),
         const SizedBox(width: AppSpacing.xs),
         Expanded(
           child: Text(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:petcare_mobile/core/motion/app_motion.dart';
 import 'package:petcare_mobile/features/auth/login_page.dart';
 import 'package:petcare_mobile/features/auth/register_page.dart';
 import 'package:petcare_mobile/features/consultations/booking_wizard_page.dart';
@@ -15,35 +16,44 @@ class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case '/login':
-        return MaterialPageRoute(builder: (_) => const LoginPage());
+        return MotionPageRoute(settings: settings, page: const LoginPage());
       case '/register':
-        return MaterialPageRoute(builder: (_) => const RegisterPage());
+        return MotionPageRoute(settings: settings, page: const RegisterPage());
       case '/home':
-        return MaterialPageRoute(builder: (_) => const MainShell());
+        return MotionPageRoute(settings: settings, page: const MainShell());
       case '/book-consultation':
-        return MaterialPageRoute(builder: (_) => const BookingWizardPage());
+        return MotionPageRoute(
+            settings: settings, page: const BookingWizardPage());
       case '/slot-appointment':
         final id = settings.arguments as String;
-        return MaterialPageRoute(builder: (_) => AppointmentDetailPage(appointmentId: id, forSlot: true));
+        return MotionPageRoute(
+            settings: settings,
+            page: AppointmentDetailPage(appointmentId: id, forSlot: true));
       case '/appointment':
         final id = settings.arguments as String;
-        return MaterialPageRoute(builder: (_) => AppointmentDetailPage(appointmentId: id));
+        return MotionPageRoute(
+            settings: settings, page: AppointmentDetailPage(appointmentId: id));
       case '/my-appointments':
-        return MaterialPageRoute(builder: (_) => const MyAppointmentsPage());
+        return MotionPageRoute(
+            settings: settings, page: const MyAppointmentsPage());
       case '/quotation':
         final id = settings.arguments as String;
-        return MaterialPageRoute(builder: (_) => QuotationDetailPage(quotationId: id));
+        return MotionPageRoute(
+            settings: settings, page: QuotationDetailPage(quotationId: id));
       case '/approval':
         final id = settings.arguments as String;
-        return MaterialPageRoute(builder: (_) => ApprovalDetailPage(approvalId: id));
+        return MotionPageRoute(
+            settings: settings, page: ApprovalDetailPage(approvalId: id));
       case '/medical-history':
         final pet = settings.arguments as Pet?;
-        return MaterialPageRoute(builder: (_) => MedicalHistoryPage(pet: pet));
+        return MotionPageRoute(
+            settings: settings, page: MedicalHistoryPage(pet: pet));
       case '/approval-history':
         final id = settings.arguments as String;
-        return MaterialPageRoute(builder: (_) => ApprovalHistoryPage(approvalId: id));
+        return MotionPageRoute(
+            settings: settings, page: ApprovalHistoryPage(approvalId: id));
       default:
-        return MaterialPageRoute(builder: (_) => const _NotFoundPage());
+        return MotionPageRoute(settings: settings, page: const _NotFoundPage());
     }
   }
 }

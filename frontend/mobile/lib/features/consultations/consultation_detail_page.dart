@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/detail_row.dart';
+import '../../core/widgets/fade_slide_in.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/status_badge.dart';
+import '../../core/widgets/top_bar.dart';
 import 'consultation_provider.dart';
 import 'models/clinic.dart';
 import 'models/consultation_request.dart';
@@ -61,80 +65,96 @@ class _OwnerConsultationDetailPageState
   Widget build(BuildContext context) {
     final r = widget.request;
     return Scaffold(
-      appBar: AppBar(title: const Text('Consultation Request')),
+      appBar: const TopBar(title: 'Consultation Request'),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(AppSpacing.pageHorizontal,
+            AppSpacing.md, AppSpacing.pageHorizontal, AppSpacing.xl),
         children: [
-          AppCard(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        r.petName ?? 'Consultation request',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.4,
-                          color: AppColors.black,
+          FadeSlideIn(
+            child: AppCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          r.petName ?? 'Consultation request',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
+                            color: AppColors.black,
+                          ),
                         ),
                       ),
-                    ),
-                    StatusBadge(r.status),
-                  ],
-                ),
-                if (r.preferredDateShort != null ||
-                    r.preferredTimeShort != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '${r.preferredDateShort ?? 'Date TBC'}'
-                    '${r.preferredTimeShort != null ? ' · ${r.preferredTimeShort}' : ''}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.muted),
+                      StatusBadge(r.status),
+                    ],
                   ),
+                  if (r.preferredDateShort != null ||
+                      r.preferredTimeShort != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${r.preferredDateShort ?? 'Date TBC'}'
+                      '${r.preferredTimeShort != null ? ' · ${r.preferredTimeShort}' : ''}',
+                      style:
+                          const TextStyle(fontSize: 12, color: AppColors.muted),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          const SectionHeader('Details'),
+          const FadeSlideIn(
+            delay: Duration(milliseconds: 80),
+            distance: 8,
+            child: SectionHeader('Details'),
+          ),
           const SizedBox(height: 8),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DetailRow('Pet', value: r.petName ?? r.petId),
-                if (r.organizationName != null)
-                  DetailRow('Clinic', value: r.organizationName!),
-                if (_clinic != null)
-                  DetailRow('Clinic address', value: _clinic!.addressLabel),
-                if (r.preferredDateShort != null)
-                  DetailRow('Date', value: r.preferredDateShort!),
-                if (r.preferredTimeShort != null)
-                  DetailRow('Time', value: r.preferredTimeShort!),
-                if (r.requestType == 'FollowUp') ...[
-                  const DetailRow('Type', value: 'Follow-up request'),
-                  if (r.requestedByVeterinarianName != null)
-                    DetailRow('Requested by',
-                        value: r.requestedByVeterinarianName!),
+          FadeSlideIn(
+            delay: const Duration(milliseconds: 120),
+            distance: 10,
+            child: AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DetailRow('Pet', value: r.petName ?? r.petId),
+                  if (r.organizationName != null)
+                    DetailRow('Clinic', value: r.organizationName!),
+                  if (_clinic != null)
+                    DetailRow('Clinic address', value: _clinic!.addressLabel),
+                  if (r.preferredDateShort != null)
+                    DetailRow('Date', value: r.preferredDateShort!),
+                  if (r.preferredTimeShort != null)
+                    DetailRow('Time', value: r.preferredTimeShort!),
+                  if (r.requestType == 'FollowUp') ...[
+                    const DetailRow('Type', value: 'Follow-up request'),
+                    if (r.requestedByVeterinarianName != null)
+                      DetailRow('Requested by',
+                          value: r.requestedByVeterinarianName!),
+                  ],
+                  DetailRow('Status', child: StatusBadge(r.status)),
+                  if (r.symptoms.isNotEmpty)
+                    DetailRow('Symptoms', value: r.symptoms),
+                  if (r.additionalNotes != null &&
+                      r.additionalNotes!.isNotEmpty)
+                    DetailRow('Notes', value: r.additionalNotes!),
                 ],
-                DetailRow('Status', child: StatusBadge(r.status)),
-                if (r.symptoms.isNotEmpty)
-                  DetailRow('Symptoms', value: r.symptoms),
-                if (r.additionalNotes != null && r.additionalNotes!.isNotEmpty)
-                  DetailRow('Notes', value: r.additionalNotes!),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
           if (_clinic != null)
-            OutlinedButton.icon(
-              onPressed: _openDirections,
-              icon: const Icon(Icons.directions),
-              label: const Text('Get Directions'),
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 180),
+              distance: 8,
+              child: AppButton(
+                label: 'Get Directions',
+                icon: Icons.directions,
+                onPressed: _openDirections,
+              ),
             ),
         ],
       ),

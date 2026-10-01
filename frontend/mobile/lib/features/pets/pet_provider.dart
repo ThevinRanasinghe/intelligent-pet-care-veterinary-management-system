@@ -6,7 +6,6 @@ import '../../core/network/api_error.dart';
 import 'pet_service.dart';
 import 'models/pet.dart';
 
-
 class PetProvider extends ChangeNotifier {
   final PetService _service;
 

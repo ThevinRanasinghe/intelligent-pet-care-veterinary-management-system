@@ -47,18 +47,16 @@ Widget appFor(FakeApiClient client, AuthProvider auth) {
     providers: [
       Provider<ApiClient>.value(value: client),
       ChangeNotifierProvider.value(value: auth),
-      ChangeNotifierProvider.value(
-          value: PetProvider(PetService(client))),
+      ChangeNotifierProvider.value(value: PetProvider(PetService(client))),
     ],
     // Providers sit above MaterialApp (as in main.dart) so pushed routes
-    // like PetFormPage/PetDetailPage can read them.
+    // and the add-pet bottom sheet can read them.
     child: const MaterialApp(home: PetsPage()),
   );
 }
 
 Future<AuthProvider> ownerAuth(FakeApiClient client) async {
-  final auth =
-      AuthProvider(AuthService(client, TokenStorage()));
+  final auth = AuthProvider(AuthService(client, TokenStorage()));
   await auth.init();
   return auth;
 }
@@ -69,7 +67,8 @@ void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues(ownerSession()));
 
   group('PetsPage (owner) widget tests', () {
-    testWidgets('lists the owner\'s pets with species/breed, age and View Profile',
+    testWidgets(
+        'lists the owner\'s pets with species/breed, age and View Profile',
         (tester) async {
       final client = FakeApiClient();
       client.setResponse('/pets', [
@@ -103,16 +102,20 @@ void main() {
       final client = FakeApiClient();
       client.setResponse('/pets', [petJson()]);
       client.setResponse('/petowners', [
-        {'id': 'own-1', 'fullName': 'Amal Perera', 'email': 'amal@example.test'},
+        {
+          'id': 'own-1',
+          'fullName': 'Amal Perera',
+          'email': 'amal@example.test'
+        },
       ]);
-      client.setResponse('POST /pets',
-          petJson(id: 'p2', name: 'Rex'));
+      client.setResponse('POST /pets', petJson(id: 'p2', name: 'Rex'));
       final auth = await ownerAuth(client);
 
       await tester.pumpWidget(appFor(client, auth));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FloatingActionButton, 'Add Pet'));
+      // Dark circular + FAB opens the add-pet bottom sheet.
+      await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle();
       expect(find.text('Add Pet'), findsWidgets);
 
@@ -129,8 +132,7 @@ void main() {
       // is that nothing was POSTed.
       expect(client.bodyFor('POST', '/pets'), isNull);
 
-      await tester.enterText(
-          find.byType(TextFormField).first, 'Rex');
+      await tester.enterText(find.byType(TextFormField).first, 'Rex');
       await tester.dragUntilVisible(
           submitButton, scrollable, const Offset(0, -80));
       await tester.tap(submitButton);

@@ -8,6 +8,7 @@ import 'package:petcare_mobile/features/consultations/clinic_picker.dart';
 import 'package:petcare_mobile/features/consultations/consultation_provider.dart';
 import 'package:petcare_mobile/features/consultations/consultation_service.dart';
 import 'package:petcare_mobile/features/consultations/models/clinic.dart';
+import 'package:petcare_mobile/core/widgets/time_slot_grid.dart';
 import 'package:petcare_mobile/features/pets/pet_provider.dart';
 import 'package:petcare_mobile/features/pets/pet_service.dart';
 import '../helpers/fake_api_client.dart';
@@ -113,8 +114,7 @@ void main() {
       client.setResponse('/pets', [petJson()]);
       client.setResponse('/lookups/organizations', orgsJson());
       client.setResponse('/consultations/availability/month', monthJson());
-      client.setResponse(
-          '/consultations/availability?', dayJson('ignored'));
+      client.setResponse('/consultations/availability?', dayJson('ignored'));
       client.setResponse('POST /consultations', consultationJson('Draft'));
       client.setResponse(
           '/consultations/CON-1/submit', consultationJson('Submitted'));
@@ -124,8 +124,8 @@ void main() {
 
       // Step 1 — pet guard: Next disabled until a pet is picked.
       expect(find.textContaining('Step 1 of 5'), findsOneWidget);
-      var next = tester.widget<FilledButton>(
-          find.widgetWithText(FilledButton, 'Next'));
+      var next = tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Next'));
       expect(next.onPressed, isNull);
       await tester.tap(find.text('Shadow'));
       await tester.pumpAndSettle();
@@ -148,16 +148,16 @@ void main() {
       expect(find.textContaining('Step 3 of 5'), findsOneWidget);
       expect(find.text('Fully booked'), findsOneWidget);
       final now = DateTime.now();
-      final bookedKey = Key(
-          'day-${now.year}-${now.month.toString().padLeft(2, '0')}-10');
+      final bookedKey =
+          Key('day-${now.year}-${now.month.toString().padLeft(2, '0')}-10');
       await tester.tap(find.byKey(bookedKey));
       await tester.pumpAndSettle();
-      next = tester.widget<FilledButton>(
-          find.widgetWithText(FilledButton, 'Next'));
+      next = tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Next'));
       expect(next.onPressed, isNull); // fully-booked day not selectable
 
-      final freeKey = Key(
-          'day-${now.year}-${now.month.toString().padLeft(2, '0')}-02');
+      final freeKey =
+          Key('day-${now.year}-${now.month.toString().padLeft(2, '0')}-02');
       await tester.tap(find.byKey(freeKey));
       await tester.pumpAndSettle();
       final pickedDate =
@@ -170,12 +170,12 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      // Step 4 — nine slot chips; the booked 11:00 slot is disabled.
+      // Step 4 — nine slot tiles; the booked 11:00 slot is disabled.
       expect(find.textContaining('Step 4 of 5'), findsOneWidget);
-      expect(find.byType(ChoiceChip), findsNWidgets(9));
-      final bookedChip = tester.widget<ChoiceChip>(
-          find.widgetWithText(ChoiceChip, '11:00 – 12:00'));
-      expect(bookedChip.onSelected, isNull);
+      expect(find.byType(TimeSlotTile), findsNWidgets(9));
+      final bookedChip = tester.widget<TimeSlotTile>(
+          find.widgetWithText(TimeSlotTile, '11:00 – 12:00'));
+      expect(bookedChip.onTap, isNull);
       await tester.tap(find.text('10:00 – 11:00'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Next'));
@@ -228,8 +228,8 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
       final now = DateTime.now();
-      await tester.tap(find.byKey(Key(
-          'day-${now.year}-${now.month.toString().padLeft(2, '0')}-02')));
+      await tester.tap(find.byKey(
+          Key('day-${now.year}-${now.month.toString().padLeft(2, '0')}-02')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
@@ -281,8 +281,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-          find.text(
-              'No PetCare clinics are currently available in this area.'),
+          find.text('No PetCare clinics are currently available in this area.'),
           findsOneWidget);
     });
 
@@ -292,8 +291,8 @@ void main() {
       client.setResponse('/pets', [petJson()]);
       client.setResponse('/lookups/organizations', orgsJson());
       client.setResponse('/consultations/availability/month', monthJson());
-      client.setResponse(
-          '/consultations/availability?', {'date': 'x', 'isPast': false, 'slots': <dynamic>[]});
+      client.setResponse('/consultations/availability?',
+          {'date': 'x', 'isPast': false, 'slots': <dynamic>[]});
 
       await tester.pumpWidget(wizardApp(client));
       await tester.pumpAndSettle();
@@ -306,14 +305,13 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
       final now = DateTime.now();
-      await tester.tap(find.byKey(Key(
-          'day-${now.year}-${now.month.toString().padLeft(2, '0')}-02')));
+      await tester.tap(find.byKey(
+          Key('day-${now.year}-${now.month.toString().padLeft(2, '0')}-02')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      expect(
-          find.text('No appointment slots are available for this date.'),
+      expect(find.text('No appointment slots are available for this date.'),
           findsOneWidget);
     });
   });

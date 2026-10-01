@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/motion/app_motion.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_states.dart';
+import '../../core/widgets/fade_slide_in.dart';
 import '../../core/widgets/list_icon_tile.dart';
 import '../../core/widgets/status_badge.dart';
+import '../../core/widgets/top_bar.dart';
 import '../auth/auth_provider.dart';
 import 'billing_provider.dart';
 import 'models/quotation.dart';
@@ -37,14 +40,21 @@ class _QuotationsPageState extends State<QuotationsPage> {
 
     final body = RefreshIndicator(
       onRefresh: () => provider.loadQuotations(mine: mine),
-      child: _buildBody(provider, mine),
+      // Loading → list crossfades rather than snapping.
+      child: AnimatedSwitcher(
+        duration: AppMotion.standard,
+        child: KeyedSubtree(
+          key: ValueKey(provider.listState),
+          child: _buildBody(provider, mine),
+        ),
+      ),
     );
 
     // Standalone (pushed) owner view gets its own scaffold + title; the
     // staff view stays embedded inside HomePage's scaffold.
     if (mine) {
       return Scaffold(
-        appBar: AppBar(title: const Text('My Bills')),
+        appBar: const TopBar(title: 'My Bills', showBackButton: false),
         body: body,
       );
     }
@@ -77,7 +87,11 @@ class _QuotationsPageState extends State<QuotationsPage> {
           itemCount: provider.quotations.length,
           itemBuilder: (context, index) {
             final q = provider.quotations[index];
-            return QuotationTile(quotation: q);
+            return FadeSlideIn(
+              delay: Duration(milliseconds: 60 * index.clamp(0, 5)),
+              distance: 10,
+              child: QuotationTile(quotation: q),
+            );
           },
         );
     }
@@ -134,35 +148,57 @@ class QuotationTile extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  'Total: LKR ${quotation.total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.black,
-                  ),
-                ),
-              ),
               StatusBadge(quotation.status),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Icon(
-                quotation.isWithinBudget
-                    ? Icons.check_circle
-                    : Icons.warning,
+                quotation.isWithinBudget ? Icons.check_circle : Icons.warning,
                 color: quotation.isWithinBudget
                     ? AppColors.successText
                     : AppColors.warningText,
                 size: 16,
               ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Budget: LKR ${quotation.budget.toStringAsFixed(2)} · '
+                  '${quotation.items.length} items',
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 2),
-          Text(
-            'Budget: LKR ${quotation.budget.toStringAsFixed(2)}\n'
-            'Items: ${quotation.items.length}',
-            style:
-                const TextStyle(fontSize: 12, color: AppColors.muted),
+          const SizedBox(height: AppSpacing.sm),
+          // Beacon total: dark rounded box with the amount in yellow.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: AppColors.black,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Text(
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xB3FFFFFF),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'LKR ${quotation.total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

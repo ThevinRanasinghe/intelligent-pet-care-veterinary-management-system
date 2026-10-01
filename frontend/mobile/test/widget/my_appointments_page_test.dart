@@ -36,12 +36,23 @@ Map<String, dynamic> appointmentJson({
 
 void main() {
   group('MyAppointmentsPage widget tests', () {
-    testWidgets('renders rows from /appointments/mine with Follow-up label and status chips',
+    testWidgets(
+        'renders rows from /appointments/mine with Follow-up label and status chips',
         (tester) async {
       final client = FakeApiClient();
       client.setResponse('/appointments/mine', [
-        appointmentJson(id: 'a1', petName: 'Shadow', type: 'FollowUp', status: 'Confirmed', veterinarianName: 'Dr. Silva'),
-        appointmentJson(id: 'a2', petName: 'Luna', type: 'Initial', status: 'Completed', veterinarianName: 'Dr. Silva'),
+        appointmentJson(
+            id: 'a1',
+            petName: 'Shadow',
+            type: 'FollowUp',
+            status: 'Confirmed',
+            veterinarianName: 'Dr. Silva'),
+        appointmentJson(
+            id: 'a2',
+            petName: 'Luna',
+            type: 'Initial',
+            status: 'Completed',
+            veterinarianName: 'Dr. Silva'),
       ]);
       final provider = SchedulingProvider(SchedulingService(client));
 
@@ -68,12 +79,15 @@ void main() {
       expect(client.requestedPaths, contains('/appointments/mine'));
     });
 
-    testWidgets('tapping a row opens the existing appointment detail', (tester) async {
+    testWidgets('tapping a row opens the existing appointment detail',
+        (tester) async {
       final client = FakeApiClient();
       client.setResponse('/appointments/mine', [
-        appointmentJson(id: 'a1', petName: 'Shadow', type: 'Initial', status: 'Confirmed'),
+        appointmentJson(
+            id: 'a1', petName: 'Shadow', type: 'Initial', status: 'Confirmed'),
       ]);
-      client.setResponse('/appointments/a1', appointmentJson(id: 'a1', petName: 'Shadow'));
+      client.setResponse(
+          '/appointments/a1', appointmentJson(id: 'a1', petName: 'Shadow'));
       final provider = SchedulingProvider(SchedulingService(client));
 
       await tester.pumpWidget(
@@ -94,7 +108,8 @@ void main() {
       expect(client.requestedPaths, contains('/appointments/a1'));
     });
 
-    testWidgets('shows empty state when there are no appointments', (tester) async {
+    testWidgets('shows empty state when there are no appointments',
+        (tester) async {
       final client = FakeApiClient();
       client.setResponse('/appointments/mine', []);
       final provider = SchedulingProvider(SchedulingService(client));

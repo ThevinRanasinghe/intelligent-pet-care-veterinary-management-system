@@ -34,7 +34,8 @@ class PetService {
   }
 
   Future<Pet> createPet(Pet draft) async {
-    final ownerId = draft.ownerId.isNotEmpty ? draft.ownerId : await getMyOwnerId();
+    final ownerId =
+        draft.ownerId.isNotEmpty ? draft.ownerId : await getMyOwnerId();
     return _apiClient.post<Pet>(
       '/pets',
       body: draft.toPayload(ownerId: ownerId ?? ''),

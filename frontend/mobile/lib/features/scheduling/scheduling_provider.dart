@@ -6,7 +6,6 @@ import '../../core/network/api_error.dart';
 import 'scheduling_service.dart';
 import 'models/appointment_slot.dart';
 
-
 class SchedulingProvider extends ChangeNotifier {
   final SchedulingService _service;
 

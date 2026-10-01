@@ -8,7 +8,6 @@ import 'models/availability.dart';
 import 'models/clinic.dart';
 import 'models/consultation_request.dart';
 
-
 class ConsultationProvider extends ChangeNotifier {
   final ConsultationService _service;
 
@@ -80,7 +79,8 @@ class ConsultationProvider extends ChangeNotifier {
     _dayAvailability = null;
     notifyListeners();
     try {
-      _dayAvailability = await _service.getDayAvailability(organizationId, date);
+      _dayAvailability =
+          await _service.getDayAvailability(organizationId, date);
       _dayState = LoadState.success;
     } on ApiError catch (e) {
       _errorMessage = _extractMessage(e);
@@ -152,10 +152,12 @@ class ConsultationProvider extends ChangeNotifier {
 
   Future<Clinic?> clinicForAppointment(String consultationRequestId) async {
     try {
-      final consultation = await _service.getConsultationById(consultationRequestId);
+      final consultation =
+          await _service.getConsultationById(consultationRequestId);
       final orgId = consultation.organizationId;
       if (orgId == null) return null;
-      final orgs = _clinics.isNotEmpty ? _clinics : await _service.getOrganizations();
+      final orgs =
+          _clinics.isNotEmpty ? _clinics : await _service.getOrganizations();
       for (final org in orgs) {
         if (org.id == orgId && org.hasLocation) return org;
       }

@@ -35,7 +35,8 @@ class SchedulingService {
   Future<Appointment?> getAppointmentForSlot(String slotId) async {
     final appointments = await getAppointments();
     for (final appointment in appointments) {
-      if (appointment.appointmentSlotId == slotId && appointment.status != 'Cancelled') {
+      if (appointment.appointmentSlotId == slotId &&
+          appointment.status != 'Cancelled') {
         return getAppointmentById(appointment.id);
       }
     }

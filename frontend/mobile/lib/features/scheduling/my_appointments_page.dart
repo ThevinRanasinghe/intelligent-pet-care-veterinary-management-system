@@ -88,7 +88,8 @@ class _AppointmentTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       padding: EdgeInsets.zero,
       onTap: () {
-        Navigator.of(context).pushNamed('/appointment', arguments: appointment.id);
+        Navigator.of(context)
+            .pushNamed('/appointment', arguments: appointment.id);
       },
       child: ListTile(
         leading: Container(

@@ -20,6 +20,7 @@ import 'features/auth/login_page.dart';
 import 'features/auth/staff_blocked_page.dart';
 import 'features/home/main_shell.dart';
 import 'features/home/splash_page.dart';
+import 'core/motion/app_motion.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 
@@ -68,7 +69,8 @@ class _PetCareAppState extends State<PetCareApp> {
     super.initState();
     _authProvider = AuthProvider(widget.authService);
     widget.apiClient.onUnauthorized = _authProvider.logout;
-    _schedulingProvider = SchedulingProvider(SchedulingService(widget.apiClient));
+    _schedulingProvider =
+        SchedulingProvider(SchedulingService(widget.apiClient));
     _billingProvider = BillingProvider(BillingService(widget.apiClient));
     _approvalProvider = ApprovalProvider(ApprovalService(widget.apiClient));
     _petProvider = PetProvider(PetService(widget.apiClient));
@@ -94,13 +96,38 @@ class _PetCareAppState extends State<PetCareApp> {
         ChangeNotifierProvider.value(value: _consultationProvider),
         ChangeNotifierProvider.value(value: _historyProvider),
       ],
+      // Fade-through on auth swaps: when the session flips (login →
+      // home, or 401 → login) the MaterialApp is recreated to reset the
+      // navigator — the AnimatedSwitcher crossfades the swap so no blank
+      // or abrupt frame is exposed.
       child: Consumer<AuthProvider>(
-        builder: (context, auth, _) => MaterialApp(
-          key: ValueKey(auth.isAuthenticated),
-          title: 'Beacon Pet Health',
-          theme: AppTheme.light,
-          onGenerateRoute: AppRouter.onGenerateRoute,
-          home: _initialized ? _buildHome() : const SplashPage(),
+        builder: (context, auth, _) => AnimatedSwitcher(
+          duration: AppMotion.standard,
+          transitionBuilder: AppMotion.fadeThroughTransition,
+          child: MaterialApp(
+            key: ValueKey(auth.isAuthenticated),
+            title: 'Beacon Pet Health',
+            theme: AppTheme.light,
+            onGenerateRoute: AppRouter.onGenerateRoute,
+            home: AnimatedSwitcher(
+              duration: AppMotion.standard,
+              transitionBuilder: AppMotion.fadeThroughTransition,
+              child: KeyedSubtree(
+                key: ValueKey(_initialized),
+                child: _initialized ? _buildHome() : const SplashPage(),
+              ),
+            ),
+            // Beacon mobile rail: the app is a mobile layout even on wide
+            // screens — content is centred and capped at 448px, never a
+            // desktop dashboard.
+            builder: (context, child) => Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 448),
+                child: child,
+              ),
+            ),
+          ),
         ),
       ),
     );

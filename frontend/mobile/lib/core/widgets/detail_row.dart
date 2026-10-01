@@ -36,8 +36,7 @@ class DetailRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: child ??
-                Text(value!, style: const TextStyle(fontSize: 13)),
+            child: child ?? Text(value!, style: const TextStyle(fontSize: 13)),
           ),
         ],
       ),

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/motion/app_motion.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_states.dart';
+import '../../core/widgets/fade_slide_in.dart';
 import '../../core/widgets/list_icon_tile.dart';
+import '../../core/widgets/segmented_control.dart';
 import '../../core/widgets/status_badge.dart';
+import '../../core/widgets/top_bar.dart';
 import '../consultations/consultation_detail_page.dart';
 import '../consultations/consultation_provider.dart';
 import '../consultations/models/consultation_request.dart';
@@ -43,9 +47,8 @@ class _OwnerAppointmentsPageState extends State<OwnerAppointmentsPage> {
     final scheduling = context.watch<SchedulingProvider>();
     final consultations = context.watch<ConsultationProvider>();
 
-    final pending = consultations.myConsultations
-        .where((c) => c.isPending)
-        .toList();
+    final pending =
+        consultations.myConsultations.where((c) => c.isPending).toList();
     final upcoming = scheduling.myAppointments
         .where((a) =>
             const {'Reserved', 'Confirmed', 'Scheduled'}.contains(a.status))
@@ -63,11 +66,12 @@ class _OwnerAppointmentsPageState extends State<OwnerAppointmentsPage> {
         consultations.listState == LoadState.loading;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Appointments'),
+      appBar: TopBar(
+        title: 'Appointments',
+        showBackButton: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add, size: 20),
             tooltip: 'Book a Consultation',
             onPressed: () =>
                 Navigator.of(context).pushNamed('/book-consultation'),
@@ -77,24 +81,32 @@ class _OwnerAppointmentsPageState extends State<OwnerAppointmentsPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: SegmentedButton<int>(
-              segments: [
-                ButtonSegment(value: 0, label: Text('Pending (${pending.length})')),
-                ButtonSegment(value: 1, label: Text('Upcoming (${upcoming.length})')),
-                const ButtonSegment(value: 2, label: Text('History')),
+            padding: const EdgeInsets.fromLTRB(AppSpacing.pageHorizontal,
+                AppSpacing.sm, AppSpacing.pageHorizontal, AppSpacing.xs),
+            child: AppSegmentedControl(
+              labels: [
+                'Pending (${pending.length})',
+                'Upcoming (${upcoming.length})',
+                'History',
               ],
-              selected: {_segment},
-              onSelectionChanged: (s) => setState(() => _segment = s.first),
+              selectedIndex: _segment,
+              onSelected: (i) => setState(() => _segment = i),
             ),
           ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _refresh,
-              child: loading
-                  ? const AppLoading()
-                  : _buildList(
-                      pending, upcoming, historyAppointments, historyConsultations),
+              // Segment/loading swaps crossfade instead of flashing.
+              child: AnimatedSwitcher(
+                duration: AppMotion.standard,
+                child: loading
+                    ? const AppLoading()
+                    : KeyedSubtree(
+                        key: ValueKey(_segment),
+                        child: _buildList(pending, upcoming,
+                            historyAppointments, historyConsultations),
+                      ),
+              ),
             ),
           ),
         ],
@@ -109,6 +121,12 @@ class _OwnerAppointmentsPageState extends State<OwnerAppointmentsPage> {
     List<ConsultationRequest> historyConsultations,
   ) {
     final children = <Widget>[];
+    var stagger = 0;
+    Widget staggered(Widget child) => FadeSlideIn(
+          delay: Duration(milliseconds: 50 * (stagger++).clamp(0, 6)),
+          distance: 8,
+          child: child,
+        );
 
     if (_segment == 0) {
       if (pending.isEmpty) {
@@ -118,7 +136,7 @@ class _OwnerAppointmentsPageState extends State<OwnerAppointmentsPage> {
         ));
       }
       for (final c in pending) {
-        children.add(_ConsultationTile(request: c));
+        children.add(staggered(_ConsultationTile(request: c)));
       }
     } else if (_segment == 1) {
       if (upcoming.isEmpty) {
@@ -128,7 +146,7 @@ class _OwnerAppointmentsPageState extends State<OwnerAppointmentsPage> {
         ));
       }
       for (final a in upcoming) {
-        children.add(_OwnerAppointmentTile(appointment: a));
+        children.add(staggered(_OwnerAppointmentTile(appointment: a)));
       }
     } else {
       if (historyAppointments.isEmpty && historyConsultations.isEmpty) {
@@ -138,10 +156,10 @@ class _OwnerAppointmentsPageState extends State<OwnerAppointmentsPage> {
         ));
       }
       for (final a in historyAppointments) {
-        children.add(_OwnerAppointmentTile(appointment: a));
+        children.add(staggered(_OwnerAppointmentTile(appointment: a)));
       }
       for (final c in historyConsultations) {
-        children.add(_ConsultationTile(request: c));
+        children.add(staggered(_ConsultationTile(request: c)));
       }
     }
 
@@ -169,9 +187,8 @@ class _OwnerAppointmentTile extends StatelessWidget {
       padding: EdgeInsets.zero,
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                OwnerAppointmentDetailPage(appointment: appointment),
+          MotionPageRoute(
+            page: OwnerAppointmentDetailPage(appointment: appointment),
           ),
         );
       },
@@ -204,8 +221,8 @@ class _ConsultationTile extends StatelessWidget {
       padding: EdgeInsets.zero,
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OwnerConsultationDetailPage(request: request),
+          MotionPageRoute(
+            page: OwnerConsultationDetailPage(request: request),
           ),
         );
       },

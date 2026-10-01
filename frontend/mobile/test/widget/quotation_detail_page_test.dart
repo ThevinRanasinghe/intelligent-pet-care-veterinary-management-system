@@ -8,7 +8,8 @@ import '../helpers/fake_api_client.dart';
 
 void main() {
   group('QuotationDetailPage widget tests', () {
-    testWidgets('renders invoice number, parties, totals and Paid chip', (tester) async {
+    testWidgets('renders invoice number, parties, totals and Paid chip',
+        (tester) async {
       final client = FakeApiClient();
       client.setResponse('/quotations/q-1', {
         'id': 'q-1',
@@ -28,8 +29,22 @@ void main() {
         'veterinarianChargeTotal': 2500.0,
         'medicineTotal': 300.0,
         'items': [
-          {'id': 'i1', 'category': 'Examination', 'description': 'Veterinarian charge — Dr. Silva', 'quantity': 1, 'unitPrice': 2500.0, 'totalPrice': 2500.0},
-          {'id': 'i2', 'category': 'Medicine', 'description': 'Amoxicillin (1 pill)', 'quantity': 3, 'unitPrice': 100.0, 'totalPrice': 300.0},
+          {
+            'id': 'i1',
+            'category': 'Examination',
+            'description': 'Veterinarian charge — Dr. Silva',
+            'quantity': 1,
+            'unitPrice': 2500.0,
+            'totalPrice': 2500.0
+          },
+          {
+            'id': 'i2',
+            'category': 'Medicine',
+            'description': 'Amoxicillin (1 pill)',
+            'quantity': 3,
+            'unitPrice': 100.0,
+            'totalPrice': 300.0
+          },
         ],
         'createdAt': '2026-09-26T10:00:00Z',
         'updatedAt': '2026-09-27T00:00:00Z',

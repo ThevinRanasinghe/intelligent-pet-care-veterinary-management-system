@@ -14,8 +14,7 @@ class HistoryService {
       '/examinations/pet/$petId',
       fromJson: (json) => json,
     );
-    final entries =
-        await Future.wait(exams.map((exam) => _buildEntry(exam)));
+    final entries = await Future.wait(exams.map((exam) => _buildEntry(exam)));
     entries.sort((a, b) => b.examinationDate.compareTo(a.examinationDate));
     return entries;
   }
@@ -47,9 +46,9 @@ class HistoryService {
     return MedicalHistoryEntry(
       examinationId: examId,
       petId: exam['petId'] as String? ?? '',
-      examinationDate: DateTime.tryParse(
-              exam['examinationDate'] as String? ?? '') ??
-          DateTime.fromMillisecondsSinceEpoch(0),
+      examinationDate:
+          DateTime.tryParse(exam['examinationDate'] as String? ?? '') ??
+              DateTime.fromMillisecondsSinceEpoch(0),
       symptoms: exam['symptoms'] as String? ?? '',
       notes: exam['notes'] as String? ?? '',
       diagnoses: withTreatments,

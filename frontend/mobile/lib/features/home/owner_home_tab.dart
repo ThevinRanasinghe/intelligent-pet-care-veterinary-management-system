@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/motion/app_motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_states.dart';
 import '../../core/widgets/brand_logo.dart';
+import '../../core/widgets/dark_action_card.dart';
 import '../../core/widgets/fade_slide_in.dart';
+import '../../core/widgets/quick_action_tile.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/status_badge.dart';
+import '../../core/widgets/top_bar.dart';
 import '../auth/auth_provider.dart';
 import '../history/medical_history_page.dart';
 import '../scheduling/models/appointment_slot.dart';
@@ -70,8 +74,9 @@ class _OwnerHomeTabState extends State<OwnerHomeTab> {
       ..sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Row(
+      appBar: const TopBar(
+        showBackButton: false,
+        titleWidget: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             BrandLogoTile(size: 30),
@@ -86,53 +91,47 @@ class _OwnerHomeTabState extends State<OwnerHomeTab> {
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.pageHorizontal, vertical: AppSpacing.md),
           children: [
-            Text(
-              '$_greeting, $name',
-              style: AppTextStyles.display,
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'How can we help your pet today?',
-              style: AppTextStyles.bodyMuted,
-            ),
-            const SizedBox(height: 20),
-            // Dark hero card with a yellow CTA — echoes the web dashboard
-            // booking call-to-action on the Beacon black/yellow system.
-            AppCard(
-              color: AppColors.black,
-              padding: const EdgeInsets.all(20),
+            // Staggered entrance: greeting → hero CTA → next appointment
+            // → quick actions → recent activity (roughly 40 ms beats).
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 40),
+              distance: 10,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Need a vet visit?',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: -0.2,
-                    ),
+                  Text(
+                    '$_greeting, $name',
+                    style: AppTextStyles.display,
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Book a consultation at a clinic near you.',
-                    style: TextStyle(fontSize: 12, color: AppColors.navInactive),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () =>
-                          Navigator.of(context).pushNamed('/book-consultation'),
-                      icon: const Icon(Icons.add_circle_outline),
-                      label: const Text('Book a Consultation'),
-                    ),
+                    'How can we help your pet today?',
+                    style: AppTextStyles.bodyMuted,
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+            // Beacon dark action card: yellow eyebrow, white headline,
+            // yellow circular arrow (§20 of the UI report).
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 100),
+              distance: 12,
+              child: DarkActionCard(
+                eyebrow: 'Book a visit',
+                title: 'Schedule a vet appointment',
+                subtitle: '5 quick steps — under a minute',
+                arrowTooltip: 'Book a consultation',
+                onTap: () =>
+                    Navigator.of(context).pushNamed('/book-consultation'),
+              ),
+            ),
             const SizedBox(height: 24),
-            const SectionHeader('Next Appointment'),
+            const FadeSlideIn(
+              delay: Duration(milliseconds: 160),
+              distance: 8,
+              child: SectionHeader('Next Appointment'),
+            ),
             const SizedBox(height: 8),
             if (scheduling.mineState == LoadState.loading)
               const Padding(
@@ -159,8 +158,8 @@ class _OwnerHomeTabState extends State<OwnerHomeTab> {
                           SizedBox(height: 2),
                           Text(
                             'Book a consultation to get started',
-                            style: TextStyle(
-                                fontSize: 12, color: AppColors.muted),
+                            style:
+                                TextStyle(fontSize: 12, color: AppColors.muted),
                           ),
                         ],
                       ),
@@ -169,55 +168,83 @@ class _OwnerHomeTabState extends State<OwnerHomeTab> {
                 ),
               )
             else
-              _NextAppointmentCard(
-                appointment: next,
-                onTap: () => widget.onNavigateToTab(2),
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 200),
+                distance: 10,
+                child: _NextAppointmentCard(
+                  appointment: next,
+                  onTap: () => widget.onNavigateToTab(2),
+                ),
               ),
             const SizedBox(height: 24),
-            const SectionHeader('Quick Actions'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _QuickAction(
-                  icon: Icons.pets,
-                  label: 'My Pets',
-                  onTap: () => widget.onNavigateToTab(1),
-                ),
-                const SizedBox(width: 8),
-                _QuickAction(
-                  icon: Icons.add_circle_outline,
-                  label: 'Book Visit',
-                  onTap: () => Navigator.of(context)
-                      .pushNamed('/book-consultation'),
-                ),
-              ],
+            const FadeSlideIn(
+              delay: Duration(milliseconds: 240),
+              distance: 8,
+              child: SectionHeader('Quick Actions'),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                _QuickAction(
-                  icon: Icons.medical_information_outlined,
-                  label: 'Medical History',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const MedicalHistoryPage()),
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 280),
+              distance: 10,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: QuickActionTile(
+                      icon: Icons.pets,
+                      label: 'My Pets',
+                      onTap: () => widget.onNavigateToTab(1),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                _QuickAction(
-                  icon: Icons.receipt_long,
-                  label: 'Bills',
-                  onTap: () => widget.onNavigateToTab(3),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: QuickActionTile(
+                      icon: Icons.add_circle_outline,
+                      label: 'Book Visit',
+                      onTap: () =>
+                          Navigator.of(context).pushNamed('/book-consultation'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 330),
+              distance: 10,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: QuickActionTile(
+                      icon: Icons.medical_information_outlined,
+                      label: 'Medical History',
+                      onTap: () => Navigator.of(context).push(
+                        MotionPageRoute(page: const MedicalHistoryPage()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: QuickActionTile(
+                      icon: Icons.receipt_long,
+                      label: 'Bills',
+                      onTap: () => widget.onNavigateToTab(3),
+                    ),
+                  ),
+                ],
+              ),
             ),
             if (recent.isNotEmpty) ...[
               const SizedBox(height: 24),
-              const SectionHeader('Recent Activity'),
+              const FadeSlideIn(
+                delay: Duration(milliseconds: 380),
+                distance: 8,
+                child: SectionHeader('Recent Activity'),
+              ),
               const SizedBox(height: 8),
               for (var i = 0; i < recent.length && i < 3; i++)
                 FadeSlideIn(
-                  delayIndex: i,
+                  delay: Duration(milliseconds: 400 + 40 * i),
+                  distance: 8,
                   child: _RecentActivityTile(appointment: recent[i]),
                 ),
             ],
@@ -264,8 +291,7 @@ class _NextAppointmentCard extends StatelessWidget {
                   '${_time(appointment.scheduledEnd).isNotEmpty ? ' – ${_time(appointment.scheduledEnd)}' : ''}\n'
                   '${appointment.veterinarianName ?? 'Veterinarian'}'
                   '${appointment.type == 'FollowUp' ? ' · Follow-up' : ''}',
-                  style:
-                      const TextStyle(fontSize: 12, color: AppColors.muted),
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted),
                 ),
               ],
             ),
@@ -312,46 +338,6 @@ class _RecentActivityTile extends StatelessWidget {
           ),
           StatusBadge(appointment.status),
         ],
-      ),
-    );
-  }
-}
-
-class _QuickAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _QuickAction({required this.icon, required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: AppCard(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        onTap: onTap,
-        child: Column(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Icon(icon, color: AppColors.black, size: 20),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.black,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

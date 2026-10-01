@@ -24,17 +24,22 @@ class ApiClient {
     return _request<T>('GET', path, fromJson: fromJson);
   }
 
-  Future<List<T>> getList<T>(String path, {required T Function(Map<String, dynamic>) fromJson}) async {
+  Future<List<T>> getList<T>(String path,
+      {required T Function(Map<String, dynamic>) fromJson}) async {
     final json = await _requestRaw('GET', path);
     final list = json as List<dynamic>;
     return list.map((e) => fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  Future<T> post<T>(String path, {Map<String, dynamic>? body, T Function(Map<String, dynamic>)? fromJson}) {
+  Future<T> post<T>(String path,
+      {Map<String, dynamic>? body,
+      T Function(Map<String, dynamic>)? fromJson}) {
     return _request<T>('POST', path, body: body, fromJson: fromJson);
   }
 
-  Future<T> put<T>(String path, {Map<String, dynamic>? body, T Function(Map<String, dynamic>)? fromJson}) {
+  Future<T> put<T>(String path,
+      {Map<String, dynamic>? body,
+      T Function(Map<String, dynamic>)? fromJson}) {
     return _request<T>('PUT', path, body: body, fromJson: fromJson);
   }
 
@@ -42,7 +47,8 @@ class ApiClient {
     await _requestRaw('DELETE', path);
   }
 
-  Future<dynamic> _requestRaw(String method, String path, {Map<String, dynamic>? body}) async {
+  Future<dynamic> _requestRaw(String method, String path,
+      {Map<String, dynamic>? body}) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$path');
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -81,7 +87,9 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
-  Future<T> _request<T>(String method, String path, {Map<String, dynamic>? body, T Function(Map<String, dynamic>)? fromJson}) async {
+  Future<T> _request<T>(String method, String path,
+      {Map<String, dynamic>? body,
+      T Function(Map<String, dynamic>)? fromJson}) async {
     final json = await _requestRaw(method, path, body: body);
     if (json == null) return null as T;
     if (fromJson != null) {
