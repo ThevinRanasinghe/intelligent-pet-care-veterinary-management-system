@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/config/maps_config.dart';
+import '../../core/maps/google_maps_loader.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/app_card.dart';
@@ -43,6 +45,20 @@ class ClinicPicker extends StatefulWidget {
 
 class _ClinicPickerState extends State<ClinicPicker> {
   Clinic? _focused;
+
+  /// On web the Maps JS SDK loads on demand (no key in index.html); the map
+  /// is only rendered once the SDK reports loaded.
+  bool _webMapsReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      ensureGoogleMapsLoaded(MapsConfig.googleMapsApiKey).then((ready) {
+        if (ready && mounted) setState(() => _webMapsReady = true);
+      });
+    }
+  }
 
   void _openDirections(Clinic clinic) {
     launchUrl(clinicDirectionsUri(clinic),
@@ -87,10 +103,12 @@ class _ClinicPickerState extends State<ClinicPicker> {
         if (widget.showMap &&
             mappable.isNotEmpty &&
             // GoogleMap ships Android/iOS/web implementations — the list
-            // below remains the working picker on desktop.
-            (kIsWeb ||
-                defaultTargetPlatform == TargetPlatform.android ||
-                defaultTargetPlatform == TargetPlatform.iOS))
+            // below remains the working picker on desktop, and on web until
+            // the Maps JS SDK has loaded.
+            (kIsWeb
+                ? _webMapsReady
+                : (defaultTargetPlatform == TargetPlatform.android ||
+                    defaultTargetPlatform == TargetPlatform.iOS)))
           SizedBox(
             height: 220,
             child: GoogleMap(

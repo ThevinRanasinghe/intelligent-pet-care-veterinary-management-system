@@ -76,8 +76,12 @@ flutter run --dart-define=API_BASE_URL=http://192.168.x.x:5019/api
 Supabase credentials never live in this app. For Flutter web, the API's
 dev CORS allowlist covers `localhost:5173`/`5174` — keep `--web-port=5174`.
 
-Google Maps reuses the project's existing key configuration
-(`AndroidManifest.xml` / `--dart-define` pattern); no key is committed.
+Google Maps reads its key from local configuration — never committed.
+Android: `GOOGLE_MAPS_API_KEY=<key>` in the gitignored `android/local.properties`
+(see `local.properties.example`) injected via a manifest placeholder.
+Web: `--dart-define=GOOGLE_MAPS_API_KEY=<key>`, injected into the page at
+runtime — `tool/flutter_web.ps1` wraps `flutter run`/`build web` and feeds
+the key from `local.properties` or the environment.
 
 ## Testing
 

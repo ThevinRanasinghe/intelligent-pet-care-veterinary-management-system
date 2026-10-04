@@ -6,12 +6,13 @@
         android:label="Beacon Pet Health"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-        <!-- Google Maps (clinic picker + directions). Replace the
-             placeholder with a real Android Maps SDK key locally — never
-             commit a key. -->
+        <!-- Google Maps (clinic picker + directions). The key is injected
+             at build time from the GOOGLE_MAPS_API_KEY entry in the
+             gitignored android/local.properties file, or the
+             GOOGLE_MAPS_API_KEY environment variable — never commit a key. -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_API_KEY"/>
+            android:value="${GOOGLE_MAPS_API_KEY}"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
