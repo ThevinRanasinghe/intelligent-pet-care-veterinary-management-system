@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PetCare.Application.DTOs;
+using PetCare.Application.DTOs.Agentic;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Constants;
@@ -7,6 +9,7 @@ using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
 using PetCare.Infrastructure;
 using PetCare.Infrastructure.Repositories;
+using System.Text.Json;
 
 namespace PetCare.Infrastructure.Services;
 
@@ -14,11 +17,19 @@ public class ExaminationService : IExaminationService
 {
     private readonly PetCareDbContext _context;
     private readonly ITenantContext _tenant;
+    private readonly IAgenticClient? _agenticClient;
+    private readonly ILogger<ExaminationService>? _logger;
 
-    public ExaminationService(PetCareDbContext context, ITenantContext tenant)
+    public ExaminationService(
+        PetCareDbContext context,
+        ITenantContext tenant,
+        IAgenticClient? agenticClient = null,
+        ILogger<ExaminationService>? logger = null)
     {
         _context = context;
         _tenant = tenant;
+        _agenticClient = agenticClient;
+        _logger = logger;
     }
 
     /// <summary>
@@ -126,7 +137,7 @@ public class ExaminationService : IExaminationService
             }
         }
 
-        // Standalone examinations (no appointment) target a pet directly ΓÇö
+        // Standalone examinations (no appointment) target a pet directly —
         // archived pets cannot start new clinical workflows.
         if (appointment is null && !string.IsNullOrWhiteSpace(dto.PetId))
         {
@@ -206,140 +217,136 @@ public class ExaminationService : IExaminationService
         return true;
     }
 
-    public async Task<TreatmentRecommendationDto> GetRecommendationsAsync(Guid examinationId)
+    /// <summary>
+    /// Business-specific operation: advisory AI recommendations via the
+    /// agentic diagnosis agent. The agent analyses the examination over the
+    /// existing API; its output is validated and mapped to the existing
+    /// contract. Nothing is persisted — the vet reviews, edits and saves
+    /// manually. Any agent failure returns a safe placeholder marked
+    /// Source="unavailable" so the clinical workflow is never blocked.
+    /// </summary>
+    public async Task<TreatmentRecommendationDto> GetRecommendationsAsync(Guid examinationId, string? bearerToken = null)
     {
-        var exam = await (await ScopedAsync())
-            .Include(e => e.Pet)
-            .FirstOrDefaultAsync(e => e.Id == examinationId);
+        var exists = await (await ScopedAsync()).AnyAsync(e => e.Id == examinationId);
+        if (!exists || _agenticClient == null)
+            return UnavailableRecommendation();
 
-        var symptomsLower = (exam?.Symptoms ?? "").ToLowerInvariant();
-        var notesLower = (exam?.Notes ?? "").ToLowerInvariant();
-        var fullText = $"{symptomsLower} {notesLower}";
+        var result = await _agenticClient.AnalyzeDiagnosisAsync(examinationId.ToString(), bearerToken);
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Content))
+            return UnavailableRecommendation();
 
-        var result = new TreatmentRecommendationDto();
-
-        if (fullText.Contains("vomit") || fullText.Contains("letharg") || fullText.Contains("diarrhea"))
+        DiagnosisAgentResponse? assessment;
+        try
         {
-            result.SuspectedCondition = "Acute Gastroenteritis / Dietary Indiscretion";
-            result.RecommendedSeverity = "Moderate";
-            result.Rationale = "Symptom profile indicates acute gastrointestinal distress with secondary lethargy and dehydration risk.";
-            result.RecommendedProcedures = new List<string>
-            {
-                "Intravenous fluid therapy with balanced electrolyte solution (Lactated Ringer's)",
-                "Abdominal palpation and diagnostic ultrasound if discomfort persists",
-                "Gradual reintroduction of bland GI gastrointestinal diet"
-            };
-            result.SuggestedMedicines = new List<RecommendedMedicineDto>
-            {
-                new RecommendedMedicineDto
-                {
-                    MedicineId = Guid.Parse("33333333-3333-3333-3333-333333333331"),
-                    MedicineName = "Metoclopramide 10mg Tablets",
-                    SuggestedDosage = "0.5mg/kg every 8 hours before meals",
-                    SuggestedDurationDays = 5
-                },
-                new RecommendedMedicineDto
-                {
-                    MedicineId = Guid.Parse("33333333-3333-3333-3333-333333333334"),
-                    MedicineName = "Oral Rehydration Electrolyte Solution",
-                    SuggestedDosage = "50ml/kg daily divided into small portions",
-                    SuggestedDurationDays = 3
-                }
-            };
-            result.PrecautionaryNotes = new List<string>
-            {
-                "Check for foreign body obstruction before anti-motility treatment",
-                "Monitor for fever or persistent melena (blood in stool)"
-            };
+            assessment = JsonSerializer.Deserialize<DiagnosisAgentResponse>(result.Content);
         }
-        else if (fullText.Contains("itch") || fullText.Contains("skin") || fullText.Contains("alopecia") || fullText.Contains("scratch") || fullText.Contains("flea"))
+        catch (JsonException)
         {
-            result.SuspectedCondition = "Allergic Dermatitis / Parasitic Hypersensitivity";
-            result.RecommendedSeverity = "High";
-            result.Rationale = "Pruritic symptoms and localized alopecia suggest external parasite or environmental contact allergy.";
-            result.RecommendedProcedures = new List<string>
-            {
-                "Medicated chlorhexidine soothing rinse",
-                "Skin tape cytology and flea comb examination",
-                "Flea/tick preventive application"
-            };
-            result.SuggestedMedicines = new List<RecommendedMedicineDto>
-            {
-                new RecommendedMedicineDto
-                {
-                    MedicineId = Guid.Parse("33333333-3333-3333-3333-333333333335"),
-                    MedicineName = "Prednisolone 5mg Anti-Inflammatory",
-                    SuggestedDosage = "1 tablet daily for 3 days then taper",
-                    SuggestedDurationDays = 7
-                },
-                new RecommendedMedicineDto
-                {
-                    MedicineId = Guid.Parse("33333333-3333-3333-3333-333333333332"),
-                    MedicineName = "Amoxicillin / Clavulanic Acid 250mg",
-                    SuggestedDosage = "12.5mg/kg twice daily",
-                    SuggestedDurationDays = 10
-                }
-            };
-            result.PrecautionaryNotes = new List<string>
-            {
-                "Ensure pet has access to fresh water during steroid therapy",
-                "Use protective e-collar to prevent self-mutilation"
-            };
-        }
-        else if (fullText.Contains("ear") || fullText.Contains("shake") || fullText.Contains("odor") || fullText.Contains("discharge"))
-        {
-            result.SuspectedCondition = "Otitis Externa (Bacterial / Malassezia)";
-            result.RecommendedSeverity = "Moderate";
-            result.Rationale = "Unilateral head shaking and canal discharge characteristic of secondary ear canal infection.";
-            result.RecommendedProcedures = new List<string>
-            {
-                "Deep external ear canal lavage under mild restraint",
-                "Ear swab microscopy (bacteria/yeast identification)"
-            };
-            result.SuggestedMedicines = new List<RecommendedMedicineDto>
-            {
-                new RecommendedMedicineDto
-                {
-                    MedicineId = Guid.Parse("33333333-3333-3333-3333-333333333336"),
-                    MedicineName = "Cefalexin 300mg Broad-Spectrum",
-                    SuggestedDosage = "1 tablet twice daily with food",
-                    SuggestedDurationDays = 10
-                }
-            };
-            result.PrecautionaryNotes = new List<string>
-            {
-                "Verify tympanic membrane integrity prior to deep flush",
-                "Keep ear canal dry after bathing"
-            };
-        }
-        else
-        {
-            result.SuspectedCondition = "General Clinical Review / Minor Malaise";
-            result.RecommendedSeverity = "Low";
-            result.Rationale = "Symptoms do not match acute critical patterns. Conservative monitoring and supportive care recommended.";
-            result.RecommendedProcedures = new List<string>
-            {
-                "Standard clinical vital check (heart rate, respiration, temperature)",
-                "Hydration skin tent assessment and weight check"
-            };
-            result.SuggestedMedicines = new List<RecommendedMedicineDto>
-            {
-                new RecommendedMedicineDto
-                {
-                    MedicineId = Guid.Parse("33333333-3333-3333-3333-333333333334"),
-                    MedicineName = "Oral Rehydration Electrolyte Solution",
-                    SuggestedDosage = "Daily oral fluid supplementation as needed",
-                    SuggestedDurationDays = 3
-                }
-            };
-            result.PrecautionaryNotes = new List<string>
-            {
-                "Return for re-examination if symptoms worsen within 48 hours"
-            };
+            _logger?.LogWarning("Diagnosis agent returned malformed JSON for examination {ExaminationId}", examinationId);
+            return UnavailableRecommendation();
         }
 
-        return result;
+        if (assessment == null || string.IsNullOrWhiteSpace(assessment.SuspectedCondition))
+            return UnavailableRecommendation();
+
+        var medicines = new List<RecommendedMedicineDto>();
+        foreach (var med in assessment.SuggestedMedicines ?? Enumerable.Empty<AgenticSuggestedMedicine>())
+        {
+            if (string.IsNullOrWhiteSpace(med.MedicineName))
+                continue;
+
+            medicines.Add(new RecommendedMedicineDto
+            {
+                MedicineId = await ResolveMedicineIdAsync(med.MedicineName),
+                MedicineName = med.MedicineName.Trim(),
+                SuggestedDosage = med.SuggestedDosage?.Trim() ?? string.Empty,
+                SuggestedDurationDays = med.SuggestedDurationDays > 0 ? med.SuggestedDurationDays : 7
+            });
+        }
+
+        return new TreatmentRecommendationDto
+        {
+            Source = "agentic-ai",
+            SuspectedCondition = assessment.SuspectedCondition.Trim(),
+            RecommendedSeverity = NormalizeSeverity(assessment.RecommendedSeverity),
+            Rationale = assessment.Rationale?.Trim() ?? string.Empty,
+            RecommendedProcedures = CleanList(assessment.RecommendedProcedures),
+            SuggestedMedicines = medicines,
+            PrecautionaryNotes = CleanList(assessment.PrecautionaryNotes)
+        };
     }
+
+    /// <summary>
+    /// Resolves an AI-suggested medicine name against the caller's
+    /// organization-scoped medicine catalogue. Only a clear, unique match
+    /// populates the id; anything else stays null — never fabricated.
+    /// Candidates are fetched via a translatable containment filter on the
+    /// leading token, then compared by exact normalized name variants.
+    /// </summary>
+    private async Task<Guid?> ResolveMedicineIdAsync(string medicineName)
+    {
+        var norm = NormalizeName(medicineName);
+        var firstToken = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (string.IsNullOrEmpty(firstToken))
+            return null;
+
+        var query = await _context.Medicines
+            .ScopeToOrganizationAsync(_tenant, m => m.OrganizationId);
+
+        var candidates = await query
+            .AsNoTracking()
+            .Where(m => m.Name.ToLower().Contains(firstToken))
+            .Take(25)
+            .ToListAsync();
+
+        var matches = candidates
+            .Where(m => new[]
+                {
+                    NormalizeName(m.Name),
+                    NormalizeName($"{m.Name} {m.Strength}"),
+                    NormalizeName($"{m.Name} {m.DosageForm}"),
+                    NormalizeName($"{m.Name} {m.Strength} {m.DosageForm}")
+                }.Contains(norm))
+            .ToList();
+
+        if (matches.Count == 1)
+            return matches[0].Id;
+
+        if (matches.Count > 1)
+            _logger?.LogInformation("AI medicine suggestion '{MedicineName}' matched {Count} catalogue items; id left unresolved", medicineName, matches.Count);
+
+        return null;
+    }
+
+    private static string NormalizeName(string? value) =>
+        string.Join(' ', (value ?? string.Empty).Trim().ToLowerInvariant()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    private static string NormalizeSeverity(string? severity) =>
+        severity?.Trim().ToLowerInvariant() switch
+        {
+            "low" => "Low",
+            "high" => "High",
+            "critical" => "Critical",
+            _ => "Moderate"
+        };
+
+    private static List<string> CleanList(IEnumerable<string>? values) =>
+        (values ?? Enumerable.Empty<string>())
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v.Trim())
+            .ToList();
+
+    private static TreatmentRecommendationDto UnavailableRecommendation() => new()
+    {
+        Source = "unavailable",
+        SuspectedCondition = "AI recommendation unavailable",
+        RecommendedSeverity = "Moderate",
+        Rationale = "The AI advisory service is currently unavailable. Proceed with a manual clinical assessment.",
+        RecommendedProcedures = new List<string>(),
+        SuggestedMedicines = new List<RecommendedMedicineDto>(),
+        PrecautionaryNotes = new List<string> { "Rely on veterinarian clinical judgement." }
+    };
 
     private static ExaminationResponseDto MapToResponseDto(Examination examination) =>
         ExaminationMapper.ToDto(examination);

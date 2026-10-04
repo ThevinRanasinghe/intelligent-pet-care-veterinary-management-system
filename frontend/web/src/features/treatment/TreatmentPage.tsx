@@ -945,8 +945,11 @@ export function TreatmentPage() {
                 <Modal title="Intelligent Clinical Treatment Recommendation" onClose={() => setShowRecModal(false)}>
                     {recLoading ? (
                         <p className="muted" style={{ padding: '2rem', textAlign: 'center' }}>Analyzing symptomology and matching clinic treatment protocols…</p>
-                    ) : recommendations ? (
+                    ) : recommendations && recommendations.source !== 'unavailable' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ background: '#fefce8', border: '1px solid #fde047', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', color: '#854d0e' }}>
+                                AI-generated preliminary recommendation — requires veterinarian review before any diagnosis or prescription.
+                            </div>
                             <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '1rem', borderRadius: '8px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
                                     <h4 style={{ margin: 0, color: '#0369a1' }}>{recommendations.suspectedCondition}</h4>
@@ -970,6 +973,7 @@ export function TreatmentPage() {
                                     {recommendations.suggestedMedicines.map((med, i) => (
                                         <div key={i} style={{ padding: '0.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.85rem' }}>
                                             <strong>{med.medicineName}</strong>: {med.suggestedDosage} for {med.suggestedDurationDays} days
+                                            {!med.medicineId && <span className="muted" style={{ fontStyle: 'italic' }}> — not matched to formulary</span>}
                                         </div>
                                     ))}
                                 </div>
@@ -989,7 +993,9 @@ export function TreatmentPage() {
                             </div>
                         </div>
                     ) : (
-                        <p className="muted">Failed to generate recommendations.</p>
+                        <p className="muted">
+                            {recommendations?.rationale ?? 'AI recommendations are currently unavailable. You can still record the diagnosis manually.'}
+                        </p>
                     )}
                 </Modal>
             )}

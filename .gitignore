@@ -91,6 +91,18 @@ yarn-error.log*
 
 
 # ===========================
+# Python (agentic-service)
+# ===========================
+
+__pycache__/
+*.pyc
+*.pyo
+
+# Local Python virtual environments
+.venv/
+venv/
+
+# ===========================
 # Project-specific
 # ===========================
 

@@ -10,5 +10,5 @@ public interface IExaminationService
     Task<ExaminationResponseDto> CreateAsync(CreateExaminationDto dto);
     Task<ExaminationResponseDto?> UpdateAsync(Guid id, UpdateExaminationDto dto);
     Task<bool> DeleteAsync(Guid id);
-    Task<TreatmentRecommendationDto> GetRecommendationsAsync(Guid examinationId);
+    Task<TreatmentRecommendationDto> GetRecommendationsAsync(Guid examinationId, string? bearerToken = null);
 }

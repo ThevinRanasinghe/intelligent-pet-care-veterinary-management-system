@@ -2,6 +2,7 @@ using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using PetCare.Api.Services;
 using PetCare.Application.DTOs.Admin;
@@ -17,6 +18,7 @@ using PetCare.Application.Interfaces;
 using PetCare.Application.Services;
 using PetCare.Application.Validators;
 using PetCare.Infrastructure;
+using PetCare.Infrastructure.Agentic;
 using PetCare.Infrastructure.Repositories;
 using PetCare.Infrastructure.Security;
 using PetCare.Infrastructure.Services;
@@ -104,6 +106,29 @@ public static class ServiceCollectionExtensions
             {
                 options.Key = Environment.GetEnvironmentVariable("PETCARE_JWT_KEY") ?? string.Empty;
             }
+        });
+
+        // Agentic AI integration seam (advisory only — see docs/adr/0006).
+        // The typed client is always registered; when AgenticService:BaseUrl
+        // is unset the client reports "agentic_not_configured" rather than
+        // failing, so the core API is unaffected by AI configuration.
+        services.Configure<AgenticServiceOptions>(configuration.GetSection(AgenticServiceOptions.SectionName));
+        services.PostConfigure<AgenticServiceOptions>(options =>
+        {
+            if (string.IsNullOrWhiteSpace(options.InternalKey))
+            {
+                options.InternalKey =
+                    Environment.GetEnvironmentVariable("PETCARE_AGENTIC_INTERNAL_KEY") ?? string.Empty;
+            }
+        });
+        services.AddHttpClient<IAgenticClient, AgenticClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<AgenticServiceOptions>>().Value;
+            if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+            {
+                client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+            }
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
         });
 
         return services;

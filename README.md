@@ -23,6 +23,7 @@ PetCare AI is a multi-tenant veterinary practice platform: pet owners self-regis
 - **Scheduling & billing** — vet slots, appointments (`GET /api/appointments/mine` per-caller view), auto-generated bills on the Quotation entity (vet charge + issued medicines), payment tracking; manual quotation + approval workflow remains available
 - **Medicine & inventory** — medicines, suppliers, batches (FEFO), reservations, transaction ledger; prescriptions double as medicine requests fulfilled by the inventory officer
 - **Administration** — org approval, user lifecycle, staff account creation, system stats
+- **Agentic AI service** — `agentic-service/` (FastAPI + LangGraph + Gemini) hosts four read-only advisory agents (consultation triage, diagnosis, scheduling/quotation, inventory); it is internal-only (shared `X-Internal-Key`, caller JWT forwarded); only the diagnosis agent is wired into a UI workflow (vet "AI Assist"), the others remain service-level
 
 ## Technology stack
 
@@ -136,6 +137,7 @@ EF Core migrations own the schema — migration history: `InitialSchedulingBilli
 
 ## Known limitations / TODO
 
+- **Agentic AI is advisory-only:** `agentic-service/` analyses data and returns recommendations; nothing in the AI layer assigns veterinarians, approves anything, issues medicine, or touches billing. The ASP.NET API proxies agent calls through `IAgenticClient` (configured via `AgenticService:*`). The veterinarian "AI Assist" recommendations (`GET /api/examinations/{id}/recommendations`) are served by the diagnosis agent — the result is a reviewed prefill suggestion only; AI-suggested medicine names are resolved to real catalogue ids only on a unique organization-scoped match, otherwise surfaced as advisory names without ids; AI unavailability degrades to a safe message while manual diagnosis remains fully usable. Consultation/scheduling/inventory agents are not wired into UI workflows yet (Phase 2B+)
 - **No notification platform:** "notifications" are status-driven pending-item views (manager request queue, inventory-officer medicine-request queue, dashboards) — there is no notification entity or real-time push infrastructure
 - **Three migrations pending on Supabase:** `WorkflowRedesign`, `BookingRules`, and `OrganizationLocation` exist only as migration files until `dotnet ef database update` is run against the shared database
 - **Maps are optional:** without a configured Google Maps key the clinic-location picker shows a retryable "temporarily unavailable" notice (the location can be added later) and the booking map falls back to a plain clinic list — registration and booking still work

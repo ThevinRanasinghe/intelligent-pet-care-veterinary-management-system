@@ -1,21 +1,24 @@
 # ADR 0007 — Database Schema for Agent Workflow State
 
-**Status:** TODO — decision not yet made · **Date:** pending
+**Status:** Decided — deferred, no schema change in Phase 1 · **Date:** 2026
 
 ## Context
 
-If/when the agentic AI component exists, its workflow state (runs, steps, proposed actions pending approval) needs persistence — the UI already renders an approval-monitoring view fed today by `Approvals`/`ApprovalHistories`.
+The agentic AI component now exists (`agentic-service/`, see ADR 0006). Its assessments are advisory — a vet/manager/IO reads the suggestion and acts through the normal workflow. The question was whether agent runs/proposals need their own persistence.
 
 ## Options considered
 
 - Reuse existing `Approvals`/`ApprovalHistories` for agent proposals
-- Dedicated workflow-state tables
-- `[TO BE EVALUATED]` alongside ADR 0006
+- Dedicated workflow-state tables (AgentRun, AgentStep, …)
+- No persistence — assessments are transient responses
 
 ## Decision
 
-`[PENDING]` — depends on the orchestration choice in ADR 0006. The approval workflow entities are already the integration point the UI expects.
+**No AI schema is introduced in Phase 1.** Agent output is transient and advisory; the authoritative record remains whatever the human user creates through the existing workflow (diagnosis, prescription, quotation, approval).
+
+If assessment auditing becomes a requirement later, the preferred path is reusing `Approvals`/`ApprovalHistories` for "agent proposal pending human decision" rather than a parallel schema.
 
 ## Consequences
 
-- None yet — no schema work committed for agent state
+- Zero migration churn; the PetCare schema is untouched by AI integration
+- Agent responses are not auditable historically until/unless persistence is added — a documented, accepted trade-off

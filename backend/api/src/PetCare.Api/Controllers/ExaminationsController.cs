@@ -109,7 +109,8 @@ public class ExaminationsController : ControllerBase
         if (exam == null)
             return NotFound(new { message = $"Examination with ID {id} not found." });
 
-        var recommendations = await _examinationService.GetRecommendationsAsync(id);
+        var bearerToken = Request.Headers.Authorization.ToString();
+        var recommendations = await _examinationService.GetRecommendationsAsync(id, bearerToken);
         return Ok(recommendations);
     }
 }

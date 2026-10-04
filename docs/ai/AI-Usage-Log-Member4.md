@@ -857,7 +857,7 @@ Backend design + API corrections on the working branch `backend/pre-migration-co
 
 ---
 
-## Entry 17 � Administrator Staff Account Creation (Step 18)
+## Entry 17 � Administrator Staff Account Creation (Step 18)
 
 **Date:**
 24 September 2026
@@ -869,19 +869,19 @@ Devin IDE
 Administrator-only staff account provisioning on `backend/pre-migration-corrections`, filling the gap where Veterinarian and InventoryOfficer accounts had no creation path. Explicit constraints: no generic create-user endpoint, no arbitrary role assignment, no admin-created PetOwner/ClinicManager/Administrator, no EF migration (existing schema already supports `Role`/`OrganizationId`/`MustChangePassword`).
 
 **What the AI produced (AI-assisted work actually performed):**
-- `POST /api/admin/users/veterinarians` and `POST /api/admin/users/inventory-officers` on `AdminController` (class-level `[Authorize(Roles = Roles.SuperAdmin)]` � the request body has no role field; the endpoint fixes the role).
+- `POST /api/admin/users/veterinarians` and `POST /api/admin/users/inventory-officers` on `AdminController` (class-level `[Authorize(Roles = Roles.SuperAdmin)]` � the request body has no role field; the endpoint fixes the role).
 - `AdminService.CreateStaffAccountAsync`: FluentValidation ? duplicate-email check ? organization must exist and be `Active` ? PBKDF2-hashed cryptographically-random temporary password ? `Active = true`, `MustChangePassword = true`, `OrganizationId` set server-side ? single `SaveChangesAsync`.
-- `CreateStaffUserRequest`/`CreateStaffUserResponse` DTOs (response carries the one-time `temporaryPassword` � documented dev handoff since no email/SMS channel exists) and `CreateStaffUserRequestValidator`.
+- `CreateStaffUserRequest`/`CreateStaffUserResponse` DTOs (response carries the one-time `temporaryPassword` � documented dev handoff since no email/SMS channel exists) and `CreateStaffUserRequestValidator`.
 - `AdminUsersPage` UI: "Create Veterinarian" / "Create Inventory Officer" buttons, modal form, Active-organizations-only dropdown, one-time temp-password display.
 - `AdminServiceTests` (8 tests): role/org/flags on both roles, duplicate email, unknown org (404 path), pending org, suspended org, validation failures.
 
 **What I changed / rejected:**
-- Rejected a generic `POST /api/admin/users` with a client role field � split into two role-fixed endpoints per the required account model.
-- Rejected returning anything but the raw temporary password once � no password hash, no reuse, no logging.
+- Rejected a generic `POST /api/admin/users` with a client role field � split into two role-fixed endpoints per the required account model.
+- Rejected returning anything but the raw temporary password once � no password hash, no reuse, no logging.
 - Left the PetOwner self-registration and Organization+ClinicManager registration flows untouched.
 
 **How I verified it:**
-- `dotnet build` � 0 warnings, 0 errors; `dotnet test` � **107/107** Application tests pass.
+- `dotnet build` � 0 warnings, 0 errors; `dotnet test` � **107/107** Application tests pass.
 - Live API checks on Supabase: 401 unauthenticated, 403 for ClinicManager and Veterinarian tokens, 201 for Administrator, 400 duplicate email, 404 unknown org, temp-password login works end-to-end.
 
 **Result:**
@@ -889,7 +889,7 @@ Administrator-only staff account provisioning on `backend/pre-migration-correcti
 
 ---
 
-## Entry 18 � Documentation & Setup Refresh (Step 20)
+## Entry 18 � Documentation & Setup Refresh (Step 20)
 
 **Date:**
 24 September 2026
@@ -898,19 +898,168 @@ Administrator-only staff account provisioning on `backend/pre-migration-correcti
 Devin IDE
 
 **Task / Section:**
-Post-merge documentation refresh on `Merge_2` � bring all project docs in line with the integrated system (backend corrections + ConsolidatedDomainModel applied to Supabase + admin staff creation).
+Post-merge documentation refresh on `Merge_2` � bring all project docs in line with the integrated system (backend corrections + ConsolidatedDomainModel applied to Supabase + admin staff creation).
 
 **What the AI produced:**
-- Rewrote `README.md` � the previous version still described mock data and dashboard-only placeholders.
-- Created `docs/api/api-reference.md` � every endpoint generated from the actual controllers/routes/`[Authorize]` attributes, organized by module.
-- Created `docs/setup/local-development.md` � verified setup sequence including the user-secrets keys, the `PETCARE_DB_CONNECTION`/`PETCARE_JWT_KEY` env-var fallbacks, the `dotnet ef` design-time caveat, and the Flutter `--dart-define` port note.
-- Created `docs/deployment/deployment-guide.md` � target architecture with explicit `[TO BE DEPLOYED]` placeholders; only the Supabase database is actually deployed.
-- Created `docs/adr/0001-0008` � 5 accepted decisions (React Context state, Flutter Provider, Supabase shared PG, layered backend, org tenant isolation) + 3 TODO templates (agentic AI framework, agent workflow state schema, API/web hosting) marked `[PENDING]` rather than inventing decisions.
+- Rewrote `README.md` � the previous version still described mock data and dashboard-only placeholders.
+- Created `docs/api/api-reference.md` � every endpoint generated from the actual controllers/routes/`[Authorize]` attributes, organized by module.
+- Created `docs/setup/local-development.md` � verified setup sequence including the user-secrets keys, the `PETCARE_DB_CONNECTION`/`PETCARE_JWT_KEY` env-var fallbacks, the `dotnet ef` design-time caveat, and the Flutter `--dart-define` port note.
+- Created `docs/deployment/deployment-guide.md` � target architecture with explicit `[TO BE DEPLOYED]` placeholders; only the Supabase database is actually deployed.
+- Created `docs/adr/0001-0008` � 5 accepted decisions (React Context state, Flutter Provider, Supabase shared PG, layered backend, org tenant isolation) + 3 TODO templates (agentic AI framework, agent workflow state schema, API/web hosting) marked `[PENDING]` rather than inventing decisions.
 - Updated `docs/database/database-design.md` (ConsolidatedDomainModel applied, drift resolved, ID strategy), `docs/architecture/component-boundary.md` (Flutter implemented, not excluded), `docs/architecture/folder-structure.md` (feature folders no longer placeholders), `docs/testing/test-evidence-index.md` (Steps 19-20).
 
 **What I changed / rejected:**
-- Left `docs/testing/flutter-testing.md`, `react-testing.md`, `ci-cd.md`, the scheduling/billing API contract, and historical AI-log/test-evidence entries untouched � they remain accurate for the work they record.
+- Left `docs/testing/flutter-testing.md`, `react-testing.md`, `ci-cd.md`, the scheduling/billing API contract, and historical AI-log/test-evidence entries untouched � they remain accurate for the work they record.
 - No secrets, credentials, temp passwords, deployment URLs, or fabricated results added anywhere.
 
 **Result:**
 - Documentation now consistently describes: PetOwner self-registration, ClinicManager via organization registration, Veterinarian/InventoryOfficer via Administrator creation for Active orgs, Administrator as system-level. No stale "admin cannot create staff" or "mock data" claims remain.
+
+---
+
+## Entry 19 � ClinicManager-Scoped Staff Creation (Step 21)
+
+**Date:**
+26 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Requirement change on `feature/manager-staff-account-creation` (branched from `Merge_2`): move staff-account creation from the Administrator to the ClinicManager, with the organization derived from the authenticated tenant context � never client input. SuperAdmin keeps user/organization management.
+
+**What the AI produced:**
+- New `ManagerController` (`/api/manager`, ClinicManager-only) with `POST /users/veterinarians` and `POST /users/inventory-officers`.
+- New `IManagerService`/`ManagerService` � org resolved via `ITenantContext.GetOrganizationIdAsync()`; `ManagerCreateStaffRequest` carries no `organizationId`; unscoped manager or non-Active org ? new `ForbiddenException` (403 via middleware); duplicate email ? 400; temp password + `MustChangePassword`.
+- Removed the Step-18 admin-side creation endpoints, `AdminService` staff methods, `CreateStaffUserRequest/Response`, and the old validator � admin API is back to pure management (list/activate-deactivate/org status).
+- Frontend: reverted `AdminUsersPage`/`adminService` additions; new `managerService.ts`; `ClinicManagerDashboard` gained a ClinicManager-only "Staff Account Management" card with the create modal (no org selector, "created for your organization" note, one-time temp-password panel); fixed `messageFrom` to surface `{message}` error bodies.
+- Tests: `ManagerServiceTests` (7) and `ClinicManagerDashboard.staff.test.tsx` (5).
+
+**What I changed / rejected:**
+- Rejected keeping the admin creation endpoints � the required model says ClinicManager owns staff creation; Administrator keeps view/manage only.
+- Rejected trusting any client-supplied organization � the request DTO physically has no such field.
+
+**How I verified it:**
+- Build 0 errors; Application.Tests 106/106; PetCare.Tests 35/35; `tsc` clean; Vitest 85/85.
+- Live on Supabase: 401 unauth, 403 PetOwner/Vet/Admin, 201 CM with org auto-bound, 400 dup email, temp-password login, admin users list shows created staff.
+
+**Result:**
+- Account lifecycle is now: PetOwner self-registers; ClinicManager from org registration; Vet/IO by their org's ClinicManager; Administrator system-level.
+
+---
+
+## Entry 20 — Consultation-to-Payment Workflow Redesign (Step 22)
+
+**Date:**
+26 September 2026
+
+**AI Tool:**
+Devin IDE
+
+**Task / Section:**
+Replace the manager-quotation-approval-centric flow with the full clinic workflow: PetOwner request → ClinicManager assigns veterinarian (books appointment) → veterinarian examination (vet charge) → diagnoses/treatments/prescriptions → prescriptions as medicine requests → InventoryOfficer issue/unavailable → auto-generated bill on the Quotation → InventoryOfficer records payment → owner views bill. Plus manager veterinarian history and a migration (`WorkflowRedesign`).
+
+**What the AI produced (AI-assisted work actually performed):**
+- Domain: `Veterinarian.UserId` (login ↔ profile link), `Appointment.ConsultationRequestId` + `Type` (`AppointmentType`), `Examination.AppointmentId` + `VeterinarianCharge`, `Prescription` quantity/frequency/instructions/`RequestStatus` (`MedicineRequestStatus`)/`UnavailableReason`/`ReservationId`/`ProcessedByUserId`/`ProcessedAt`, `Quotation.PaymentStatus`/`PaidAt`/`PaidByUserId` (`PaymentStatus`), `ConsultationRequest.RequestType`/`RequestedByVeterinarianId`.
+- Migration `20260926165049_WorkflowRedesign` — additive-only (18 `AddColumn`, 8 `CreateIndex`, 7 `AddForeignKey`, 1 CHECK constraint on `ConsultationRequests.RequestType`); not applied to the shared Supabase database.
+- Application: `ConsultationWorkflowService` (`AssignConsultationAsync` — slot + Confirmed appointment + `AppointmentConfirmed` history in one unit of work, overlap → 409; `CreateFollowUpAsync` — vet-filed `RequestType=FollowUp` request), `MedicineRequestService` (queue, `IssueAsync` reserve+dispense via `IInventoryService` with failed-dispense reservation release, `MarkUnavailableAsync` reason-required; each decision refreshes the bill), `CurrentVeterinarianResolver` (JWT → `Veterinarian.UserId`), `BillingService.GenerateOrRefreshBillForExaminationAsync` (Examination line = vet charge + Medicine line per Issued prescription; `Finalised`/`Pending`; never mutates a `Paid` bill) and `MarkPaidAsync`, `ManagerService` vet list + history.
+- API: `POST /api/consultations/{id}/assign` (CM+Admin), `POST /api/consultations/follow-up` (Vet+Admin), `GET /api/appointments/mine` + PetOwner on `/{id}`, `GET /api/prescriptions/requests` + `POST /{id}/issue` + `/{id}/unavailable` (IO+Admin), `GET /api/quotations/mine` + PetOwner `/{id}` + `POST /{id}/mark-paid` (IO+Admin), `GET /api/manager/veterinarians` + `/{id}/history` (CM).
+- Frontend: `/vet/appointments`, `/manager/staff`, `/manager/vets`, `/inventory/requests`, `/inventory/bills` pages; Assign-Veterinarian action on Consultation Requests; payment status on BillingPage; PetOwner "My Appointments"/"My Bills" cards; Flutter "My Appointments"/"My Bills" + read-only bill view.
+- `ExaminationService.CreateAsync` forces a veterinarian caller's own profile server-side (`Veterinarian.UserId`), marks appointment+slot `Completed`, and inherits pet/consultation links from the appointment.
+- Docs updated in this entry's working session: README, workflow doc, API reference + contract, security matrix, component docs, database docs, setup guide, test evidence index.
+
+**What I changed / rejected:**
+- Kept the manual quotation + approval flow intact as an additional capability rather than deleting it — auto-generated bills arrive `Finalised` and bypass it.
+- Rejected adding a separate Invoice entity — the existing `Quotation` is reused as the bill; `InvoiceNumber` is derived (`INV-` + 8 hex of `Id`), not a sequential counter.
+- Rejected giving Veterinarian or ClinicManager access to `issue`/`unavailable`/`mark-paid` — those are InventoryOfficer + Administrator only (403 otherwise).
+- No notification infrastructure was built or claimed — queues/dashboards are status-driven views, documented as such.
+
+**How I verified it:**
+- `dotnet build backend/api/PetCare.sln` — 0 errors.
+- `dotnet test` — Application.Tests **135/135**, PetCare.Tests **43/43**, Infrastructure.Tests **19/19** (the previously failing infra tests are environment-dependent: they need `PETCARE_TEST_DB_CONNECTION` at a migrated local PostgreSQL).
+- `npx tsc --noEmit` — 0 errors; `npx vitest run` — **106/106** (22 files); `npm run build` — succeeds.
+- `flutter analyze` — no issues; `flutter test` — **57/57**.
+- 95-assertion PowerShell E2E harness against a disposable local Postgres (`petcare_e2e`) covering the whole flow incl. org isolation and follow-up — **95/95 PASS**.
+
+**Result:**
+- The implemented workflow is: PetOwner submits → ClinicManager assigns a vet (never auto-assigned) → vet examines and prescribes → InventoryOfficer fulfils medicine requests → bill auto-builds on the Quotation → InventoryOfficer marks paid → owner sees the paid bill. All verified locally; uncommitted at time of writing.
+
+## Entry 21 — Booking Rules + Clinic Location / Google Maps (Steps for H5 + H6)
+
+**Date:**
+27 September 2026
+
+**AI Tool / Model:**
+Devin IDE
+
+**Task / Section:**
+Two consecutive implementation sessions on the Scheduling, Billing & Approval component: (1) fixed-slot booking rules — 09:00-18:00 operating hours as `BookingRules` constants, nine 1-hour slots, org/date/slot mandatory on consultation create/update/follow-up, hour-aligned starts, no past dates, org slot-capacity check at create + submit (409), assign-side 1-hour rule + veterinarian overlap (409) guarded by the unique `(VeterinarianId, Date, StartTime)` index (23505 -> 409), `ConsultationRequest.OrganizationId` (migration `20260927070805_BookingRules`), staff consultation reads org-scoped, and `GET /api/consultations/availability` + `/availability/month`; (2) clinic location — `Organization.Latitude`/`Longitude` nullable double (migration `20260927081008_OrganizationLocation`), optional both-or-neither range-validated coordinates on organization registration, `GET /api/lookups/organizations` exposing address/lat/lng, `IClinicLocatorService`/`ClinicLocatorService` (Haversine, Active + IsActive + coords only, radius filter, nearest-first), `GET /api/consultations/nearby-clinics`, `nearest-clinic` rewritten to return the real nearest org (hardcoded fake-clinic list deleted), React `lib/googleMaps.ts` script loader (`VITE_GOOGLE_MAPS_API_KEY`, places library, zero new npm deps), `LocationPickerMap` (org registration: search, pin, confirm; retryable "temporarily unavailable" notice on load failure) and `ClinicMap` (owner booking markers + Select Clinic + Get Directions + "Use my location" geolocation, plain-card fallback). No Flutter changes.
+
+**What I changed / rejected:**
+- Kept maps strictly optional and failure-tolerant per requirement — a failed map load on registration shows a non-blocking retryable notice (the location step can be skipped and completed later), booking falls back to plain clinic cards, geolocation denial is silent; no Google dependency can block a user flow.
+- Rejected adding `@types/google.maps` or any npm package — a script loader plus minimal ambient declarations keeps `tsc` clean with zero new dependencies.
+- `ClinicLocatorService` filters active/located orgs in-service over the existing `IOrganizationRepository.GetAllAsync` rather than adding a repository method — keeps the exclusion rules unit-testable with mocks.
+- The booking modal keeps the existing organization `<select>` as the compact fallback list beneath `ClinicMap` so the map, list, and map-failure paths all write the same `organizationId` state.
+- Migrations were generated as files only; applied to local disposable databases for verification — never to Supabase.
+
+**How I verified it:**
+- `dotnet build backend/api/PetCare.sln` — 0 errors.
+- `dotnet test` — Application.Tests **181/181** (+6 validator +5 locator tests), PetCare.Tests **56/56**, Infrastructure.Tests **19/19** (with `PETCARE_TEST_DB_CONNECTION` at a migrated local PostgreSQL).
+- `npx tsc --noEmit` — 0 errors; `npx vitest run` — **124/124** (25 files); `npm run build` — succeeds.
+- 115-assertion PowerShell E2E harness against disposable local Postgres (`petcare_e2e`, API on :5145) covering booking-rule 400s/409s, availability endpoints, nearby/nearest clinic lookups over real orgs, org exclusion rules, examination-to-paid-bill flow, follow-up, vet history, and org isolation — **115/115 PASS**.
+- Grep-verified the hardcoded fake clinic names are gone from `ConsultationRequestsController`.
+
+**Result:**
+- Bookable clinics are the active organizations registered in the PetCare system; Google Maps is used only for map visualization, clinic location selection, and directions. All verified locally; uncommitted at time of writing.
+
+
+## Entry 22 — Flutter Pet-Owner-Only App Redesign (H9)
+
+**Date:**
+27 September 2026
+
+**AI Tool / Model:**
+Devin IDE
+
+**Task / Section:**
+Redesigned `frontend/mobile` from a mixed staff/scheduling client into a PetOwner-only Flutter app. Added `ApiClient.put`; `AuthService` register (`POST /auth/register/pet-owner`), `updateProfile` (`PUT /auth/profile`), `changePassword` (`PUT /auth/change-password`); `AuthProvider.isPetOwner` role gate; branded splash (`BEACON PET HEALTH` / `Veterinary Care for Your Pets`) with `auth.init()` session restore; `StaffBlockedPage` ("This app is for Pet Owners — staff should use the web application.") for any non-PetOwner session or login; `RegisterPage` with first/last/email/password/confirm + password-complexity validation; five-tab `MainShell` (Home / Appointments / Pets / Bills / Profile) using `IndexedStack`; `OwnerHomePage` with quick actions + upcoming-appointment/recent-bill previews; pet CRUD (`GET /petowners` -> `/pets/owner/{id}`, `POST/PUT/DELETE /pets`); `BookingWizardPage` 4-step flow (pet -> clinic -> month-availability calendar -> slot chips -> details) using `GET /lookups/organizations`, `/consultations/availability/month` + `/availability`, `POST /consultations` + `/{id}/submit` with 409 -> "This appointment slot is no longer available. Please select another time."; `OwnerAppointmentsPage` merging `/consultations` + `/appointments/mine` into Pending/Upcoming/History; read-only bills via existing `BillingProvider`/`/quotations/mine` with PAID badges; `ProfilePage` (edit name/phone, change password, logout). Deps: `google_maps_flutter ^2.18.2`, `url_launcher ^6.3.2`; manifest placeholder `YOUR_GOOGLE_MAPS_API_KEY`; `BookingWizardPage(useMap: false)` keeps widget tests Google-free.
+
+**What I changed / rejected:**
+- Rejected deleting staff feature files (`approvals/`, `scheduling/` staff views, `quotations/` staff view) — they remain in the tree but are unreachable from owner navigation; `home_page.dart` was superseded by `MainShell`.
+- Rejected a geolocation dependency — nearby-clinic discovery stays list+map-marker based; directions open Google Maps via `url_launcher` (`google.navigation` universal link).
+- Rejected pet photo upload — the backend `CreatePetRequest` DTO has no image field; `photoUrl` is accepted but no picker was added.
+- Kept maps failure-tolerant: clinics with null coords render as list-only rows; a missing/invalid API key degrades to the always-available list.
+- Login-time role check added in addition to the splash gate so a staff account can never reach owner UI even after a fresh login.
+
+**How I verified it:**
+- `flutter analyze` — **0 issues**.
+- `flutter test` — **71/71 passed** (57 pre-existing kept green; +14 new owner-app tests: staff-blocked login, pet list/add validation, clinic picker incl. null-coords + directions URL + retry, booking guards, fully-booked day, booked slot, 9 slots, create body fields, 409 message, appointment segmentation, bills PAID badge, profile load, logout).
+- `git diff --cached --name-only` — empty; nothing staged.
+
+**Result:**
+- Flutter is used as the Pet Owner mobile application. Pet Owners can register/login, manage their pets, find active PetCare clinics on a map, submit consultation requests, view appointments and follow-up appointments, and view their bills. Clinic Manager, Veterinarian, Inventory Officer and Administrator workflows remain in the React staff application. Verified locally; uncommitted at time of writing.
+
+## Entry 23 � Flutter UI Reskin to Beacon Design System (H10)
+
+**Date:**
+28 September 2026
+
+**AI Tool / Model:**
+Devin IDE
+
+**Task / Section:**
+UI/UX-only reskin of `frontend/mobile` to the React "Beacon Pet Health" design system. Added `lib/core/theme/app_colors.dart` + `app_theme.dart` (Beacon tokens: `#FFBE00`/`#E6AB00`/`#FFF3CC` yellow ramp, `#111111` black, `#FAFAE9` cream, `#55554A` muted, `#F26422` orange, `#B8B49C` neutral, `#FFFBEA`/`#EADF9C` selected-card pair, badge semantic triples, `#E2E9E6` borders; `ColorScheme`, light app-bar, dark `#111` bottom nav with yellow active, radius-17 cards, radius-10 inputs/buttons) and `lib/core/widgets/` primitives (`AppCard`, `StatusBadge`, `AppEmptyState`, `AppErrorState`, `AppLoading`, `SectionHeader`, `DetailRow`, `BrandLogoTile`, `BrandLockup`). Restyled splash, login, register, staff-blocked, main shell nav, owner home, appointments + detail, pets list/detail/form, quotations + detail, profile, booking wizard, clinic picker, consultation detail, and the retained approval pages.
+
+**What I changed / rejected:**
+- Kept Material `Icons.*` and the system font � the web Inter font is not bundled; matched type hierarchy only.
+- Chose yellow `#FFBE00` + near-black `#171717` text as the primary `FilledButton` style (dominant CTA across the React modal/dashboard pages); the auth pages'' black-pill variant is echoed by the black hero card + black logout button.
+- No API endpoints, payloads, models, provider logic, or booking rules touched; `BookingWizardPage(useMap:false)` and all test-relied-on copy kept verbatim; `GoogleMap` widget untouched.
+- Replaced the stale counter `widget_test.dart` (referenced a nonexistent `MyApp`) with a real splash-to-login smoke test.
+
+**How I verified it:**
+- `flutter analyze` � **0 issues**.
+- `flutter test` � **72/72 passed**.
+- `git diff --cached --name-only` � empty; nothing staged.
+
+**Result:**
+- The Flutter PetOwner app visually matches the Beacon design system; verified locally; uncommitted at time of writing.

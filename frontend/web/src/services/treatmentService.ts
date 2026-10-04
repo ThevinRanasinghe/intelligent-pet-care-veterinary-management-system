@@ -186,7 +186,8 @@ export function deletePrescription(id: string) {
 // ---- Intelligent Treatment Recommendations (Business-Specific Operation) ----
 
 export interface RecommendedMedicine {
-    medicineId: string;
+    /** Null when the AI suggestion could not be uniquely matched to a formulary record — advisory name only. */
+    medicineId: string | null;
     medicineName: string;
     suggestedDosage: string;
     suggestedDurationDays: number;
@@ -199,6 +200,8 @@ export interface TreatmentRecommendation {
     recommendedProcedures: string[];
     suggestedMedicines: RecommendedMedicine[];
     precautionaryNotes: string[];
+    /** "agentic-ai" for AI output; "unavailable" when the AI service could not respond. */
+    source?: string;
 }
 
 export function getTreatmentRecommendations(examinationId: string) {
