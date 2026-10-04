@@ -1,5 +1,13 @@
 # Flutter Testing — Scheduling, Billing & Approval
 
+> **Current suite status (Merge_2 final):** after the PetOwner redesign (H9/H10)
+> and follow-on coverage the suite is **111 tests** (`flutter test`) with
+> `flutter analyze` clean — see `test-evidence-index.md` Steps 25–27. The
+> document below records the original Step-12 verification (49 tests) and the
+> staff-facing app that existed at that time; it is preserved as historical
+> evidence. The app is now PetOwner-only — staff flows moved to the React app
+> (`frontend/mobile/README.md` describes the current scope).
+
 This document records the Flutter test suite for the Scheduling, Billing and
 Approval Management mobile client, in line with the SE3090 Step 12 requirement
 to implement and verify the Flutter mobile contribution for the owned
@@ -30,14 +38,17 @@ flutter test
 flutter build apk --debug
 ```
 
-For a physical device, override the API base URL at runtime:
+For a physical device, override the API base URL at build time:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://<your-pc-ip>:5080/api
+flutter run --dart-define=API_BASE_URL=http://<your-pc-ip>:5019/api
 ```
 
-For the Android emulator, the default `http://10.0.2.2:5080/api` in
-`lib/core/config/api_config.dart` is used.
+For the Android emulator, point `API_BASE_URL` at `http://10.0.2.2:5019/api`
+(the compiled default in `lib/core/config/api_config.dart` uses port 5080 —
+always pass the define). The Google Maps key is supplied via
+`android/local.properties` (`GOOGLE_MAPS_API_KEY=...`, gitignored) or the
+`GOOGLE_MAPS_API_KEY` environment variable; widget tests never require it.
 
 ## Static Analysis
 

@@ -145,4 +145,4 @@ None of the above are part of the current `.github/workflows/backend-ci.yml`.
 
 - No secrets, API keys, passwords, or connection strings appear in the workflow file.
 - The workflow does not configure any secrets, environment variables, or database services.
-- The backend tests are pure unit tests and do not require any external services or credentials.
+- **Known limitation:** the workflow's own comment predates `PetCare.Infrastructure.Tests`. `dotnet test` runs the whole solution, so the 4 database-backed integration tests would fail on CI without a `PETCARE_TEST_DB_CONNECTION` (or `PETCARE_DB_CONNECTION`) secret pointing at a migrated PostgreSQL service container — if this workflow is enabled for `Merge_2`/`main` merges, either provision that secret + service or scope the test step to `PetCare.Tests` and `PetCare.Application.Tests`.

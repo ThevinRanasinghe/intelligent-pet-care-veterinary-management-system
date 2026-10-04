@@ -23,7 +23,7 @@ PetCare AI is a multi-tenant veterinary practice platform: pet owners self-regis
 - **Scheduling & billing** — vet slots, appointments (`GET /api/appointments/mine` per-caller view), auto-generated bills on the Quotation entity (vet charge + issued medicines), payment tracking; manual quotation + approval workflow remains available
 - **Medicine & inventory** — medicines, suppliers, batches (FEFO), reservations, transaction ledger; prescriptions double as medicine requests fulfilled by the inventory officer
 - **Administration** — org approval, user lifecycle, staff account creation, system stats
-- **Agentic AI service** — `agentic-service/` (FastAPI + LangGraph + Gemini) hosts four read-only advisory agents (consultation triage, diagnosis, scheduling/quotation, inventory); it is internal-only (shared `X-Internal-Key`, caller JWT forwarded); only the diagnosis agent is wired into a UI workflow (vet "AI Assist"), the others remain service-level
+- **Agentic AI service** — `agentic-service/` (FastAPI + LangGraph + Gemini) hosts four read-only advisory agents (consultation triage, diagnosis, scheduling/quotation, inventory), all wired into the React staff UI: manager "AI Consultation Analysis" + "AI Scheduling Plan" panels, vet "AI Assist" modal, inventory-officer "AI Plan". It is internal-only (shared `X-Internal-Key`, caller JWT forwarded)
 
 ## Technology stack
 
@@ -93,7 +93,7 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5019/api   # Android emul
 
 `10.0.2.2` is the Android emulator's host loopback. For a physical device, use the machine's LAN IP.
 
-Google Maps is used for map visualization, clinic selection and directions. Bookable clinics are the active organizations registered in the PetCare system. The Android manifest ships a `YOUR_GOOGLE_MAPS_API_KEY` placeholder (`android/app/src/main/AndroidManifest.xml`) — replace it locally with a real Maps SDK for Android key to render the map; without a key the clinic picker falls back to its list view, so booking still works.
+Google Maps is used for map visualization, clinic selection and directions. Bookable clinics are the active organizations registered in the PetCare system. The key is supplied through build configuration — never committed: Android reads `GOOGLE_MAPS_API_KEY` from the gitignored `android/local.properties` (see `local.properties.example`) via a Gradle manifest placeholder; Flutter web uses `--dart-define=GOOGLE_MAPS_API_KEY=...` (`tool/flutter_web.ps1` feeds it from `local.properties`/env automatically). Without a key the clinic picker falls back to its list view, so booking still works.
 
 ## Configuration keys (never commit values)
 
@@ -104,7 +104,11 @@ Google Maps is used for map visualization, clinic selection and directions. Book
 | `Jwt:Issuer` / `Jwt:Audience` / `Jwt:ExpiryMinutes` | `appsettings.json` | token metadata (defaults `PetCareApi`/`PetCareClient`/60) |
 | `Cors:AllowedOrigins` | `appsettings.*.json` | frontend origins (dev: `http://localhost:5173`) |
 | `VITE_API_BASE_URL` | `frontend/web/.env` | web API base URL |
+| `VITE_GOOGLE_MAPS_API_KEY` | `frontend/web/.env` | optional — enables web clinic map + location picker |
 | `API_BASE_URL` | `--dart-define` | mobile API base URL |
+| `GOOGLE_MAPS_API_KEY` | `android/local.properties` or env / `--dart-define` (web) | optional — enables the mobile clinic map |
+| `AgenticService:BaseUrl` / `AgenticService:InternalKey` | user secrets / `PETCARE_AGENTIC_INTERNAL_KEY` env | API → agentic-service link (`X-Internal-Key`) |
+| `GEMINI_API_KEY`, `AGENTIC_INTERNAL_KEY`, `GEMINI_MODEL` | `agentic-service/.env` | agentic service LLM + shared-secret config |
 | `PETCARE_TEST_DB_CONNECTION` | env | integration-test database (optional) |
 
 ## Testing
@@ -126,6 +130,10 @@ EF Core migrations own the schema — migration history: `InitialSchedulingBilli
 
 | Doc | Contents |
 |---|---|
+| `docs/README.md` | Documentation index |
+| `frontend/web/README.md` | React app setup/structure/conventions |
+| `frontend/mobile/README.md` | Flutter PetOwner app — full developer guide |
+| `agentic-service/README.md` | Advisory AI service — agents, security, configuration |
 | `docs/setup/local-development.md` | Full environment setup guide |
 | `docs/api/api-reference.md` | Complete endpoint reference |
 | `docs/security/authentication-authorization.md` | Auth, roles, tenancy, ownership, secrets |
@@ -137,7 +145,7 @@ EF Core migrations own the schema — migration history: `InitialSchedulingBilli
 
 ## Known limitations / TODO
 
-- **Agentic AI is advisory-only:** `agentic-service/` analyses data and returns recommendations; nothing in the AI layer assigns veterinarians, approves anything, issues medicine, or touches billing. The ASP.NET API proxies agent calls through `IAgenticClient` (configured via `AgenticService:*`). The veterinarian "AI Assist" recommendations (`GET /api/examinations/{id}/recommendations`) are served by the diagnosis agent — the result is a reviewed prefill suggestion only; AI-suggested medicine names are resolved to real catalogue ids only on a unique organization-scoped match, otherwise surfaced as advisory names without ids; AI unavailability degrades to a safe message while manual diagnosis remains fully usable. Consultation/scheduling/inventory agents are not wired into UI workflows yet (Phase 2B+)
+- **Agentic AI is advisory-only:** `agentic-service/` analyses data and returns recommendations; nothing in the AI layer assigns veterinarians, approves anything, issues medicine, or touches billing. The ASP.NET API proxies agent calls through `IAgenticClient` (configured via `AgenticService:*`). All four agents (diagnosis, consultation triage, scheduling, inventory) are wired into advisory UI surfaces — the veterinarian "AI Assist" recommendations (`GET /api/examinations/{id}/recommendations`), the manager consultation-analysis and scheduling-plan panels (`GET /api/consultations/{id}/analysis`, `/scheduling-plan`), and the inventory officer's "AI Plan" (`GET /api/prescriptions/treatment/{id}/inventory-plan`). Results are review-only suggestions; AI-suggested medicine names are resolved to real catalogue ids only on a unique organization-scoped match, otherwise surfaced as advisory names without ids; AI unavailability degrades to a safe message while manual workflows remain fully usable
 - **No notification platform:** "notifications" are status-driven pending-item views (manager request queue, inventory-officer medicine-request queue, dashboards) — there is no notification entity or real-time push infrastructure
 - **Three migrations pending on Supabase:** `WorkflowRedesign`, `BookingRules`, and `OrganizationLocation` exist only as migration files until `dotnet ef database update` is run against the shared database
 - **Maps are optional:** without a configured Google Maps key the clinic-location picker shows a retryable "temporarily unavailable" notice (the location can be added later) and the booking map falls back to a plain clinic list — registration and booking still work

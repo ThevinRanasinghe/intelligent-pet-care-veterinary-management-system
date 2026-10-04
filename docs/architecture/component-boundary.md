@@ -16,7 +16,7 @@
 - Quote total and budget validation
 - Manager approval/reject/revision workflow (manual-quotation path)
 - Approval validation summary UI
-- AI workflow monitoring UI
+- Advisory AI workflow panels (manager consultation analysis + scheduling plan, vet diagnosis assist, inventory-officer stock plan)
 
 ## 2. Medicine & Inventory Management Scope
 - Pharmaceutical catalog and SKU management (Medicines)
@@ -28,9 +28,9 @@
 - Role-based authorization (`InventoryOfficer`, `Veterinarian`, `ClinicManager`, `SuperAdmin`)
 - Production React dashboard for medicine catalog, low stock alerts, FEFO batch inspection, and supplier directory
 
-## 3. Excluded Scope (Deferred / External)
-- Background AI LLM generation agents (AI workflow screens are monitoring UI only)
-- Direct cross-component database coupling (integration via clean service/API boundaries)
+## 3. Advisory AI (separate service, non-authoritative)
+- `agentic-service/` (FastAPI + LangGraph + Gemini) implements four advisory agents — consultation triage, diagnosis, scheduling plan, inventory plan — all wired through `IAgenticClient` behind staff-only GET endpoints. They analyse and recommend only; they never create, modify, approve, dispense, or bill.
+- Direct cross-component database coupling remains excluded (integration via clean service/API boundaries)
 
 Note: the Flutter mobile client **is implemented** as the PetOwner-only app under `frontend/mobile` — register/login, pet management, clinic-map consultation booking, appointments, bills and profile. Flutter is used as the Pet Owner mobile application. Pet Owners can register/login, manage their pets, find active PetCare clinics on a map, submit consultation requests, view appointments and follow-up appointments, and view their bills. Clinic Manager, Veterinarian, Inventory Officer and Administrator workflows remain in the React staff application. Google Maps is used for map visualization, clinic selection and directions. Bookable clinics are the active organizations registered in the PetCare system. (See `docs/testing/flutter-testing.md`.)
 

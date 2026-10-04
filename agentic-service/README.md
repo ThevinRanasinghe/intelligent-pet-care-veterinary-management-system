@@ -59,24 +59,42 @@ pip install -r requirements-dev.txt
 pytest tests -q
 ```
 
-## Current state (Phase 2A)
+## Current state — all four agents integrated (Phases 2A–2D)
 
-The diagnosis agent is integrated into the existing veterinarian flow:
+Every agent is reachable through an advisory GET endpoint on the ASP.NET API, which proxies to this service via `IAgenticClient` and renders the result in the React staff UI:
 
 ```
-GET /api/examinations/{id}/recommendations   (Vet/Manager/Admin, unchanged)
+Consultation triage (Phase 2B)
+GET /api/consultations/{id}/analysis            (ClinicManager/Admin)
+      → ConsultationRequestService.GetAnalysisAsync
+      → POST /api/agents/consultation-analysis/{consultation_id}
+      → ConsultationAnalysisDto → manager "AI Consultation Analysis" panel
+        on the Consultation Requests page
+
+Scheduling plan (Phase 2C)
+GET /api/consultations/{id}/scheduling-plan     (ClinicManager/Admin)
+      → ConsultationRequestService.GetSchedulingPlanAsync
+      → POST /api/agents/scheduling-planning/{request_id}
+      → SchedulingPlanDto → manager "AI Scheduling Plan" panel
+        (recommended vet/slot + quotation draft; assignment stays manual)
+
+Diagnosis assist (Phase 2A)
+GET /api/examinations/{id}/recommendations      (Vet/Manager/Admin)
       → ExaminationService.GetRecommendationsAsync
-      → IAgenticClient.AnalyzeDiagnosisAsync  (caller JWT + X-Internal-Key forwarded)
       → POST /api/agents/diagnosis-analysis/{examination_id}
-      → validated DiagnosisAssessment
-      → TreatmentRecommendationDto → existing React "AI Assist" modal
+      → TreatmentRecommendationDto → vet "AI Assist" modal
+
+Inventory plan (Phase 2D)
+GET /api/prescriptions/treatment/{id}/inventory-plan   (InventoryOfficer/Admin)
+      → MedicineRequestService.GetInventoryPlanAsync
+      → POST /api/agents/inventory-planning/{treatment_record_id}
+      → InventoryPlanDto → "AI Plan" action on the Medicine Requests page
 ```
 
-Behaviour contract:
+Behaviour contract (all agents):
 
-- **Advisory only** — nothing is persisted; the vet reviews, optionally prefills the diagnosis form, and saves manually. The old hardcoded keyword engine and its fake medicine GUIDs are removed.
-- **Medicine resolution** — the agent returns medicine *names* only (it is never trusted with database ids). ASP.NET resolves each name against the caller's organization-scoped catalogue by exact normalized match (name, name+strength, name+form, name+strength+form). A suggestion resolves only when exactly one catalogue record matches; unknown or ambiguous names return `medicineId: null` and are flagged "not matched to formulary" in the UI.
-- **Failure handling** — timeouts, 4xx/5xx, malformed JSON, or a missing assessment return `Source = "unavailable"` with a safe placeholder message; the modal shows the message, hides "Apply", and manual diagnosis remains fully usable.
-- Consultation, scheduling and inventory agents remain unwired (later phases).
-
-The other three agents are still Phase 1 foundation-only; only diagnosis is reachable from the UI.
+- **Advisory only** — agents analyse and recommend; nothing is persisted and no workflow action (assign, dispense, bill, approve) is taken automatically. The human stays authoritative.
+- **Medicine resolution** — agents return medicine *names* only (never database ids). ASP.NET resolves each name against the caller's organization-scoped catalogue by exact normalized match (name, name+strength, name+form, name+strength+form). Only a unique match resolves to a `medicineId`; unknown/ambiguous names surface as advisory text flagged "not matched to formulary".
+- **Deterministic validation** — LLM output passes Pydantic schema validation plus deterministic checks (real dates, slot bounds, stock quantities); invalid output retries (×2) then falls back.
+- **Non-retryable errors fast-path** — quota/rate-limit (429) and other permanently-failing LLM errors short-circuit to the safe fallback instead of burning retries.
+- **Failure handling** — timeouts, 4xx/5xx, malformed JSON, or a missing result return `Source = "unavailable"` (or the endpoint's safe fallback); the UI shows a plain-language notice and the manual workflow remains fully usable.

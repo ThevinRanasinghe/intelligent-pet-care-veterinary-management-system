@@ -1,6 +1,6 @@
 # ADR 0006 — Agentic AI Framework / Orchestration
 
-**Status:** Decided — Phase 1 foundation implemented · **Date:** 2026
+**Status:** Decided — fully implemented (all four agents integrated, Phases 2A–2D) · **Date:** 2026
 
 ## Context
 
@@ -27,6 +27,6 @@ Each agent follows `retrieve_context (read-only PetCare API calls) → LLM analy
 
 ## Consequences
 
-- The former mock `/ai-workflows` monitor UI was removed; real agent integration lands per-workflow in later phases
-- `GET /api/examinations/{id}/recommendations` remains the vet-facing contract; swapping its keyword internals for the diagnosis agent is the Phase 2 mapping target
+- The former mock `/ai-workflows` monitor UI was removed; real agent integration landed per-workflow (manager consultation analysis + scheduling plan, vet "AI Assist", IO "AI Plan")
+- `GET /api/examinations/{id}/recommendations` remains the vet-facing contract; its keyword internals were swapped for the diagnosis agent in Phase 2A
 - `GEMINI_API_KEY`, `GEMINI_MODEL`, `API_BASE_URL`, `AGENTIC_INTERNAL_KEY`, `BACKEND_TIMEOUT_SECONDS` configure the service (see `agentic-service/.env.example`)

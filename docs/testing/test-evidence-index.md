@@ -483,3 +483,27 @@ New coverage: staff login lands on the blocked screen (not the owner UI); pet li
 | No backend changes | — | No backend, service, provider, or model files touched by this step |
 
 - **Commit:** _(uncommitted working tree at time of verification)_
+
+---
+
+## Step 27 - Agentic AI Phases 2A-2D + Google Maps secret externalization (Merge_2 final)
+
+All four `agentic-service` agents integrated into the ASP.NET API via `IAgenticClient` and surfaced in the React staff UI: diagnosis assist (`GET /api/examinations/{id}/recommendations` -> vet "AI Assist"), consultation triage (`GET /api/consultations/{id}/analysis` -> manager panel), scheduling plan (`GET /api/consultations/{id}/scheduling-plan` -> manager panel), inventory plan (`GET /api/prescriptions/treatment/{id}/inventory-plan` -> medicine-requests page). Non-retryable LLM errors (429/quota) short-circuit to the safe fallback. Google Maps keys were removed from all tracked files and are now injected from gitignored `android/local.properties` (Gradle manifest placeholder), `--dart-define` for Flutter web (`tool/flutter_web.ps1`), and `VITE_GOOGLE_MAPS_API_KEY` for React.
+
+### Verified results (local)
+
+| Check | Command | Result |
+|---|---|---|
+| Backend service tests | `dotnet test` | `PetCare.Tests` - **131/131 passed** |
+| Application tests | `dotnet test` | `PetCare.Application.Tests` - **184/184 passed** |
+| Infrastructure tests | `dotnet test` | `PetCare.Infrastructure.Tests` - **17/21**; the 4 `InventoryIntegrationTests` fail fast with "Set PETCARE_TEST_DB_CONNECTION..." - environment requirement (no test DB connection configured), not a defect |
+| Agentic tests | `pytest tests -q` | **48/48 passed** (clean `GEMINI_MODEL` environment; real-key LLM calls not required) |
+| Web typecheck | `npx tsc --noEmit` | **0 errors** |
+| Web tests | `npx vitest run` | **170/171** - one Google Maps-mock timing timeout in `RegisterPage.location.test.tsx` under the full suite; the file passes **8/8 in isolation** (test-environment flake) |
+| Web build | `npm run build` | **succeeds** (pre-existing chunk-size warning only) |
+| Mobile analysis | `flutter analyze` | **0 issues** |
+| Mobile tests | `flutter test` | **111/111 passed** |
+| Android manifest merge | `gradlew :app:processDebugMainManifest` | **BUILD SUCCESSFUL** - `GOOGLE_MAPS_API_KEY` placeholder resolves (empty without a configured key -> list fallback) |
+| Secret sweep | `git grep` for Google-API-key pattern across tracked files | **0 matches** - no key committed |
+
+- **Commits:** `fcdbd1f` (diagnosis agent), `3358fa0` (consultation agent), `f8da4db` (scheduling agent), `1988ef1` (inventory agent), `652f5af` (non-retryable LLM error fast-path), `1c0f0fe` (Maps key externalization) - all on `Merge_2`.

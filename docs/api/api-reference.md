@@ -55,10 +55,12 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | POST | `/` | Owner, CM, Admin | `CreateConsultationRequestDto` | Pet/owner identity bound server-side; **organizationId + date + hour-aligned slot start are mandatory** (400 otherwise); the org's slot capacity is checked → 409 "This appointment slot is no longer available. Please select another time." |
 | POST | `/{id}/assign` | **CM, Admin** | `AssignVeterinarianRequest` → `AppointmentResponse` | `{veterinarianId, date, startTime, endTime, notes?}` — creates the slot + `Confirmed` appointment (`Type` Initial/FollowUp, `ConsultationRequestId` link), request → `AppointmentConfirmed` + history row; 409 on overlap/inactive vet/illegal status |
 | POST | `/follow-up` | **Vet, Admin** | `CreateFollowUpRequest` → `ConsultationRequestDto` (201) | `{petId, examinationId?, preferredDate, reason, notes?}` — `RequestType=FollowUp`, `Submitted`, `RequestedByVeterinarianId` resolved from JWT |
-| GET | `/` | Owner, Vet, CM, Admin | — | Owner: own only |
-| GET | `/owner/{ownerId}` | Owner, Vet, CM, Admin | — | |
-| GET | `/{id}` | Owner, Vet, CM, Admin | — | |
-| GET | `/{id}/history` | Owner, Vet, CM, Admin | — | Status-history entries |
+| GET | `/` | Owner, CM, Admin | — | Owner: own only; vets reach consultations through appointments/examinations |
+| GET | `/owner/{ownerId}` | Owner, CM, Admin | — | |
+| GET | `/{id}` | Owner, CM, Admin | — | |
+| GET | `/{id}/analysis` | **CM, Admin** | — → `ConsultationAnalysisDto` | Advisory AI triage of the request (advisory only — see AI section) |
+| GET | `/{id}/scheduling-plan` | **CM, Admin** | — → `SchedulingPlanDto` | Advisory AI appointment/quotation proposal (advisory only — see AI section) |
+| GET | `/{id}/history` | Owner, CM, Admin | — | Status-history entries |
 | PUT | `/{id}` | Owner, CM, Admin | `UpdateConsultationRequestDto` | |
 | POST | `/{id}/submit` | Owner, CM, Admin | — | Status transition |
 | PATCH | `/{id}/cancel` | Owner, CM, Admin | — | Status transition |
@@ -66,7 +68,7 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | GET | `/nearby-clinics?latitude&longitude&radiusKm=50` | Any authenticated | `?latitude&longitude&radiusKm` → `NearbyClinicResponse[]` | Active + `IsActive` orgs with coordinates only; `[{id,name,address,city,latitude,longitude,distanceKm}]` sorted nearest-first; 400 invalid coords or `radiusKm <= 0` |
 | GET | `/availability?organizationId&date[&veterinarianId]` | Any authenticated | → `{date,isPast,slots:[{start,end,available,availableVeterinarianIds}]}` | Nine fixed 1-hour slots (09:00–18:00) for one org/day; `veterinarianId` narrows to that vet (assign flow) |
 | GET | `/availability/month?organizationId&year&month` | Any authenticated | → `[{date,available,fullyBooked,isPast}]` | Per-day availability overview for the booking calendar |
-| GET | `/validate-ownership` | Owner, Vet, CM, Admin | — | Ownership probe |
+| GET | `/validate-ownership` | Owner, CM, Admin | — | Ownership probe |
 
 ## Examinations — `api/examinations`
 
@@ -78,7 +80,7 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | POST | `/` | Vet, Admin | `CreateExaminationDto` | Accepts `appointmentId` + `veterinarianCharge` — completing an appointment marks it + slot `Completed` and inherits pet/consultation links; Vet caller's own profile forced server-side via `Veterinarian.UserId` (client `VeterinarianId` ignored; unlinked vet → 403) |
 | PUT | `/{id}` | Vet, Admin | `UpdateExaminationDto` | |
 | DELETE | `/{id}` | Vet, Admin | — | |
-| GET | `/{id}/recommendations` | Vet, CM, Admin | — | |
+| GET | `/{id}/recommendations` | Vet, CM, Admin | — → `TreatmentRecommendationDto` | Advisory AI diagnosis assist via the agentic service (see AI section) |
 
 ## Diagnoses — `api/diagnoses`
 
@@ -112,6 +114,7 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | GET | `/treatment/{treatmentRecordId}` | Owner (own) + Vet, CM, Admin | — | |
 | POST | `/` | Vet, Admin | `CreatePrescriptionDto` | Accepts `quantity`, `frequency`, `instructions`; `RequestStatus` starts `Pending` = the medicine request |
 | GET | `/requests?status=` | Vet, CM, IO, Admin | — | Medicine-request queue (Pending/Issued/Unavailable), newest first |
+| GET | `/treatment/{treatmentRecordId}/inventory-plan` | **IO, Admin** | — → `InventoryPlanDto` | Advisory AI stock/batch fulfilment plan (see AI section) |
 | POST | `/{id}/issue` | **IO, Admin** | — → `PrescriptionResponseDto` | Reserve + dispense atomically via stock rules; 409 insufficient stock (never negative); sets `Issued` + `ReservationId` + processed audit fields, then refreshes the bill |
 | POST | `/{id}/unavailable` | **IO, Admin** | `{reason}` (required) → `PrescriptionResponseDto` | `RequestStatus` → `Unavailable`; 400 empty reason, 409 non-Pending |
 | DELETE | `/{id}` | Vet, Admin | — | |
@@ -218,4 +221,13 @@ The Administrator manages users and organizations but **does not create staff ac
 
 ## AI-related endpoints
 
-**None implemented.** The AI workflow screens are monitoring UI only — no backend AI/orchestration endpoints exist yet.
+The backend exposes four **advisory** endpoints that proxy to the internal `agentic-service` (FastAPI + LangGraph + Gemini) via `IAgenticClient` (typed `HttpClient` configured by `AgenticService:BaseUrl` + `AgenticService:InternalKey`). All are read-only recommendations — nothing is persisted and no business action is taken automatically.
+
+| Method | Route | Roles | Response | Agent |
+|---|---|---|---|---|
+| GET | `/api/consultations/{id}/analysis` | CM, Admin | `ConsultationAnalysisDto` | Consultation triage (priority, type, concerns, suggested preparation) |
+| GET | `/api/consultations/{id}/scheduling-plan` | CM, Admin | `SchedulingPlanDto` | Scheduling plan (recommended vet/slot, quotation draft) |
+| GET | `/api/examinations/{id}/recommendations` | Vet, CM, Admin | `TreatmentRecommendationDto` | Diagnosis assist (differential diagnoses, medicine suggestions resolved to real catalogue ids on unique org-scoped match) |
+| GET | `/api/prescriptions/treatment/{treatmentRecordId}/inventory-plan` | IO, Admin | `InventoryPlanDto` | Inventory plan (stock/batch fulfilment recommendation) |
+
+**Contract:** each response carries a `source` field — `"agent"` on success or `"unavailable"`/safe fallback on timeout, LLM failure, or validation failure. The agentic service is internal-only: callers hit the ASP.NET API with their JWT; the API adds `X-Internal-Key` and forwards the caller's bearer token so agent data reads inherit the caller's role/organization scope. The service-to-service `POST /api/agents/*` endpoints are documented in `agentic-service/README.md` and are never exposed to browsers.

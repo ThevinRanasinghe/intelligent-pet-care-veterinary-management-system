@@ -1063,3 +1063,31 @@ UI/UX-only reskin of `frontend/mobile` to the React "Beacon Pet Health" design s
 
 **Result:**
 - The Flutter PetOwner app visually matches the Beacon design system; verified locally; uncommitted at time of writing.
+
+## Entry 24 - Agentic AI Phases 2A-2D: Four-Agent Integration (Merge_2)
+
+**Date:**
+October 2026
+
+**AI Tool / Model:**
+Devin IDE
+
+**Task / Section:**
+Integrated all four `agentic-service` agents (FastAPI + LangGraph + Gemini) into the ASP.NET API and React staff UI. Phase 2A wired the diagnosis agent behind `GET /api/examinations/{id}/recommendations` (Vet/CM/Admin -> `ExaminationService.GetRecommendationsAsync` -> `IAgenticClient.AnalyzeDiagnosisAsync` -> vet "AI Assist" modal). Phase 2B added consultation triage (`GET /api/consultations/{id}/analysis`, CM/Admin -> manager analysis panel on ConsultationRequestsPage). Phase 2C added scheduling planning (`GET /api/consultations/{id}/scheduling-plan`, CM/Admin -> manager plan panel with recommended vet/slot + quotation draft). Phase 2D added inventory planning (`GET /api/prescriptions/treatment/{id}/inventory-plan`, IO/Admin -> `MedicineRequestService.GetInventoryPlanAsync` -> "AI Plan" on the Medicine Requests page). The shared `IAgenticClient`/`AgenticClient` typed HttpClient attaches `X-Internal-Key` (`AgenticService:InternalKey` / `PETCARE_AGENTIC_INTERNAL_KEY`) and forwards the caller JWT so agent backend reads inherit the caller''s role/org scope.
+
+**What I changed / rejected:**
+- Kept every agent advisory-only: no operational writes; assignment, dispensing, billing and approval stay human decisions. The former mock `/ai-workflows` monitoring page was removed rather than kept alongside real panels.
+- Rejected trusting LLM medicine selections with database ids: agents return medicine names only; ASP.NET resolves a name to a `medicineId` only on a unique org-scoped catalogue match (name / name+strength / name+form / name+strength+form), otherwise the suggestion is surfaced as unmatched advisory text.
+- Added a non-retryable-error fast-path (429/quota/permanent failures) so agents short-circuit to the safe `unavailable` fallback instead of wasting retry budget — matching the pattern already used by the inventory agent.
+- Chose graceful degradation over hard failure: timeouts, 4xx/5xx, malformed JSON, and schema-validation misses all return `Source = "unavailable"`, and the manual workflow remains fully usable.
+- Externalized the Google Maps key out of tracked files (commit `1c0f0fe`): Android reads `GOOGLE_MAPS_API_KEY` from gitignored `local.properties` via a Gradle manifest placeholder; Flutter web injects the Maps JS SDK at runtime from `--dart-define` via `lib/core/maps/google_maps_loader{,_stub,_web}.dart` and `tool/flutter_web.ps1`; React keeps `VITE_GOOGLE_MAPS_API_KEY`.
+
+**How I verified it:**
+- `dotnet test` — PetCare.Tests **131/131**, PetCare.Application.Tests **184/184**, PetCare.Infrastructure.Tests **17/21** (4 integration tests fail fast without `PETCARE_TEST_DB_CONNECTION` — environment requirement, not a defect).
+- `pytest tests -q` — **48/48** (clean `GEMINI_MODEL` environment).
+- `npx tsc --noEmit` — 0 errors; `npx vitest run` — 170/171 (one Maps-mock timing flake, passes 8/8 isolated); `npm run build` — succeeds.
+- `flutter analyze` — 0 issues; `flutter test` — **111/111**; `gradlew :app:processDebugMainManifest` — placeholder merges correctly.
+- Secret sweep — `git grep` finds no Google API key in tracked files; the key was never committed.
+
+**Result:**
+- All four advisory agents live and reachable from staff workflows; AI remains non-authoritative end to end. Commits `fcdbd1f`, `3358fa0`, `f8da4db`, `1988ef1`, `652f5af`, `1c0f0fe` on `Merge_2`.

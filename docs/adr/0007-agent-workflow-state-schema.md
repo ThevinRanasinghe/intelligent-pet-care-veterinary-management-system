@@ -1,6 +1,6 @@
 # ADR 0007 — Database Schema for Agent Workflow State
 
-**Status:** Decided — deferred, no schema change in Phase 1 · **Date:** 2026
+**Status:** Decided — no AI schema added (still true after Phase 2A–2D integration) · **Date:** 2026
 
 ## Context
 

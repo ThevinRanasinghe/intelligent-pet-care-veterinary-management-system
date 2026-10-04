@@ -79,10 +79,13 @@ Business operation: high-impact execution stays blocked until an authorized Clin
 - `GET /api/manager/veterinarians` — **ClinicManager only**; active vets in the caller's org.
 - `GET /api/manager/veterinarians/{id}/history?from=&to=` — **ClinicManager only**; counts + lists for appointments (completed/upcoming/cancelled), examinations (initial/follow-up), prescriptions, medicine requests (pending/issued/unavailable), and bills (totals, paid/pending). 404 for a vet outside the org.
 
-## AI UI boundary
+## AI advisory boundary
 
-- `GET /api/agent-workflows`
-- `GET /api/agent-workflows/{id}`
-- `GET /api/agent-workflows/{id}/execution-summary`
+The earlier mock `/api/agent-workflows*` monitoring endpoints were never implemented on the API and the mock UI was removed. The implemented advisory surface is four agent-proxied GET endpoints (see `api-reference.md` → AI-related endpoints):
 
-No AI execution endpoint is called by the current UI.
+- `GET /api/consultations/{id}/analysis` — ClinicManager, Administrator (consultation triage)
+- `GET /api/consultations/{id}/scheduling-plan` — ClinicManager, Administrator (scheduling + quotation proposal)
+- `GET /api/examinations/{id}/recommendations` — Veterinarian, ClinicManager, Administrator (diagnosis assist)
+- `GET /api/prescriptions/treatment/{treatmentRecordId}/inventory-plan` — InventoryOfficer, Administrator (stock/batch plan)
+
+All four proxy to the internal `agentic-service` via `IAgenticClient` and are advisory-only: they persist nothing and perform no workflow action.

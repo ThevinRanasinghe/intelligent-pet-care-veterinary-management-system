@@ -27,7 +27,16 @@ npm run build      # tsc -b && vite build
 npx vitest run      # or: npm run test:run
 ```
 
-## Latest result
+> **Current suite status (Merge_2 final):** the suite has grown well beyond the
+> Step-10 baseline recorded below — **171 tests** (`npx vitest run`), plus a
+> clean `tsc --noEmit` typecheck and production build. In a full-suite run one
+> Google Maps-mock timing timeout was observed in
+> `src/tests/auth/RegisterPage.location.test.tsx` (170/171); the file passes
+> 8/8 in isolation — a test-environment flake, not an application defect. The
+> tables below remain as the Step-10 historical record; the full per-step
+> history is in `test-evidence-index.md`.
+
+## Step-10 baseline result (historical)
 
 | Metric | Result |
 | --- | --- |

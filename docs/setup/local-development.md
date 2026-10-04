@@ -9,6 +9,7 @@ Verified setup guide for the integrated PetCare AI system. Every command below w
 | .NET SDK | 8.0.x (`8.0.423` verified) | Backend + EF Core tooling |
 | Node.js + npm | — | React web app |
 | Flutter SDK | `3.47.2` stable / Dart `3.13.2` | Mobile client |
+| Python | 3.11+ | `agentic-service` (FastAPI + LangGraph) |
 | PostgreSQL | Supabase pooled instance (or any PG ≥ 13 for `gen_random_uuid()`) | Shared team database |
 
 Optional: `dotnet tool install --global dotnet-ef` — needed to apply migrations (`dotnet ef database update`); the shared Supabase schema has the first three migrations but **`WorkflowRedesign` still needs to be applied** (see Database below).
@@ -53,9 +54,50 @@ dotnet run --project backend/api/src/PetCare.Api
 dotnet test backend/api/PetCare.sln
 ```
 
-- `PetCare.Application.Tests` — 181/181
-- `PetCare.Tests` — 56/56
-- `PetCare.Infrastructure.Tests` — 19/19 — **require `PETCARE_TEST_DB_CONNECTION`** pointing at a disposable, **migrated** local PostgreSQL DB (e.g. run `dotnet ef database update` against a scratch database first); they fail fast with "Set PETCARE_TEST_DB_CONNECTION…" without it (by design) — this is an environment requirement, not a code failure.
+Latest verified results on `Merge_2`:
+
+- `PetCare.Tests` — 131/131
+- `PetCare.Application.Tests` — 184/184
+- `PetCare.Infrastructure.Tests` — 17/21 — the 4 remaining tests **require `PETCARE_TEST_DB_CONNECTION`** (or `PETCARE_DB_CONNECTION`) pointing at a disposable, **migrated** local PostgreSQL DB (e.g. run `dotnet ef database update` against a scratch database first); they fail fast with "Set PETCARE_TEST_DB_CONNECTION…" without it (by design) — this is an environment requirement, not a code failure.
+
+## Agentic AI service (`agentic-service`)
+
+Optional — the API runs fine without it; the advisory panels simply show the "unavailable" fallback.
+
+```bash
+cd agentic-service
+pip install -r requirements.txt
+copy .env.example .env    # then fill in values
+python main.py            # http://localhost:8000  (PORT env overrides)
+```
+
+Required `.env` values (placeholders in `.env.example` — never commit real values):
+
+| Variable | Purpose |
+|---|---|
+| `GEMINI_API_KEY` | Gemini key for `langchain-google-genai`; the service fails clearly without it |
+| `AGENTIC_INTERNAL_KEY` | Shared secret the API sends as `X-Internal-Key`; must match `AgenticService:InternalKey` on the API |
+| `API_BASE_URL` | PetCare API base incl. `/api` (default `http://localhost:5019/api`) |
+| `GEMINI_MODEL` | Gemini model id (see `.env.example` for the default; verify against your provisioning) |
+| `BACKEND_TIMEOUT_SECONDS` | Timeout for backend reads (default `10`) |
+
+API side (user secrets or env — `PETCARE_AGENTIC_INTERNAL_KEY`):
+
+```bash
+cd backend/api/src/PetCare.Api
+dotnet user-secrets set "AgenticService:BaseUrl" "http://localhost:8000"
+dotnet user-secrets set "AgenticService:InternalKey" "<same value as AGENTIC_INTERNAL_KEY>"
+```
+
+Tests:
+
+```bash
+cd agentic-service
+pip install -r requirements-dev.txt
+pytest tests -q           # 48/48 verified with a clean GEMINI_MODEL environment
+```
+
+Note: quota/rate-limit exhaustion or an invalid `GEMINI_MODEL` causes the agents to return their safe `unavailable` fallback — this is graceful degradation, not a test failure. LLM-dependent tests may behave differently if your local environment overrides `GEMINI_MODEL`.
 
 ## Web frontend (`frontend/web`)
 
@@ -70,7 +112,7 @@ npm run dev        # Vite dev server → http://localhost:5173
   - **Google Cloud requirements:** the key's project must have **billing enabled** and the **Maps JavaScript API** + **Places API** enabled — otherwise the browser console shows `BillingNotEnabledMapError`/`ApiNotActivatedMapError` and Google renders an error overlay on the map. Key restrictions must allow the dev origin (`http://localhost:5173/*`). These are Google Cloud configuration issues, not app bugs — the app correctly passes the key to the loader (`src/lib/googleMaps.ts`, `libraries=places`, `loading=async`).
 - `npm run build` — typecheck + production bundle
 - `npm run lint` — `tsc --noEmit` typecheck
-- `npm run test` / `npm run test:run` — Vitest (124 tests, jsdom + Testing Library; `fetch` stubbed — no backend needed)
+- `npm run test` / `npm run test:run` — Vitest (171 tests, jsdom + Testing Library; `fetch` stubbed — no backend needed). One Google Maps-mock timing flake in `RegisterPage.location.test.tsx` has been observed only in a full-suite run — the file passes in isolation (8/8)
 
 ## Mobile (`frontend/mobile`)
 

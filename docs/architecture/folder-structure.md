@@ -28,9 +28,15 @@ petcare-ai/
 │   │   │   ├── PetCare.Domain/
 │   │   │   └── PetCare.Infrastructure/
 │   │   └── tests/
-│   └── ai-service/              # future internal Agentic AI service
+├── agentic-service/             # internal Agentic AI service (FastAPI + LangGraph + Gemini, advisory-only)
+│   ├── consultation_agent/
+│   ├── diagnosis_agent/
+│   ├── scheduling_agent/
+│   ├── inventory_agent/
+│   ├── shared/                  # backend client, config, LLM wiring
+│   └── tests/
 ├── docs/
 └── infra/
 ```
 
-The React app implements all feature folders — `admin`, `auth`, `pets`, `consultations`, `scheduling`, `billing`, `approvals`, `treatment`, `inventory`, `dashboard`, `ai-workflows` (monitoring UI only), `shared`.
+The React app implements all feature folders — `admin`, `auth`, `pets`, `consultations`, `scheduling`, `billing`, `approvals`, `treatment`, `inventory`, `vet`, `manager`, `dashboard`, `shared`. The advisory AI surfaces are embedded per-feature (consultation analysis + scheduling plan on the Consultation Requests page, "AI Assist" on examinations, "AI Plan" on medicine requests) rather than in a standalone `ai-workflows` folder, which was removed.

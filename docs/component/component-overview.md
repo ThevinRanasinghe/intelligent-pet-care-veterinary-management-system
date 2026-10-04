@@ -1,6 +1,6 @@
 # Component Overview — Scheduling, Billing & Approval Management
 
-This document describes the **Scheduling, Billing & Approval Management** component of the PetCare AI veterinary management system. It covers only functionality that is actually implemented in the current codebase on branch `Scheduling-Billing-Approval-Management`.
+This document describes the **Scheduling, Billing & Approval Management** component of the PetCare AI veterinary management system. It covers only functionality that is actually implemented in the current codebase (verified on `Merge_2`).
 
 ---
 
@@ -46,6 +46,7 @@ flowchart TD
     App["Application Layer (PetCare.Application)"]
     Domain["Domain Layer (PetCare.Domain)"]
     Infra["Infrastructure Layer (PetCare.Infrastructure)"]
+    Agentic["Agentic AI service (agentic-service — FastAPI + LangGraph + Gemini)"]
     PG[("PostgreSQL")]
 
     React --> API
@@ -54,6 +55,8 @@ flowchart TD
     App --> Domain
     API --> Infra
     Infra --> PG
+    API -- "IAgenticClient (X-Internal-Key + caller JWT)" --> Agentic
+    Agentic -- "read-only backend calls (forwarded JWT)" --> API
 ```
 
 ### Layer responsibilities
@@ -76,11 +79,11 @@ flowchart TD
 |---|---|---|
 | `AuthController` | `api/auth` | `POST /login` |
 | `AppointmentsController` | `api/appointments` | `GET`, `GET/mine`, `GET/{id}`, `POST`, `PUT/{id}`, `DELETE/{id}`, `GET/available-slots`, `POST/check-conflict` |
-| `ConsultationRequestsController` | `api/consultations` | CRUD + `POST/{id}/assign` (CM/Admin), `POST/follow-up` (Vet/Admin), `POST/{id}/submit`, `PATCH/{id}/cancel`, `GET/{id}/history`, `GET/availability`, `GET/availability/month`, `GET/nearby-clinics`, `GET/nearest-clinic` |
+| `ConsultationRequestsController` | `api/consultations` | CRUD + `POST/{id}/assign` (CM/Admin), `POST/follow-up` (Vet/Admin), `POST/{id}/submit`, `PATCH/{id}/cancel`, `GET/{id}/history`, `GET/{id}/analysis` + `GET/{id}/scheduling-plan` (advisory AI, CM/Admin), `GET/availability`, `GET/availability/month`, `GET/nearby-clinics`, `GET/nearest-clinic` |
 | `LookupsController` | `api/lookups` | `GET/pets`, `GET/medicines`, `GET/organizations` (Active orgs with address/coordinates — owner map source) |
 | `QuotationsController` | `api/quotations` | `GET`, `GET/mine`, `GET/{id}`, `POST/{id}/mark-paid`, `POST`, `PUT/{id}`, `POST/{id}/calculate`, `POST/{id}/submit`, `POST/{id}/finalize` |
 | `ApprovalsController` | `api/approvals` | `GET/pending`, `GET/{id}`, `POST/{id}/approve`, `POST/{id}/reject`, `POST/{id}/revision`, `GET/{id}/history` |
-| `PrescriptionsController` | `api/prescriptions` | CRUD + `GET/requests`, `POST/{id}/issue`, `POST/{id}/unavailable` (IO/Admin) |
+| `PrescriptionsController` | `api/prescriptions` | CRUD + `GET/requests`, `POST/{id}/issue`, `POST/{id}/unavailable`, `GET/treatment/{id}/inventory-plan` (advisory AI) (IO/Admin) |
 | `ManagerController` | `api/manager` | `GET/veterinarians`, `GET/veterinarians/{id}/history`, `POST/users/veterinarians`, `POST/users/inventory-officers` (CM only) |
 
 Controllers are intentionally thin: they delegate all business logic to the Application-layer services and only handle HTTP concerns (routing, status codes, model binding).
@@ -126,14 +129,14 @@ See section 6 below.
 |---|---|
 | Auth | `features/auth/AuthContext.tsx`, `LoginPage.tsx`, `ProtectedRoute.tsx`; `services/authService.ts`; `utils/authStorage.ts` |
 | Scheduling | `features/scheduling/SchedulingPage.tsx`; `services/schedulingService.ts` |
-| Consultation requests | Consultation Requests page with a ClinicManager "Assign Veterinarian" action |
+| Consultation requests | Consultation Requests page with a ClinicManager "Assign Veterinarian" action plus advisory AI panels — "AI Consultation Analysis" (`GET /api/consultations/{id}/analysis`) and "AI Scheduling Plan" (`GET /api/consultations/{id}/scheduling-plan`), CM/Admin only |
 | Vet appointments | `/vet/appointments` — "My Appointments" page (`GET /api/appointments/mine`) |
 | Billing | `features/billing/BillingPage.tsx` (shows payment status); `services/billingService.ts` |
-| Inventory | `/inventory/requests` (Medicine Requests queue — issue/unavailable), `/inventory/bills` (Bills & Payments with "Mark as Paid") |
+| Inventory | `/inventory/requests` (Medicine Requests queue — issue/unavailable + advisory "AI Plan" via `GET /api/prescriptions/treatment/{id}/inventory-plan`), `/inventory/bills` (Bills & Payments with "Mark as Paid") |
 | Manager | `/manager/staff` (Staff Accounts), `/manager/vets` (Veterinarian History) |
 | Pet owner | `PetOwnerDashboard` — "My Appointments" + "My Bills" cards |
 | Approval | `features/approvals/ApprovalPage.tsx`; `services/approvalService.ts` |
-| AI workflows | `features/ai-workflows/AIWorkflowsPage.tsx` — **UI only, no agent implementation** |
+| AI assistance | Advisory panels integrated per-workflow (manager consultation analysis + scheduling plan, vet "AI Assist" on examinations, inventory-officer "AI Plan" on medicine requests) — backed by `agentic-service` via `IAgenticClient`; the former mock `/ai-workflows` monitor page was removed |
 | Maps / location | `lib/googleMaps.ts` (script loader + `directionsUrl`), `features/shared/maps/LocationPickerMap.tsx` (org registration: search → pin → confirm; retryable notice on load failure), `features/shared/maps/ClinicMap.tsx` (owner booking; card fallback); optional Maps key via `.env.example` |
 | API boundary | `services/api.ts` — `ApiError` class, `apiRequest` helper, attaches `Authorization: Bearer` header |
 
@@ -156,7 +159,7 @@ Flutter is used as the Pet Owner mobile application. Pet Owners can register/log
 | Approval | `features/approval/` — approvals page, detail page, history page, provider, service, model — retained but unreachable from the owner app |
 | Theming | `core/theme/app_colors.dart` + `core/theme/app_theme.dart` (Beacon Pet Health tokens — petcareYellow `#FFBE00` / black `#111111` / cream `#FAFAE9`, semantic badge colours, card/input/button/navbar theming); `core/widgets/` — `AppCard`, `StatusBadge`, `AppEmptyState`, `AppErrorState`, `AppLoading`, `SectionHeader`, `DetailRow`, `BrandLogoTile`/`BrandLockup` shared UI primitives |
 
-Google Maps is used for map visualization, clinic selection and directions. Bookable clinics are the active organizations registered in the PetCare system. The map requires a local `YOUR_GOOGLE_MAPS_API_KEY` → real key substitution in `android/app/src/main/AndroidManifest.xml`; the clinic list works without it.
+Google Maps is used for map visualization, clinic selection and directions. Bookable clinics are the active organizations registered in the PetCare system. The key is build-time injected — Android reads `GOOGLE_MAPS_API_KEY` from gitignored `android/local.properties` via a Gradle manifest placeholder; Flutter web injects the Maps JS SDK from `--dart-define` (`tool/flutter_web.ps1` feeds it from `local.properties`/env). Without a key the clinic list still works.
 
 State management uses the Provider pattern. `ApiClient` attaches the Bearer token and triggers `AuthProvider.logout` on 401 responses.
 
@@ -258,8 +261,7 @@ All entities below are confirmed in `PetCare.Domain/Entities/` and mapped via EF
 | Flutter mobile — PetOwner app (register/login, pets, clinic-map booking, appointments, bills, profile) | **Implemented** |
 | Flutter mobile — Auth, Provider state management | **Implemented** |
 | GitHub Actions backend CI workflow | **Implemented** (local verification; hosted run pending) |
-| AI Workflows page (React) | **UI only** — no agent, model, or orchestration implementation |
-| Agentic AI backend service | **Not implemented** |
+| Agentic AI advisory integration (diagnosis, consultation, scheduling, inventory agents) | **Implemented** — `agentic-service/` FastAPI + LangGraph + Gemini proxied via `IAgenticClient` (`X-Internal-Key` + caller-JWT forwarding); all four advisory surfaces live in the React staff UI |
 | Android runtime verification | **Pending** — no emulator/device available |
 | GitHub-hosted Actions run | **Pending** — workflow targets `main` push/PR events |
 
@@ -267,7 +269,7 @@ All entities below are confirmed in `PetCare.Domain/Entities/` and mapped via EF
 
 ## 10. Integration
 
-Both the React web application and the Flutter mobile application communicate exclusively with the same ASP.NET Core Web API. No client performs direct PostgreSQL access. The backend is authoritative for all business rules, persistence, and transactions. The API base URLs are:
+Both the React web application and the Flutter mobile application communicate exclusively with the same ASP.NET Core Web API. No client performs direct PostgreSQL access, and no client talks to `agentic-service` directly — the API proxies all advisory agent calls through `IAgenticClient` (internal `X-Internal-Key` shared secret; the caller's JWT is forwarded so agent data reads stay role/organization-scoped). The backend is authoritative for all business rules, persistence, and transactions; the agents are advisory only. The API base URLs are:
 
 - React: `VITE_API_BASE_URL` (defaults to `http://localhost:5080/api`)
 - Flutter: `ApiConfig.baseUrl` (defaults to `http://10.0.2.2:5080/api` for the Android emulator loopback)

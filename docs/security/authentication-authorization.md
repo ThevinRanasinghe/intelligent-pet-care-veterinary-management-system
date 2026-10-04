@@ -147,7 +147,7 @@ All authorization attributes reference the `Roles` constants — no role strings
 | `POST /api/medicine-reservations/{id}/dispense` | — | InventoryOfficer, Administrator |
 | `/api/pets`, `/api/petowners` (GET) | PetOwner (own only) + Veterinarian, ClinicManager, Administrator | — |
 | `POST|PUT|DELETE /api/pets`, `POST /api/pets/{id}/archive`, `/restore`, `POST /api/petowners` | — | PetOwner (own only) + ClinicManager, Administrator |
-| `/api/consultations` (GET) | PetOwner (own only) + Veterinarian, ClinicManager, Administrator | — |
+| `/api/consultations` (GET) | PetOwner (own only) + ClinicManager, Administrator | — |
 | `POST|PUT /api/consultations`, `/submit`, `/cancel` | — | PetOwner (own only) + ClinicManager, Administrator |
 | `POST /api/consultations/{id}/assign` | — | **ClinicManager, Administrator only** (creates slot + Confirmed appointment) |
 | `POST /api/consultations/follow-up` | — | **Veterinarian, Administrator** |
@@ -156,6 +156,18 @@ All authorization attributes reference the `Roles` constants — no role strings
 | `GET /api/lookups/medicines` | Veterinarian, ClinicManager, InventoryOfficer, Administrator | — |
 | `GET /api/lookups/organizations` | Any authenticated user (Active orgs incl. coordinates — booking map source) | — |
 | `/api/manager/veterinarians`, `/veterinarians/{id}/history` | **ClinicManager only** (class-level authorize) | — |
+| `GET /api/consultations/{id}/analysis`, `/{id}/scheduling-plan` | **ClinicManager, Administrator only** (advisory AI proxies to agentic-service) | — |
+| `GET /api/examinations/{id}/recommendations` | Veterinarian, ClinicManager, Administrator (advisory AI) | — |
+| `GET /api/prescriptions/treatment/{id}/inventory-plan` | **InventoryOfficer, Administrator only** (advisory AI) | — |
+
+### Agentic service security boundary
+
+The `agentic-service` (FastAPI) is **internal-only** and never directly exposed to browsers:
+
+- Every `POST /api/agents/*` endpoint requires the `X-Internal-Key` header matching `AGENTIC_INTERNAL_KEY` — a shared secret configured on both sides (API: `AgenticService:InternalKey` / `PETCARE_AGENTIC_INTERNAL_KEY` env). Requests without it fail; agent endpoints return 503 while the key is unset on the service.
+- The ASP.NET API is the only caller. It forwards the caller's `Authorization` bearer token on the agent's backend data reads, so all role and organization scoping is enforced by the existing PetCare API authorization — the agent inherits, never widens, the caller's access.
+- No CORS middleware is registered on the service; only `/health` is unauthenticated.
+- Agents are read-only against the backend API and perform no writes.
 
 Scope notes by role:
 

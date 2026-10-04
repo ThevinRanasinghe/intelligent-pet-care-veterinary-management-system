@@ -10,7 +10,7 @@ Intended deployment architecture for PetCare AI. **Status: not yet deployed** �
 | React web | [TO BE DEPLOYED] | `[LIVE URL]` |
 | Flutter mobile | `[APK TO BE GENERATED]` | distributed build artifact |
 | PostgreSQL | **DEPLOYED** — Supabase | `aws-0-ap-southeast-2.pooler.supabase.com` (database `postgres`) |
-| Agentic AI service | `[CURRENT SETUP TO BE DOCUMENTED]` | no AI backend exists yet |
+| Agentic AI service | [TO BE DEPLOYED] | internal-only FastAPI service (`agentic-service/`, `python main.py`, port `PORT`/8000) — must be reachable by the API but not publicly exposed |
 
 ## Architecture
 
@@ -20,6 +20,10 @@ Flutter app (APK, direct device install)
         │   HTTPS + Bearer JWT
         ▼
 ASP.NET Core API  ──►  Supabase PostgreSQL (shared, pooled)
+        │
+        │  IAgenticClient: X-Internal-Key + forwarded caller JWT
+        ▼
+Agentic AI service (FastAPI + LangGraph → Gemini; internal-only, no CORS)
 ```
 
 Single shared database for web + mobile (assignment requirement). All clients authenticate against the same `/api/auth/login` and carry the same JWT contract.
@@ -36,6 +40,10 @@ Single shared database for web + mobile (assignment requirement). All clients au
 | `VITE_API_BASE_URL` | web build-time env → deployed API URL |
 | `VITE_GOOGLE_MAPS_API_KEY` | web build-time env — enables `LocationPickerMap`/`ClinicMap`; **optional** — without it the registration picker shows a retryable "temporarily unavailable" notice and the booking map falls back to plain clinic cards; registration + booking still work (see `frontend/web/.env.example`) |
 | `API_BASE_URL` | mobile `--dart-define` at build time |
+| `GOOGLE_MAPS_API_KEY` | mobile — `android/local.properties` (manifest placeholder) or `--dart-define` for Flutter web; optional, list fallback without it |
+| `AgenticService:BaseUrl` | API config — base URL of the deployed agentic service (e.g. `http://agentic-host:8000`) |
+| `AgenticService:InternalKey` / env `PETCARE_AGENTIC_INTERNAL_KEY` | shared secret sent as `X-Internal-Key` to the agentic service — secret, never committed |
+| `GEMINI_API_KEY`, `AGENTIC_INTERNAL_KEY`, `API_BASE_URL`, `GEMINI_MODEL`, `BACKEND_TIMEOUT_SECONDS`, `PORT` | agentic-service env (see `agentic-service/.env.example`) — `AGENTIC_INTERNAL_KEY` must match the API-side key |
 
 ## Secrets handling
 
