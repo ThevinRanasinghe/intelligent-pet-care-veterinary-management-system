@@ -17,6 +17,7 @@ import {
   consultationService,
   petService,
   ownerService,
+  ConsultationAnalysisApi,
   ConsultationRequestApi,
   ConsultationStatusHistoryApi,
   Pet,
@@ -252,6 +253,14 @@ export function ConsultationRequestsPage() {
   const [isAssigning, setIsAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
 
+  /* ------------------------------------------------------------------------ */
+  /* AI Consultation Analysis (advisory, ClinicManager/Admin only)              */
+  /* ------------------------------------------------------------------------ */
+
+  const [analysis, setAnalysis] = useState<ConsultationAnalysisApi | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+
   /* ======================================================================== */
   /* Load Consultations                                                       */
   /* ======================================================================== */
@@ -451,6 +460,9 @@ export function ConsultationRequestsPage() {
     try {
       setDetailsError("");
       setSubmitError("");
+
+      setAnalysis(null);
+      setAnalysisError("");
 
       setSelectedConsultation(null);
 
@@ -742,6 +754,29 @@ export function ConsultationRequestsPage() {
   };
 
   /* ======================================================================== */
+  /* AI CONSULTATION ANALYSIS (ADVISORY)                                       */
+  /* ======================================================================== */
+
+  const handleRunAnalysis = async () => {
+    if (!selectedConsultation || !canAssignVeterinarian) return;
+
+    try {
+      setIsAnalyzing(true);
+      setAnalysisError("");
+      setAnalysis(null);
+
+      const result = await consultationService.getConsultationAnalysis(
+        selectedConsultation.id,
+      );
+      setAnalysis(result);
+    } catch (error) {
+      setAnalysisError(messageFrom(error));
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  /* ======================================================================== */
   /* CLOSE DETAILS                                                            */
   /* ======================================================================== */
 
@@ -750,7 +785,8 @@ export function ConsultationRequestsPage() {
       isLoadingDetails ||
       isSubmittingConsultation ||
       isCancellingConsultation ||
-      isAssigning
+      isAssigning ||
+      isAnalyzing
     ) {
       return;
     }
@@ -774,6 +810,9 @@ export function ConsultationRequestsPage() {
     setAssignSlotStart(null);
     setAssignSlots(null);
     setAssignNotes("");
+
+    setAnalysis(null);
+    setAnalysisError("");
   };
 
   /* ======================================================================== */
@@ -1731,6 +1770,205 @@ export function ConsultationRequestsPage() {
                   </div>
 
                   {/* ==================================================== */}
+                  {/* AI CONSULTATION ANALYSIS PANEL (advisory)              */}
+                  {/* ==================================================== */}
+
+                  {canAssignVeterinarian &&
+                    (isAnalyzing || analysisError || analysis) && (
+                      <div
+                        style={{
+                          marginBottom: "18px",
+                          padding: "16px",
+                          border: "1px solid #e8e8e2",
+                          borderRadius: "10px",
+                          background: "#fafaf7",
+                        }}
+                      >
+                        <div
+                          style={{
+                            marginBottom: "4px",
+                            fontSize: "11px",
+                            fontWeight: 800,
+                            color: "#333333",
+                          }}
+                        >
+                          AI Consultation Analysis
+                        </div>
+                        <div
+                          style={{
+                            marginBottom: "12px",
+                            fontSize: "10px",
+                            color: "#888888",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          AI-generated preliminary consultation analysis —
+                          manager/veterinarian review required. Advisory only;
+                          it does not change the request.
+                        </div>
+
+                        {isAnalyzing && (
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#666666",
+                            }}
+                          >
+                            Analyzing consultation…
+                          </div>
+                        )}
+
+                        {!isAnalyzing && analysisError && (
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#b42318",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            AI consultation analysis is currently unavailable.
+                            You can continue the normal review and assignment.
+                            {` (${analysisError})`}
+                          </div>
+                        )}
+
+                        {!isAnalyzing &&
+                          !analysisError &&
+                          analysis &&
+                          (analysis.source === "unavailable" ? (
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#666666",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              AI consultation analysis is currently
+                              unavailable. You can continue the normal review
+                              and assignment.
+                            </div>
+                          ) : (
+                            <div
+                              style={{
+                                display: "grid",
+                                gap: "10px",
+                                fontSize: "12px",
+                                color: "#444444",
+                                lineHeight: 1.6,
+                              }}
+                            >
+                              <div style={{ display: "flex", gap: "8px" }}>
+                                <span
+                                  style={{
+                                    padding: "2px 10px",
+                                    borderRadius: "999px",
+                                    border: "1px solid #d8d8d2",
+                                    background: "#ffffff",
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Priority: {analysis.priority}
+                                </span>
+                                <span
+                                  style={{
+                                    padding: "2px 10px",
+                                    borderRadius: "999px",
+                                    border: "1px solid #d8d8d2",
+                                    background: "#ffffff",
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Type: {analysis.consultationType}
+                                </span>
+                              </div>
+
+                              {analysis.keyConcerns.length > 0 && (
+                                <div>
+                                  <strong>Key concerns</strong>
+                                  <ul
+                                    style={{
+                                      margin: "4px 0 0",
+                                      paddingLeft: "18px",
+                                    }}
+                                  >
+                                    {analysis.keyConcerns.map((item, i) => (
+                                      <li key={i}>
+                                        {item.concern}
+                                        {item.reason
+                                          ? ` — ${item.reason}`
+                                          : ""}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {analysis.recommendedChecks.length > 0 && (
+                                <div>
+                                  <strong>Recommended checks</strong>
+                                  <ul
+                                    style={{
+                                      margin: "4px 0 0",
+                                      paddingLeft: "18px",
+                                    }}
+                                  >
+                                    {analysis.recommendedChecks.map(
+                                      (check, i) => (
+                                        <li key={i}>{check}</li>
+                                      ),
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {analysis.suggestedNextStep && (
+                                <div>
+                                  <strong>Suggested next step: </strong>
+                                  {analysis.suggestedNextStep}
+                                </div>
+                              )}
+
+                              {analysis.disclaimer && (
+                                <div
+                                  style={{
+                                    fontSize: "10px",
+                                    color: "#888888",
+                                  }}
+                                >
+                                  {analysis.disclaimer}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+
+                        {!isAnalyzing && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAnalysis(null);
+                              setAnalysisError("");
+                            }}
+                            style={{
+                              marginTop: "10px",
+                              padding: "5px 12px",
+                              border: "1px solid #d8d8d2",
+                              borderRadius: "7px",
+                              background: "#ffffff",
+                              color: "#444444",
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Dismiss
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                  {/* ==================================================== */}
                   {/* ASSIGN VETERINARIAN PANEL                             */}
                   {/* ==================================================== */}
 
@@ -2201,6 +2439,45 @@ export function ConsultationRequestsPage() {
                 >
                   Close
                 </button>
+
+                {/* ====================================================== */}
+                {/* AI ANALYSIS BUTTON (advisory)                           */}
+                {/* ====================================================== */}
+
+                {selectedConsultation &&
+                  canAssignVeterinarian &&
+                  ["Submitted", "Processing"].includes(
+                    selectedConsultation.status,
+                  ) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleRunAnalysis()}
+                      disabled={
+                        isAnalyzing || isAssigning || isCancellingConsultation
+                      }
+                      style={{
+                        minWidth: "125px",
+                        height: "38px",
+                        padding: "0 16px",
+                        border: "1px solid #d8d8d2",
+                        borderRadius: "8px",
+                        background: "#ffffff",
+                        color: "#171717",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        cursor:
+                          isAnalyzing || isAssigning || isCancellingConsultation
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          isAnalyzing || isAssigning || isCancellingConsultation
+                            ? 0.65
+                            : 1,
+                      }}
+                    >
+                      {isAnalyzing ? "Analyzing..." : "AI Consultation Analysis"}
+                    </button>
+                  )}
 
                 {/* ====================================================== */}
                 {/* ASSIGN VETERINARIAN BUTTON                             */}

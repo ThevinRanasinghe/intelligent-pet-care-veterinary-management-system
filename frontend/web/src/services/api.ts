@@ -140,6 +140,19 @@ export type ConsultationRequestApi = {
   updatedAt: string;
 };
 
+/** Advisory AI triage of a consultation request (manager-facing). */
+export type ConsultationAnalysisApi = {
+  /** "agentic-ai" | "unavailable" — the safe placeholder carries no assessment. */
+  source: string;
+  consultationRequestId: string;
+  priority: string;
+  consultationType: string;
+  keyConcerns: { concern: string; reason: string }[];
+  recommendedChecks: string[];
+  suggestedNextStep: string;
+  disclaimer: string;
+};
+
 export type AssignVeterinarianPayload = {
   veterinarianId: string;
   /** YYYY-MM-DD */
@@ -395,6 +408,17 @@ export const consultationService = {
       {
         method: "PATCH",
       },
+    ),
+
+  /**
+   * Advisory AI triage of a consultation request — informational only;
+   * never changes the request. Source "unavailable" means the agent
+   * could not produce an assessment.
+   * GET /api/consultations/{id}/analysis (ClinicManager/Admin)
+   */
+  getConsultationAnalysis: (id: string) =>
+    apiRequest<ConsultationAnalysisApi>(
+      `/consultations/${encodeURIComponent(id)}/analysis`,
     ),
 
   /**

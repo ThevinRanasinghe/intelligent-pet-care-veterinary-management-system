@@ -310,6 +310,30 @@ public class ConsultationRequestsController : ControllerBase
     }
 
     // ============================================================
+    // AI CONSULTATION ANALYSIS (ADVISORY)
+    // GET: api/consultations/{id}/analysis
+    // ============================================================
+    /// <summary>
+    /// Advisory AI triage of a consultation request for the reviewing
+    /// clinic manager. Read-only: the caller's bearer token is forwarded
+    /// to the agentic service so the agent's backend reads keep the
+    /// caller's role and organization scope. Nothing is persisted — the
+    /// manager still reviews and assigns manually. Agent unavailability
+    /// returns Source="unavailable" rather than blocking the workflow.
+    /// </summary>
+    [HttpGet("{id}/analysis")]
+    [Authorize(Roles = AssignRoles)]
+    public async Task<ActionResult<ConsultationAnalysisDto>> GetAnalysis(
+        string id)
+    {
+        var bearerToken = Request.Headers.Authorization.ToString();
+        var analysis =
+            await _consultationRequestService.GetAnalysisAsync(
+                id, bearerToken);
+        return Ok(analysis);
+    }
+
+    // ============================================================
     // GET CONSULTATION STATUS HISTORY
     // GET: api/consultations/{id}/history
     // ============================================================

@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from shared.backend import BackendApiError
 from shared.config import ConfigurationError
-from shared.llm import content_to_text, extract_json_object, get_llm
+from shared.llm import content_to_text, extract_json_object, get_llm, is_non_retryable_error
 
 from .models import AgentState, ConsultationAssessment, get_safe_fallback
 from .tools import fetch_consultation_details, fetch_previous_history
@@ -128,6 +128,8 @@ def fallback_node(state: AgentState) -> AgentState:
 def route_after_validation(state: AgentState) -> str:
     if state.get("assessment") is not None:
         return "end"
+    if is_non_retryable_error(state.get("error")):
+        return "fallback"
     if state["retry_count"] < 2:
         return "retry"
     return "fallback"

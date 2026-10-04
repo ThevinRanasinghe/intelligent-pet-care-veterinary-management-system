@@ -27,6 +27,10 @@ def get_llm() -> ChatGoogleGenerativeAI:
             model=get_gemini_model(),
             temperature=0.0,
             api_key=api_key,
+            # Keep a couple of in-client retries for transient 5xx/network
+            # blips, but don't burn ~35s of exponential backoff on quota
+            # errors that cannot recover inside a single request window.
+            max_retries=2,
         )
     return _llm
 
@@ -53,6 +57,27 @@ def content_to_text(content) -> str:
 
 
 _JSON_OBJECT_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
+
+# Errors that can never succeed on an immediate in-graph retry: a
+# rate-limited/quota-exhausted key stays limited for the whole request
+# window, and a missing key fails on every call. Retrying these just
+# burns the shared Gemini quota and delays the safe fallback.
+_NON_RETRYABLE_MARKERS = (
+    "ratelimit",
+    "rate_limit",
+    "resourceexhausted",
+    "quota",
+    "429",
+    "not_configured",
+)
+
+
+def is_non_retryable_error(error: Optional[str]) -> bool:
+    """True for errors where an immediate retry cannot help."""
+    if not error:
+        return False
+    lowered = error.lower()
+    return any(marker in lowered for marker in _NON_RETRYABLE_MARKERS)
 
 
 def extract_json_object(text: str) -> Optional[str]:

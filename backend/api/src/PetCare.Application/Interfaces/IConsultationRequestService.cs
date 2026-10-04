@@ -28,6 +28,18 @@ public interface IConsultationRequestService
     Task<List<ConsultationStatusHistoryDto>> GetStatusHistoryAsync(
         string consultationId);
 
+    /// <summary>
+    /// Advisory AI triage of a consultation request via the agentic
+    /// consultation agent. Read-only: the caller's bearer token is
+    /// forwarded so the agent's backend reads keep the caller's
+    /// organization scope. Never returns null — failures produce a safe
+    /// DTO marked Source="unavailable" so the review workflow is never
+    /// blocked.
+    /// </summary>
+    Task<ConsultationAnalysisDto> GetAnalysisAsync(
+        string id,
+        string? bearerToken = null);
+
     Task<bool> ValidateOwnershipAsync(
         string petId,
         string ownerId);

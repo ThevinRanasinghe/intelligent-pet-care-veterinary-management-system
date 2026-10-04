@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PetCare.Application.DTOs.Consultations;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Constants;
 using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
+using System.Text.Json;
 
 namespace PetCare.Infrastructure.Services;
 
@@ -12,13 +14,19 @@ public class ConsultationRequestService : IConsultationRequestService
 {
     private readonly IPetCareDbContext _context;
     private readonly ITenantContext _tenant;
+    private readonly IAgenticClient? _agenticClient;
+    private readonly ILogger<ConsultationRequestService>? _logger;
 
     public ConsultationRequestService(
         IPetCareDbContext context,
-        ITenantContext tenant)
+        ITenantContext tenant,
+        IAgenticClient? agenticClient = null,
+        ILogger<ConsultationRequestService>? logger = null)
     {
         _context = context;
         _tenant = tenant;
+        _agenticClient = agenticClient;
+        _logger = logger;
     }
 
     // =========================================================
@@ -671,6 +679,115 @@ public class ConsultationRequestService : IConsultationRequestService
 
         return query.Where(x => x.OrganizationId == organizationId);
     }
+
+    // =========================================================
+    // AI CONSULTATION ANALYSIS (ADVISORY)
+    // =========================================================
+    /// <summary>
+    /// Advisory AI triage via the agentic consultation agent. The agent
+    /// analyses the request over the existing API; its output is
+    /// validated and mapped to the analysis contract. Nothing is
+    /// persisted — the manager reviews and continues the manual
+    /// workflow. Any agent failure returns a safe placeholder marked
+    /// Source="unavailable" so request review is never blocked.
+    /// </summary>
+    public async Task<ConsultationAnalysisDto> GetAnalysisAsync(
+        string id,
+        string? bearerToken = null)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return UnavailableAnalysis(string.Empty);
+
+        var consultation = await _context.ConsultationRequests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id.Trim());
+
+        // Foreign-organization and unknown requests get the same
+        // unavailable response — the endpoint never leaks existence.
+        if (consultation == null ||
+            !await CanAccessAsync(consultation) ||
+            _agenticClient == null)
+        {
+            return UnavailableAnalysis(id.Trim());
+        }
+
+        var result = await _agenticClient.AnalyzeConsultationAsync(
+            consultation.Id, bearerToken);
+
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Content))
+            return UnavailableAnalysis(consultation.Id);
+
+        ConsultationAnalysisDto? analysis;
+        try
+        {
+            analysis = JsonSerializer.Deserialize<ConsultationAnalysisDto>(
+                result.Content);
+        }
+        catch (JsonException)
+        {
+            _logger?.LogWarning(
+                "Consultation agent returned malformed JSON for request {ConsultationId}",
+                consultation.Id);
+            return UnavailableAnalysis(consultation.Id);
+        }
+
+        if (analysis == null ||
+            string.IsNullOrWhiteSpace(analysis.SuggestedNextStep))
+        {
+            return UnavailableAnalysis(consultation.Id);
+        }
+
+        return new ConsultationAnalysisDto
+        {
+            Source = "agentic-ai",
+            ConsultationRequestId = consultation.Id,
+            Priority = NormalizeAnalysisValue(
+                analysis.Priority,
+                new[] { "Low", "Moderate", "High", "Emergency" },
+                "Moderate"),
+            ConsultationType = NormalizeAnalysisValue(
+                analysis.ConsultationType,
+                new[] { "Routine", "Urgent", "Emergency" },
+                "Routine"),
+            KeyConcerns = (analysis.KeyConcerns ?? new())
+                .Where(c => !string.IsNullOrWhiteSpace(c.Concern))
+                .Select(c => new ConsultationKeyConcernDto
+                {
+                    Concern = c.Concern.Trim(),
+                    Reason = c.Reason?.Trim() ?? string.Empty
+                })
+                .ToList(),
+            RecommendedChecks = CleanAnalysisList(
+                analysis.RecommendedChecks),
+            SuggestedNextStep = analysis.SuggestedNextStep.Trim(),
+            Disclaimer =
+                "Preliminary AI consultation assessment — requires veterinary review and confirmation."
+        };
+    }
+
+    private static ConsultationAnalysisDto UnavailableAnalysis(
+        string consultationId) => new()
+    {
+        Source = "unavailable",
+        ConsultationRequestId = consultationId,
+        Disclaimer =
+            "AI consultation analysis is currently unavailable — continue the normal review and assignment workflow."
+    };
+
+    private static string NormalizeAnalysisValue(
+        string? value, string[] allowed, string fallback)
+    {
+        var match = allowed.FirstOrDefault(a =>
+            string.Equals(a, value?.Trim(), StringComparison.OrdinalIgnoreCase));
+        return match ?? fallback;
+    }
+
+    private static List<string> CleanAnalysisList(
+        IEnumerable<string>? values) =>
+        (values ?? Enumerable.Empty<string>())
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v.Trim())
+            .ToList();
 
     /// <summary>Foreign-organization requests are invisible to scoped staff.</summary>
     private async Task<bool> CanAccessAsync(
