@@ -183,6 +183,40 @@ async def test_conflict_check_failure_is_not_treated_as_free(monkeypatch):
     assert result["assessment"].confidence == "Low"
 
 
+@pytest.mark.asyncio
+async def test_rate_limit_is_not_retried(monkeypatch):
+    """A 429/quota error can never recover inside one request — the graph
+    must take the fast-path to the fallback after a single LLM call
+    instead of burning the shared quota on doomed retries."""
+
+    class GoogleRateLimitError(Exception):
+        pass
+
+    class RateLimitedLLM:
+        def __init__(self):
+            self.calls = 0
+
+        async def ainvoke(self, messages):
+            self.calls += 1
+            raise GoogleRateLimitError("429 RESOURCE_EXHAUSTED quota")
+
+    async def fake_consultation(rid, token=None):
+        return {"id": rid}
+
+    async def fake_slots(token=None, veterinarian_id=None, date=None):
+        return []
+
+    llm = RateLimitedLLM()
+    monkeypatch.setattr(scheduling, "fetch_consultation_request", fake_consultation)
+    monkeypatch.setattr(scheduling, "fetch_available_slots", fake_slots)
+    monkeypatch.setattr(shared_llm, "_llm", llm)
+
+    result = await scheduling.scheduling_agent_app.ainvoke(_state({"request_id": "r1"}))
+    assert llm.calls == 1  # fast-path — no wasted retries on a quota error
+    assert result["assessment"] is not None
+    assert result["assessment"].confidence == "Low"
+
+
 # --- inventory agent --------------------------------------------------------
 
 _INVENTORY_LLM = """

@@ -334,6 +334,32 @@ public class ConsultationRequestsController : ControllerBase
     }
 
     // ============================================================
+    // AI SCHEDULING PLAN (ADVISORY)
+    // GET: api/consultations/{id}/scheduling-plan
+    // ============================================================
+    /// <summary>
+    /// Advisory AI scheduling/quotation proposal for the reviewing
+    /// clinic manager. Read-only: the caller's bearer token is forwarded
+    /// to the agentic service so the agent's backend reads keep the
+    /// caller's role and organization scope. Nothing is persisted or
+    /// booked — the manager still selects and assigns manually, and the
+    /// assign endpoint performs the authoritative slot/conflict
+    /// validation. Agent unavailability returns Source="unavailable"
+    /// rather than blocking scheduling.
+    /// </summary>
+    [HttpGet("{id}/scheduling-plan")]
+    [Authorize(Roles = AssignRoles)]
+    public async Task<ActionResult<SchedulingPlanDto>> GetSchedulingPlan(
+        string id)
+    {
+        var bearerToken = Request.Headers.Authorization.ToString();
+        var plan =
+            await _consultationRequestService.GetSchedulingPlanAsync(
+                id, bearerToken);
+        return Ok(plan);
+    }
+
+    // ============================================================
     // GET CONSULTATION STATUS HISTORY
     // GET: api/consultations/{id}/history
     // ============================================================

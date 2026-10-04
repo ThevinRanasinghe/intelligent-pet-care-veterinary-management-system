@@ -40,6 +40,17 @@ public interface IConsultationRequestService
         string id,
         string? bearerToken = null);
 
+    /// <summary>
+    /// Advisory AI scheduling/quotation proposal via the agentic
+    /// scheduling agent. Read-only: the caller's bearer token is
+    /// forwarded so the agent's backend reads keep the caller's
+    /// organization scope. Never returns null — failures produce a safe
+    /// DTO marked Source="unavailable" so scheduling is never blocked.
+    /// </summary>
+    Task<SchedulingPlanDto> GetSchedulingPlanAsync(
+        string id,
+        string? bearerToken = null);
+
     Task<bool> ValidateOwnershipAsync(
         string petId,
         string ownerId);

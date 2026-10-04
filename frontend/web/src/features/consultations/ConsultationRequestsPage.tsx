@@ -18,6 +18,7 @@ import {
   petService,
   ownerService,
   ConsultationAnalysisApi,
+  SchedulingPlanApi,
   ConsultationRequestApi,
   ConsultationStatusHistoryApi,
   Pet,
@@ -261,6 +262,15 @@ export function ConsultationRequestsPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
 
+  /* ------------------------------------------------------------------------ */
+  /* AI Scheduling Plan (advisory, ClinicManager/Admin only)                   */
+  /* ------------------------------------------------------------------------ */
+
+  const [schedulingPlan, setSchedulingPlan] =
+    useState<SchedulingPlanApi | null>(null);
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [planError, setPlanError] = useState("");
+
   /* ======================================================================== */
   /* Load Consultations                                                       */
   /* ======================================================================== */
@@ -463,6 +473,9 @@ export function ConsultationRequestsPage() {
 
       setAnalysis(null);
       setAnalysisError("");
+
+      setSchedulingPlan(null);
+      setPlanError("");
 
       setSelectedConsultation(null);
 
@@ -777,6 +790,29 @@ export function ConsultationRequestsPage() {
   };
 
   /* ======================================================================== */
+  /* AI SCHEDULING PLAN (ADVISORY)                                             */
+  /* ======================================================================== */
+
+  const handleRunSchedulingPlan = async () => {
+    if (!selectedConsultation || !canAssignVeterinarian) return;
+
+    try {
+      setIsPlanning(true);
+      setPlanError("");
+      setSchedulingPlan(null);
+
+      const result = await consultationService.getSchedulingPlan(
+        selectedConsultation.id,
+      );
+      setSchedulingPlan(result);
+    } catch (error) {
+      setPlanError(messageFrom(error));
+    } finally {
+      setIsPlanning(false);
+    }
+  };
+
+  /* ======================================================================== */
   /* CLOSE DETAILS                                                            */
   /* ======================================================================== */
 
@@ -786,7 +822,8 @@ export function ConsultationRequestsPage() {
       isSubmittingConsultation ||
       isCancellingConsultation ||
       isAssigning ||
-      isAnalyzing
+      isAnalyzing ||
+      isPlanning
     ) {
       return;
     }
@@ -813,6 +850,9 @@ export function ConsultationRequestsPage() {
 
     setAnalysis(null);
     setAnalysisError("");
+
+    setSchedulingPlan(null);
+    setPlanError("");
   };
 
   /* ======================================================================== */
@@ -1992,6 +2032,327 @@ export function ConsultationRequestsPage() {
                       >
                         Assign Veterinarian
                       </div>
+
+                      {/* ---------------------------------------------- */}
+                      {/* AI SCHEDULING ANALYSIS (advisory)                */}
+                      {/* ---------------------------------------------- */}
+
+                      <button
+                        type="button"
+                        onClick={() => void handleRunSchedulingPlan()}
+                        disabled={isPlanning || isAssigning}
+                        style={{
+                          marginBottom: "12px",
+                          height: "32px",
+                          padding: "0 14px",
+                          border: "1px solid #d8d8d2",
+                          borderRadius: "8px",
+                          background: "#ffffff",
+                          color: "#171717",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          cursor:
+                            isPlanning || isAssigning
+                              ? "not-allowed"
+                              : "pointer",
+                          opacity: isPlanning || isAssigning ? 0.65 : 1,
+                        }}
+                      >
+                        {isPlanning
+                          ? "Analyzing scheduling…"
+                          : "AI Scheduling Analysis"}
+                      </button>
+
+                      {(isPlanning || planError || schedulingPlan) && (
+                        <div
+                          style={{
+                            marginBottom: "14px",
+                            padding: "14px",
+                            border: "1px solid #e8e8e2",
+                            borderRadius: "10px",
+                            background: "#ffffff",
+                          }}
+                        >
+                          <div
+                            style={{
+                              marginBottom: "4px",
+                              fontSize: "11px",
+                              fontWeight: 800,
+                              color: "#333333",
+                            }}
+                          >
+                            AI Scheduling Analysis
+                          </div>
+                          <div
+                            style={{
+                              marginBottom: "10px",
+                              fontSize: "10px",
+                              color: "#888888",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            AI-generated scheduling assistance — final
+                            availability and appointment rules are determined
+                            by the PetCare scheduling system. Advisory only;
+                            nothing is booked automatically.
+                          </div>
+
+                          {isPlanning && (
+                            <div
+                              style={{ fontSize: "12px", color: "#666666" }}
+                            >
+                              Analyzing scheduling information…
+                            </div>
+                          )}
+
+                          {!isPlanning && planError && (
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#b42318",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              AI scheduling analysis is currently
+                              unavailable. You can continue scheduling
+                              normally.
+                              {` (${planError})`}
+                            </div>
+                          )}
+
+                          {!isPlanning &&
+                            !planError &&
+                            schedulingPlan &&
+                            (schedulingPlan.source === "unavailable" ? (
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#666666",
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                AI scheduling analysis is currently
+                                unavailable. You can continue scheduling
+                                normally.
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gap: "10px",
+                                  fontSize: "12px",
+                                  color: "#444444",
+                                  lineHeight: 1.6,
+                                }}
+                              >
+                                <div
+                                  style={{ display: "flex", gap: "8px" }}
+                                >
+                                  <span
+                                    style={{
+                                      padding: "2px 10px",
+                                      borderRadius: "999px",
+                                      border: "1px solid #d8d8d2",
+                                      background: "#fafaf7",
+                                      fontSize: "11px",
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Confidence: {schedulingPlan.confidence}
+                                  </span>
+                                </div>
+
+                                {schedulingPlan.recommendedAppointment && (
+                                  <div>
+                                    <strong>Suggested appointment</strong>
+                                    <div
+                                      style={{
+                                        marginTop: "4px",
+                                        padding: "10px 12px",
+                                        border: "1px solid #e8e8e2",
+                                        borderRadius: "8px",
+                                        background: "#fafaf7",
+                                      }}
+                                    >
+                                      {schedulingPlan.recommendedAppointment
+                                        .date.substring(0, 10)}{" "}
+                                      {
+                                        schedulingPlan.recommendedAppointment
+                                          .startTime
+                                      }
+                                      {schedulingPlan.recommendedAppointment
+                                        .endTime
+                                        ? ` – ${schedulingPlan.recommendedAppointment.endTime}`
+                                        : ""}
+                                      {schedulingPlan.recommendedAppointment
+                                        .branch
+                                        ? ` — ${schedulingPlan.recommendedAppointment.branch}`
+                                        : ""}
+                                      {schedulingPlan.recommendedAppointment
+                                        .reason && (
+                                        <div
+                                          style={{
+                                            marginTop: "4px",
+                                            fontSize: "11px",
+                                            color: "#777777",
+                                          }}
+                                        >
+                                          {
+                                            schedulingPlan
+                                              .recommendedAppointment.reason
+                                          }
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {schedulingPlan.alternativeSlots.length >
+                                  0 && (
+                                  <div>
+                                    <strong>Alternative slots</strong>
+                                    <ul
+                                      style={{
+                                        margin: "4px 0 0",
+                                        paddingLeft: "18px",
+                                      }}
+                                    >
+                                      {schedulingPlan.alternativeSlots.map(
+                                        (slot, i) => (
+                                          <li key={i}>
+                                            {slot.date.substring(0, 10)}{" "}
+                                            {slot.startTime}
+                                            {slot.endTime
+                                              ? ` – ${slot.endTime}`
+                                              : ""}
+                                            {slot.branch
+                                              ? ` — ${slot.branch}`
+                                              : ""}
+                                            {slot.reason
+                                              ? ` (${slot.reason})`
+                                              : ""}
+                                          </li>
+                                        ),
+                                      )}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                <div>
+                                  <strong>Scheduling checks</strong>
+                                  <ul
+                                    style={{
+                                      margin: "4px 0 0",
+                                      paddingLeft: "18px",
+                                    }}
+                                  >
+                                    <li>
+                                      Slot found:{" "}
+                                      {schedulingPlan.validationSummary
+                                        .slotFound
+                                        ? "Yes"
+                                        : "No"}
+                                    </li>
+                                    <li>
+                                      Veterinarian available:{" "}
+                                      {schedulingPlan.validationSummary
+                                        .veterinarianAvailable
+                                        ? "Yes"
+                                        : "No"}
+                                    </li>
+                                    <li>
+                                      No known conflict:{" "}
+                                      {schedulingPlan.validationSummary
+                                        .noKnownConflict
+                                        ? "Yes"
+                                        : "No"}
+                                    </li>
+                                    <li>
+                                      Within requested time:{" "}
+                                      {schedulingPlan.validationSummary
+                                        .withinRequestedTime
+                                        ? "Yes"
+                                        : "No"}
+                                    </li>
+                                  </ul>
+                                </div>
+
+                                {schedulingPlan.quotationProposal && (
+                                  <div>
+                                    <strong>Estimated quotation</strong>
+                                    <ul
+                                      style={{
+                                        margin: "4px 0 0",
+                                        paddingLeft: "18px",
+                                      }}
+                                    >
+                                      {schedulingPlan.quotationProposal.items.map(
+                                        (item, i) => (
+                                          <li key={i}>
+                                            {item.description} ×
+                                            {item.quantity} — {item.unitPrice}
+                                          </li>
+                                        ),
+                                      )}
+                                    </ul>
+                                    <div style={{ marginTop: "4px" }}>
+                                      Estimated total:{" "}
+                                      {
+                                        schedulingPlan.quotationProposal
+                                          .estimatedTotal
+                                      }
+                                      {schedulingPlan.quotationProposal
+                                        .budget > 0
+                                        ? ` (budget: ${schedulingPlan.quotationProposal.budget} — ${schedulingPlan.quotationProposal.withinBudget ? "within budget" : "over budget"})`
+                                        : ""}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {schedulingPlan.planningNotes && (
+                                  <div>
+                                    <strong>Notes: </strong>
+                                    {schedulingPlan.planningNotes}
+                                  </div>
+                                )}
+
+                                {schedulingPlan.disclaimer && (
+                                  <div
+                                    style={{
+                                      fontSize: "10px",
+                                      color: "#888888",
+                                    }}
+                                  >
+                                    {schedulingPlan.disclaimer}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                          {!isPlanning && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSchedulingPlan(null);
+                                setPlanError("");
+                              }}
+                              style={{
+                                marginTop: "10px",
+                                padding: "5px 12px",
+                                border: "1px solid #d8d8d2",
+                                borderRadius: "7px",
+                                background: "#ffffff",
+                                color: "#444444",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Dismiss
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       <label
                         htmlFor="assign-veterinarian"

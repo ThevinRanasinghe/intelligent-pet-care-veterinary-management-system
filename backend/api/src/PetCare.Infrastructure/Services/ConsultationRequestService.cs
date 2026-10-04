@@ -789,6 +789,153 @@ public class ConsultationRequestService : IConsultationRequestService
             .Select(v => v.Trim())
             .ToList();
 
+    // =========================================================
+    // AI SCHEDULING PLAN (ADVISORY)
+    // =========================================================
+    /// <summary>
+    /// Advisory scheduling/quotation proposal via the agentic scheduling
+    /// agent. The agent analyses the request plus available slots over
+    /// the existing API; the slot/conflict checks it reports were already
+    /// verified against backend data inside the agent. Nothing is
+    /// persisted and nothing is booked — the manager still selects the
+    /// veterinarian/date/slot and the normal assign endpoint performs
+    /// the authoritative validation. Any agent failure returns a safe
+    /// placeholder marked Source="unavailable".
+    /// </summary>
+    public async Task<SchedulingPlanDto> GetSchedulingPlanAsync(
+        string id,
+        string? bearerToken = null)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return UnavailableSchedulingPlan(string.Empty);
+
+        var consultation = await _context.ConsultationRequests
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id.Trim());
+
+        // Foreign-organization and unknown requests get the same
+        // unavailable response — the endpoint never leaks existence.
+        if (consultation == null ||
+            !await CanAccessAsync(consultation) ||
+            _agenticClient == null)
+        {
+            return UnavailableSchedulingPlan(id.Trim());
+        }
+
+        var result = await _agenticClient.PlanSchedulingAsync(
+            consultation.Id, bearerToken);
+
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Content))
+            return UnavailableSchedulingPlan(consultation.Id);
+
+        SchedulingPlanDto? plan;
+        try
+        {
+            plan = JsonSerializer.Deserialize<SchedulingPlanDto>(
+                result.Content);
+        }
+        catch (JsonException)
+        {
+            _logger?.LogWarning(
+                "Scheduling agent returned malformed JSON for request {ConsultationId}",
+                consultation.Id);
+            return UnavailableSchedulingPlan(consultation.Id);
+        }
+
+        // The agent's planningNotes is required by its schema — a payload
+        // without it is not a usable proposal.
+        if (plan == null ||
+            string.IsNullOrWhiteSpace(plan.PlanningNotes))
+        {
+            return UnavailableSchedulingPlan(consultation.Id);
+        }
+
+        return new SchedulingPlanDto
+        {
+            Source = "agentic-ai",
+            RequestId = consultation.Id,
+            RecommendedAppointment = CleanAppointment(
+                plan.RecommendedAppointment),
+            AlternativeSlots = (plan.AlternativeSlots ?? new())
+                .Select(CleanAppointment)
+                .Where(a => a != null)
+                .Cast<SchedulingAppointmentDto>()
+                .ToList(),
+            QuotationProposal = CleanQuotation(plan.QuotationProposal),
+            ValidationSummary = plan.ValidationSummary ?? new(),
+            Confidence = NormalizeAnalysisValue(
+                plan.Confidence,
+                new[] { "Low", "Moderate", "High" },
+                "Low"),
+            PlanningNotes = plan.PlanningNotes.Trim(),
+            Disclaimer =
+                "AI-generated scheduling assistance — final availability and appointment rules are determined by the PetCare scheduling system."
+        };
+    }
+
+    private static SchedulingPlanDto UnavailableSchedulingPlan(
+        string requestId) => new()
+    {
+        Source = "unavailable",
+        RequestId = requestId,
+        Disclaimer =
+            "AI scheduling analysis is currently unavailable — continue the normal scheduling and assignment workflow."
+    };
+
+    /// <summary>
+    /// Trims a proposed slot; returns null when the proposal is missing
+    /// the fields needed to even identify a slot.
+    /// </summary>
+    private static SchedulingAppointmentDto? CleanAppointment(
+        SchedulingAppointmentDto? appointment)
+    {
+        if (appointment == null ||
+            string.IsNullOrWhiteSpace(appointment.Date) ||
+            string.IsNullOrWhiteSpace(appointment.StartTime))
+        {
+            return null;
+        }
+
+        return new SchedulingAppointmentDto
+        {
+            AppointmentSlotId = appointment.AppointmentSlotId?.Trim() ?? string.Empty,
+            VeterinarianId = appointment.VeterinarianId?.Trim() ?? string.Empty,
+            Date = appointment.Date.Trim(),
+            StartTime = appointment.StartTime.Trim(),
+            EndTime = appointment.EndTime?.Trim() ?? string.Empty,
+            Branch = appointment.Branch?.Trim() ?? string.Empty,
+            Reason = appointment.Reason?.Trim() ?? string.Empty
+        };
+    }
+
+    private static SchedulingQuotationDto? CleanQuotation(
+        SchedulingQuotationDto? quotation)
+    {
+        if (quotation == null)
+            return null;
+
+        var items = (quotation.Items ?? new())
+            .Where(i => !string.IsNullOrWhiteSpace(i.Description))
+            .Select(i => new SchedulingQuotationItemDto
+            {
+                Category = i.Category?.Trim() ?? string.Empty,
+                Description = i.Description.Trim(),
+                Quantity = Math.Max(0, i.Quantity),
+                UnitPrice = Math.Max(0m, i.UnitPrice),
+                Reason = i.Reason?.Trim() ?? string.Empty
+            })
+            .ToList();
+
+        return new SchedulingQuotationDto
+        {
+            Budget = Math.Max(0m, quotation.Budget),
+            Items = items,
+            EstimatedSubtotal = Math.Max(0m, quotation.EstimatedSubtotal),
+            EstimatedTotal = Math.Max(0m, quotation.EstimatedTotal),
+            WithinBudget = quotation.WithinBudget
+        };
+    }
+
     /// <summary>Foreign-organization requests are invisible to scoped staff.</summary>
     private async Task<bool> CanAccessAsync(
         ConsultationRequest consultation)

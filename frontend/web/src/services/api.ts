@@ -153,6 +153,54 @@ export type ConsultationAnalysisApi = {
   disclaimer: string;
 };
 
+/** Advisory AI scheduling/quotation proposal (manager-facing). */
+export type SchedulingPlanApi = {
+  /** "agentic-ai" | "unavailable" — the safe placeholder carries no proposal. */
+  source: string;
+  requestId: string;
+  recommendedAppointment: {
+    appointmentSlotId: string;
+    veterinarianId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    branch: string;
+    reason: string;
+  } | null;
+  alternativeSlots: {
+    appointmentSlotId: string;
+    veterinarianId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    branch: string;
+    reason: string;
+  }[];
+  quotationProposal: {
+    budget: number;
+    items: {
+      category: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      reason: string;
+    }[];
+    estimatedSubtotal: number;
+    estimatedTotal: number;
+    withinBudget: boolean;
+  } | null;
+  validationSummary: {
+    slotFound: boolean;
+    veterinarianAvailable: boolean;
+    noKnownConflict: boolean;
+    withinRequestedTime: boolean;
+    withinBudget: boolean;
+  };
+  confidence: string;
+  planningNotes: string;
+  disclaimer: string;
+};
+
 export type AssignVeterinarianPayload = {
   veterinarianId: string;
   /** YYYY-MM-DD */
@@ -419,6 +467,17 @@ export const consultationService = {
   getConsultationAnalysis: (id: string) =>
     apiRequest<ConsultationAnalysisApi>(
       `/consultations/${encodeURIComponent(id)}/analysis`,
+    ),
+
+  /**
+   * Advisory AI scheduling/quotation proposal — informational only;
+   * never books or changes anything. Source "unavailable" means the
+   * agent could not produce a plan.
+   * GET /api/consultations/{id}/scheduling-plan (ClinicManager/Admin)
+   */
+  getSchedulingPlan: (id: string) =>
+    apiRequest<SchedulingPlanApi>(
+      `/consultations/${encodeURIComponent(id)}/scheduling-plan`,
     ),
 
   /**
