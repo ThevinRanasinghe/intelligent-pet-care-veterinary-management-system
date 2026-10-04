@@ -76,7 +76,8 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
           children: [
             if (widget.pet == null)
               _PetSelector(
-                pets: pets.pets,
+                // Archived pets stay selectable so their history can be viewed.
+                pets: pets.allPets,
                 loading: pets.listState == LoadState.loading,
                 selected: _selectedPet,
                 onSelected: _selectPet,

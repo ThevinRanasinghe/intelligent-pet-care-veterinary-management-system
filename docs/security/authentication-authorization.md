@@ -146,7 +146,7 @@ All authorization attributes reference the `Roles` constants — no role strings
 | `POST /api/medicine-reservations`, `/{id}/cancel` | — | Veterinarian, InventoryOfficer, Administrator |
 | `POST /api/medicine-reservations/{id}/dispense` | — | InventoryOfficer, Administrator |
 | `/api/pets`, `/api/petowners` (GET) | PetOwner (own only) + Veterinarian, ClinicManager, Administrator | — |
-| `POST|PUT|DELETE /api/pets`, `POST /api/petowners` | — | PetOwner (own only) + ClinicManager, Administrator |
+| `POST|PUT|DELETE /api/pets`, `POST /api/pets/{id}/archive`, `/restore`, `POST /api/petowners` | — | PetOwner (own only) + ClinicManager, Administrator |
 | `/api/consultations` (GET) | PetOwner (own only) + Veterinarian, ClinicManager, Administrator | — |
 | `POST|PUT /api/consultations`, `/submit`, `/cancel` | — | PetOwner (own only) + ClinicManager, Administrator |
 | `POST /api/consultations/{id}/assign` | — | **ClinicManager, Administrator only** (creates slot + Confirmed appointment) |

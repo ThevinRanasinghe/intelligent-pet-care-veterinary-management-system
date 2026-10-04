@@ -66,22 +66,25 @@ public class PetsController : ControllerBase
         }
     }
 
-    // GET: api/pets
+    // GET: api/pets?includeArchived=true
+    // Active pets by default; archived pets only when explicitly asked.
     [HttpGet]
     [Authorize(Roles = ReadRoles)]
-    public async Task<ActionResult<List<PetDto>>> GetAll()
+    public async Task<ActionResult<List<PetDto>>> GetAll(
+        [FromQuery] bool includeArchived = false)
     {
         if (_ownerAccess.IsPetOwner)
         {
             var ownerId = await _ownerAccess.GetOwnerIdAsync();
             var ownPets = ownerId == null
                 ? new List<PetDto>()
-                : await _petService.GetByOwnerIdAsync(ownerId);
+                : await _petService.GetByOwnerIdAsync(
+                    ownerId, includeArchived);
 
             return Ok(ownPets);
         }
 
-        var pets = await _petService.GetAllAsync();
+        var pets = await _petService.GetAllAsync(includeArchived);
 
         return Ok(pets);
     }
@@ -112,18 +115,20 @@ public class PetsController : ControllerBase
         return Ok(pet);
     }
 
-    // GET: api/pets/owner/{ownerId}
+    // GET: api/pets/owner/{ownerId}?includeArchived=true
     [HttpGet("owner/{ownerId}")]
     [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<List<PetDto>>> GetByOwner(
-        string ownerId)
+        string ownerId,
+        [FromQuery] bool includeArchived = false)
     {
         if (_ownerAccess.IsPetOwner && ownerId != await _ownerAccess.GetOwnerIdAsync())
         {
             return Forbid();
         }
 
-        var pets = await _petService.GetByOwnerIdAsync(ownerId);
+        var pets = await _petService.GetByOwnerIdAsync(
+            ownerId, includeArchived);
 
         return Ok(pets);
     }
@@ -166,7 +171,84 @@ public class PetsController : ControllerBase
         }
     }
 
+    // POST: api/pets/{id}/archive
+    // Removes the pet from the owner's active list without deleting
+    // any medical, consultation, appointment, or billing history.
+    [HttpPost("{id}/archive")]
+    [Authorize(Roles = ManageRoles)]
+    public async Task<ActionResult<PetDto>> Archive(string id)
+    {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Pet not found."
+            });
+        }
+
+        try
+        {
+            var pet = await _petService.ArchiveAsync(id);
+
+            if (pet == null)
+            {
+                return NotFound(new
+                {
+                    message = "Pet not found."
+                });
+            }
+
+            return Ok(pet);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    // POST: api/pets/{id}/restore
+    // Returns an archived pet to the owner's active list.
+    [HttpPost("{id}/restore")]
+    [Authorize(Roles = ManageRoles)]
+    public async Task<ActionResult<PetDto>> Restore(string id)
+    {
+        if (_ownerAccess.IsPetOwner && !await _ownerAccess.OwnsPetAsync(id))
+        {
+            return NotFound(new
+            {
+                message = "Pet not found."
+            });
+        }
+
+        try
+        {
+            var pet = await _petService.RestoreAsync(id);
+
+            if (pet == null)
+            {
+                return NotFound(new
+                {
+                    message = "Pet not found."
+                });
+            }
+
+            return Ok(pet);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
     // DELETE: api/pets/{id}
+    // Permanent delete — only allowed when the pet has no protected
+    // history; otherwise archive it instead.
     [HttpDelete("{id}")]
     [Authorize(Roles = ManageRoles)]
     public async Task<IActionResult> Delete(string id)

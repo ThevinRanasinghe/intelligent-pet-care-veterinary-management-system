@@ -90,10 +90,17 @@ public class PetService : IPetService
     // ============================================================
     // GET ALL PETS
     // ============================================================
-    public async Task<List<PetDto>> GetAllAsync()
+    public async Task<List<PetDto>> GetAllAsync(bool includeArchived = false)
     {
-        return await _context.Pets
-            .AsNoTracking()
+        var query = _context.Pets.AsNoTracking();
+
+        // Archived pets stay out of the active listing unless requested.
+        if (!includeArchived)
+        {
+            query = query.Where(x => !x.IsArchived);
+        }
+
+        return await query
             .OrderBy(x => x.Name)
             .Select(x => new PetDto
             {
@@ -106,7 +113,8 @@ public class PetService : IPetService
                 DateOfBirth = x.DateOfBirth,
                 Weight = x.Weight,
                 PhotoUrl = x.PhotoUrl,
-                Notes = x.Notes
+                Notes = x.Notes,
+                IsArchived = x.IsArchived
             })
             .ToListAsync();
     }
@@ -134,16 +142,25 @@ public class PetService : IPetService
     // ============================================================
     // GET PETS BY OWNER ID
     // ============================================================
-    public async Task<List<PetDto>> GetByOwnerIdAsync(string ownerId)
+    public async Task<List<PetDto>> GetByOwnerIdAsync(
+        string ownerId,
+        bool includeArchived = false)
     {
         if (string.IsNullOrWhiteSpace(ownerId))
             return new List<PetDto>();
 
         ownerId = ownerId.Trim();
 
-        return await _context.Pets
+        var query = _context.Pets
             .AsNoTracking()
-            .Where(x => x.OwnerId == ownerId)
+            .Where(x => x.OwnerId == ownerId);
+
+        if (!includeArchived)
+        {
+            query = query.Where(x => !x.IsArchived);
+        }
+
+        return await query
             .OrderBy(x => x.Name)
             .Select(x => new PetDto
             {
@@ -156,7 +173,8 @@ public class PetService : IPetService
                 DateOfBirth = x.DateOfBirth,
                 Weight = x.Weight,
                 PhotoUrl = x.PhotoUrl,
-                Notes = x.Notes
+                Notes = x.Notes,
+                IsArchived = x.IsArchived
             })
             .ToListAsync();
     }
@@ -228,7 +246,65 @@ public class PetService : IPetService
 
 
     // ============================================================
-    // DELETE PET
+    // ARCHIVE PET — remove from the active list, keep all history
+    // ============================================================
+    public async Task<PetDto?> ArchiveAsync(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return null;
+
+        var pet = await _context.Pets
+            .FirstOrDefaultAsync(x => x.Id == id.Trim());
+
+        if (pet == null)
+            return null;
+
+        if (pet.IsArchived)
+        {
+            throw new InvalidOperationException(
+                "This pet is already archived.");
+        }
+
+        pet.IsArchived = true;
+        pet.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return MapToDto(pet);
+    }
+
+
+    // ============================================================
+    // RESTORE PET — return an archived pet to the active list
+    // ============================================================
+    public async Task<PetDto?> RestoreAsync(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return null;
+
+        var pet = await _context.Pets
+            .FirstOrDefaultAsync(x => x.Id == id.Trim());
+
+        if (pet == null)
+            return null;
+
+        if (!pet.IsArchived)
+        {
+            throw new InvalidOperationException(
+                "This pet is not archived.");
+        }
+
+        pet.IsArchived = false;
+        pet.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return MapToDto(pet);
+    }
+
+
+    // ============================================================
+    // DELETE PET — permanent, only when no protected history exists
     // ============================================================
     public async Task<bool> DeleteAsync(string id)
     {
@@ -243,15 +319,24 @@ public class PetService : IPetService
         if (pet == null)
             return false;
 
-        // Do not delete a pet if it already has
-        // consultation history.
+        // Permanent deletion is allowed only for pets with no
+        // consultation, appointment, or examination history — those
+        // are the protected roots of all clinical/business records
+        // (diagnoses, treatment records, prescriptions, quotations
+        // all hang off them and are never deleted by this feature).
         var hasConsultations = await _context.ConsultationRequests
             .AnyAsync(x => x.PetId == id);
 
-        if (hasConsultations)
+        var hasAppointments = await _context.Appointments
+            .AnyAsync(x => x.PetId == id);
+
+        var hasExaminations = await _context.Examinations
+            .AnyAsync(x => x.PetId == id);
+
+        if (hasConsultations || hasAppointments || hasExaminations)
         {
             throw new InvalidOperationException(
-                "This pet cannot be deleted because it has consultation history.");
+                "This pet has medical or business history and cannot be permanently deleted. The pet can be archived instead.");
         }
 
         _context.Pets.Remove(pet);
@@ -278,7 +363,8 @@ public class PetService : IPetService
             DateOfBirth = pet.DateOfBirth,
             Weight = pet.Weight,
             PhotoUrl = pet.PhotoUrl,
-            Notes = pet.Notes
+            Notes = pet.Notes,
+            IsArchived = pet.IsArchived
         };
     }
 }

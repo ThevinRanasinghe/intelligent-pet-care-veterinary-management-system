@@ -19,5 +19,7 @@ public interface IPetCareDbContext
 
     DbSet<Appointment> Appointments { get; }
 
+    DbSet<Examination> Examinations { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

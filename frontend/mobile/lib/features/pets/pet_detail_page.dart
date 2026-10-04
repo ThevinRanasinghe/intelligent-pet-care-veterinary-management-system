@@ -12,6 +12,7 @@ import '../../core/widgets/fade_slide_in.dart';
 import '../../core/widgets/list_icon_tile.dart';
 import '../../core/widgets/pet_card.dart' show petSpeciesEmoji;
 import '../../core/widgets/section_header.dart';
+import '../../core/widgets/status_badge.dart';
 import '../../core/widgets/top_bar.dart';
 import '../history/medical_history_page.dart';
 import 'pet_provider.dart';
@@ -19,25 +20,44 @@ import 'models/pet.dart';
 import 'pet_form_sheet.dart';
 
 /// Owner pet profile: 96px hero avatar, details card, Medical History
-/// entry point and Edit/Delete actions (delete requires confirmation).
+/// entry point and lifecycle actions — active pets offer Edit/Remove
+/// (archive keeps all history), archived pets offer Restore.
 class PetDetailPage extends StatelessWidget {
   final Pet pet;
 
   const PetDetailPage({super.key, required this.pet});
 
-  Future<void> _confirmDelete(BuildContext context) async {
+  Future<void> _confirmRemove(BuildContext context) async {
     final confirmed = await showConfirmDialog(
       context,
-      title: 'Delete Pet',
-      message: 'Delete ${pet.name}? This cannot be undone.',
-      confirmLabel: 'Delete',
-      destructive: true,
+      title: 'Remove Pet?',
+      message: 'This will remove ${pet.name} from your active pets. '
+          'Medical history will be preserved.',
+      confirmLabel: 'Remove Pet',
     );
     if (!confirmed || !context.mounted) return;
-    final error = await context.read<PetProvider>().deletePet(pet.id);
+    final error = await context.read<PetProvider>().archivePet(pet.id);
     if (!context.mounted) return;
     if (error == null) {
       Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${pet.name} was removed from active pets.')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: AppColors.danger),
+      );
+    }
+  }
+
+  Future<void> _restore(BuildContext context) async {
+    final error = await context.read<PetProvider>().restorePet(pet.id);
+    if (!context.mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${pet.name} was restored to active pets.')),
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error), backgroundColor: AppColors.danger),
@@ -82,6 +102,12 @@ class PetDetailPage extends StatelessWidget {
               child: Text(pet.name, style: AppTextStyles.display),
             ),
           ),
+          if (pet.isArchived)
+            const FadeSlideIn(
+              delay: Duration(milliseconds: 100),
+              distance: 8,
+              child: Center(child: StatusBadge('Archived')),
+            ),
           FadeSlideIn(
             delay: const Duration(milliseconds: 120),
             distance: 8,
@@ -155,27 +181,35 @@ class PetDetailPage extends StatelessWidget {
           FadeSlideIn(
             delay: const Duration(milliseconds: 300),
             distance: 8,
-            child: Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    label: 'Edit',
-                    icon: Icons.edit_outlined,
+            child: pet.isArchived
+                ? AppButton(
+                    label: 'Restore Pet',
+                    icon: Icons.unarchive_outlined,
                     variant: AppButtonVariant.secondary,
-                    onPressed: () => showPetFormSheet(context, pet: pet),
+                    onPressed: () => _restore(context),
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: AppButton(
+                          label: 'Edit',
+                          icon: Icons.edit_outlined,
+                          variant: AppButtonVariant.secondary,
+                          onPressed: () =>
+                              showPetFormSheet(context, pet: pet),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: AppButton(
+                          label: 'Remove',
+                          icon: Icons.archive_outlined,
+                          variant: AppButtonVariant.destructive,
+                          onPressed: () => _confirmRemove(context),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: AppButton(
-                    label: 'Delete',
-                    icon: Icons.delete_outline,
-                    variant: AppButtonVariant.destructive,
-                    onPressed: () => _confirmDelete(context),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

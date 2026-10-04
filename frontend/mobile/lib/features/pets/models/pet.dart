@@ -11,6 +11,9 @@ class Pet {
   final String? photoUrl;
   final String? notes;
 
+  /// Archived pets are out of the active list; history is preserved.
+  final bool isArchived;
+
   Pet({
     required this.id,
     required this.ownerId,
@@ -22,6 +25,7 @@ class Pet {
     this.weight,
     this.photoUrl,
     this.notes,
+    this.isArchived = false,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json) {
@@ -36,6 +40,7 @@ class Pet {
       weight: (json['weight'] as num?)?.toDouble(),
       photoUrl: json['photoUrl'] as String?,
       notes: json['notes'] as String?,
+      isArchived: json['isArchived'] as bool? ?? false,
     );
   }
 

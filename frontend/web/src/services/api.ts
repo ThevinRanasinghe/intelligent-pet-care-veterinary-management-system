@@ -91,6 +91,8 @@ export type Pet = {
   age?: number | null;
   photoUrl?: string | null;
   notes?: string | null;
+  /** Archived pets are out of the active list but keep all history. */
+  isArchived?: boolean;
 };
 
 export type CreatePetPayload = {
@@ -242,13 +244,20 @@ export const ownerService = {
 /* ========================================================================== */
 
 export const petService = {
-  getAllPets: () => apiRequest<Pet[]>("/pets"),
+  getAllPets: (includeArchived = false) =>
+    apiRequest<Pet[]>(
+      `/pets${includeArchived ? "?includeArchived=true" : ""}`,
+    ),
 
   getPetById: (id: string) =>
     apiRequest<Pet>(`/pets/${encodeURIComponent(id)}`),
 
-  getPetsByOwner: (ownerId: string) =>
-    apiRequest<Pet[]>(`/pets/owner/${encodeURIComponent(ownerId)}`),
+  getPetsByOwner: (ownerId: string, includeArchived = false) =>
+    apiRequest<Pet[]>(
+      `/pets/owner/${encodeURIComponent(ownerId)}${
+        includeArchived ? "?includeArchived=true" : ""
+      }`,
+    ),
 
   createPet: (payload: CreatePetPayload) =>
     apiRequest<Pet>("/pets", {
@@ -260,6 +269,18 @@ export const petService = {
     apiRequest<Pet>(`/pets/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(payload),
+    }),
+
+  /** Removes the pet from the active list; all history is preserved. */
+  archivePet: (id: string) =>
+    apiRequest<Pet>(`/pets/${encodeURIComponent(id)}/archive`, {
+      method: "POST",
+    }),
+
+  /** Returns an archived pet to the active list. */
+  restorePet: (id: string) =>
+    apiRequest<Pet>(`/pets/${encodeURIComponent(id)}/restore`, {
+      method: "POST",
     }),
 
   deletePet: (id: string) =>

@@ -107,14 +107,24 @@ class PetCard extends StatelessWidget {
             style: const TextStyle(fontSize: 11, color: AppColors.muted),
           ),
           const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'View Profile',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppColors.primaryDark,
+          if (pet.isArchived)
+            const Text(
+              'Archived',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppColors.muted,
+              ),
+            )
+          else
+            const Text(
+              'View Profile',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppColors.primaryDark,
+              ),
             ),
-          ),
         ],
       ),
     );

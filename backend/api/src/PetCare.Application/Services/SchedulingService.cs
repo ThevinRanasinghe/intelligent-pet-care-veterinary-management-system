@@ -131,6 +131,13 @@ public class SchedulingService : ISchedulingService
         var pet = await _petService.GetByIdAsync(request.PetId)
             ?? throw new NotFoundException($"Pet '{request.PetId}' does not exist.");
 
+        // Archived pets keep their history but cannot enter new workflows.
+        if (pet.IsArchived)
+        {
+            throw new SchedulingConflictException(
+                $"Pet '{request.PetId}' is archived and cannot be booked for a new appointment. Restore the pet first.");
+        }
+
         // 2. Check veterinarian exists.
         var veterinarian = await _veterinarianRepository.GetByIdAsync(request.VeterinarianId, cancellationToken)
             ?? throw new NotFoundException($"Veterinarian '{request.VeterinarianId}' does not exist.");

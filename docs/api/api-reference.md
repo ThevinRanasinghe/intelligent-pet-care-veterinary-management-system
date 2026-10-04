@@ -38,11 +38,15 @@ Complete endpoint reference for the PetCare AI API, generated from the actual co
 | Method | Route | Roles | Body | Notes |
 |---|---|---|---|---|
 | POST | `/` | Owner, CM, Admin | `CreatePetDto` | `OwnerId` overwritten from JWT — verified live |
-| GET | `/` | Owner, Vet, CM, Admin | — | Owner: own pets only |
-| GET | `/{id}` | Owner, Vet, CM, Admin | — | Owner: own only |
-| GET | `/owner/{ownerId}` | Owner, Vet, CM, Admin | — | Owner: own `ownerId` only |
+| GET | `/` | Owner, Vet, CM, Admin | `?includeArchived=true` | Active pets by default; owner: own pets only |
+| GET | `/{id}` | Owner, Vet, CM, Admin | — | Owner: own only; archived pets still readable |
+| GET | `/owner/{ownerId}` | Owner, Vet, CM, Admin | `?includeArchived=true` | Owner: own `ownerId` only |
 | PUT | `/{id}` | Owner, CM, Admin | `UpdatePetDto` | Owner: own only |
-| DELETE | `/{id}` | Owner, CM, Admin | — | Owner: own only |
+| POST | `/{id}/archive` | Owner, CM, Admin | — | Removes pet from the active list; all history preserved; 400 if already archived |
+| POST | `/{id}/restore` | Owner, CM, Admin | — | Returns an archived pet to the active list; 400 if not archived |
+| DELETE | `/{id}` | Owner, CM, Admin | — | Owner: own only; **only when the pet has no protected history** (consultations, appointments, examinations → diagnoses → treatment records → prescriptions) — 400 "archive it instead" otherwise |
+
+**Pet lifecycle:** `Active → Remove (archive) → Archived → Restore → Active`. Archived pets keep every historical record and remain readable, but cannot enter new workflows (consultation requests, appointments, follow-ups, direct examinations). Permanent delete is reserved for pets with zero dependent business records.
 
 ## Consultation Requests — `api/consultations`
 

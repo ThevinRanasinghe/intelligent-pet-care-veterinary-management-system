@@ -17,7 +17,18 @@ class PetProvider extends ChangeNotifier {
   bool _saving = false;
 
   LoadState get listState => _listState;
-  List<Pet> get pets => _pets;
+
+  /// Active pets only — the default working list (booking wizard, pets
+  /// tab). Archived pets never appear here.
+  List<Pet> get pets => _pets.where((p) => !p.isArchived).toList();
+
+  /// Archived pets — removed from the active list, history preserved.
+  List<Pet> get archivedPets => _pets.where((p) => p.isArchived).toList();
+
+  /// Active + archived — for pickers that must reach an archived pet's
+  /// historical records (e.g. the medical history selector).
+  List<Pet> get allPets => List.unmodifiable(_pets);
+
   String get errorMessage => _errorMessage;
   bool get saving => _saving;
 
@@ -26,7 +37,7 @@ class PetProvider extends ChangeNotifier {
     _errorMessage = '';
     notifyListeners();
     try {
-      _pets = await _service.getMyPets();
+      _pets = await _service.getMyPets(includeArchived: true);
       _listState = LoadState.success;
     } on ApiError catch (e) {
       _errorMessage = _extractMessage(e);
@@ -49,6 +60,44 @@ class PetProvider extends ChangeNotifier {
       } else {
         await _service.updatePet(pet);
       }
+      await loadMyPets();
+      return null;
+    } on ApiError catch (e) {
+      return _extractMessage(e);
+    } catch (e) {
+      return e.toString();
+    } finally {
+      _saving = false;
+      notifyListeners();
+    }
+  }
+
+  /// Archives a pet (removes it from the active list, keeps history).
+  /// Returns null on success or the API error message on failure.
+  Future<String?> archivePet(String id) async {
+    _saving = true;
+    notifyListeners();
+    try {
+      await _service.archivePet(id);
+      await loadMyPets();
+      return null;
+    } on ApiError catch (e) {
+      return _extractMessage(e);
+    } catch (e) {
+      return e.toString();
+    } finally {
+      _saving = false;
+      notifyListeners();
+    }
+  }
+
+  /// Restores an archived pet to the active list.
+  /// Returns null on success or the API error message on failure.
+  Future<String?> restorePet(String id) async {
+    _saving = true;
+    notifyListeners();
+    try {
+      await _service.restorePet(id);
       await loadMyPets();
       return null;
     } on ApiError catch (e) {

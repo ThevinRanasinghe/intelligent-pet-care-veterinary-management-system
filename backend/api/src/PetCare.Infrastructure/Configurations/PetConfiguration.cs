@@ -48,6 +48,9 @@ public class PetConfiguration : IEntityTypeConfiguration<Pet>
         builder.Property(x => x.PhotoUrl)
             .HasMaxLength(500);
 
+        builder.Property(x => x.IsArchived)
+            .HasDefaultValue(false);
+
         builder.Property(x => x.CreatedAt);
 
         builder.Property(x => x.UpdatedAt);

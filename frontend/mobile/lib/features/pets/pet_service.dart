@@ -13,8 +13,13 @@ class PetService {
   PetService(this._apiClient);
 
   /// The signed-in owner's pets (server-side scoped for PetOwner).
-  Future<List<Pet>> getMyPets() async {
-    return _apiClient.getList<Pet>('/pets', fromJson: Pet.fromJson);
+  /// Pass [includeArchived] to also receive archived pets — the default
+  /// list only contains active ones.
+  Future<List<Pet>> getMyPets({bool includeArchived = false}) async {
+    return _apiClient.getList<Pet>(
+      includeArchived ? '/pets?includeArchived=true' : '/pets',
+      fromJson: Pet.fromJson,
+    );
   }
 
   Future<Pet> getPetById(String id) async {
@@ -49,6 +54,17 @@ class PetService {
       body: pet.toPayload(),
       fromJson: Pet.fromJson,
     );
+  }
+
+  /// Removes the pet from the owner's active list without touching any
+  /// consultation, examination, prescription or billing history.
+  Future<Pet> archivePet(String id) async {
+    return _apiClient.post<Pet>('/pets/$id/archive', fromJson: Pet.fromJson);
+  }
+
+  /// Returns an archived pet to the owner's active list.
+  Future<Pet> restorePet(String id) async {
+    return _apiClient.post<Pet>('/pets/$id/restore', fromJson: Pet.fromJson);
   }
 
   Future<void> deletePet(String id) async {

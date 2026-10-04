@@ -21,4 +21,6 @@ public class PetDto
     public string? PhotoUrl { get; set; }
 
     public string? Notes { get; set; }
+
+    public bool IsArchived { get; set; }
 }

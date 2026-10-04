@@ -126,6 +126,22 @@ public class ExaminationService : IExaminationService
             }
         }
 
+        // Standalone examinations (no appointment) target a pet directly ΓÇö
+        // archived pets cannot start new clinical workflows.
+        if (appointment is null && !string.IsNullOrWhiteSpace(dto.PetId))
+        {
+            var petArchived = await _context.Pets
+                .Where(p => p.Id == dto.PetId)
+                .Select(p => p.IsArchived)
+                .FirstOrDefaultAsync();
+
+            if (petArchived)
+            {
+                throw new SchedulingConflictException(
+                    $"Pet '{dto.PetId}' is archived and cannot be examined. Restore the pet first.");
+            }
+        }
+
         var examination = new Examination
         {
             Id = Guid.NewGuid(),

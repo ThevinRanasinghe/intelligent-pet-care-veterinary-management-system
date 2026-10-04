@@ -170,6 +170,14 @@ public class ConsultationWorkflowService : IConsultationWorkflowService
         var pet = await _pets.GetByIdAsync(request.PetId)
             ?? throw new NotFoundException($"Pet '{request.PetId}' does not exist.");
 
+        // Archived pets cannot start new consultations — including
+        // veterinarian-requested follow-ups.
+        if (pet.IsArchived)
+        {
+            throw new SchedulingConflictException(
+                $"Pet '{request.PetId}' is archived and cannot start a new consultation. Restore the pet first.");
+        }
+
         // Veterinarian callers must resolve to their own profile; other
         // staff callers (Admin) may have no linked veterinarian.
         var veterinarian = _tenant.IsInRole(Roles.Veterinarian)

@@ -53,6 +53,7 @@ export default function PetsPage() {
   const [owners, setOwners] = useState<PetOwner[]>([]);
   const [search, setSearch] = useState("");
   const [speciesFilter, setSpeciesFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState<"Active" | "Archived">("Active");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,9 +83,10 @@ export default function PetsPage() {
       const currentOwner = isPetOwner
         ? ownersData.find((owner) => owner.email.trim().toLowerCase() === user?.email.trim().toLowerCase())
         : undefined;
+      // Always include archived pets — the Active/Archived filter splits them.
       const petsData = isPetOwner
-        ? currentOwner ? await petService.getPetsByOwner(currentOwner.id) : []
-        : await petService.getAllPets();
+        ? currentOwner ? await petService.getPetsByOwner(currentOwner.id, true) : []
+        : await petService.getAllPets(true);
 
       setPets(Array.isArray(petsData) ? petsData : []);
       setOwners(isPetOwner ? (currentOwner ? [currentOwner] : []) : ownersData);
@@ -148,9 +150,12 @@ export default function PetsPage() {
       const matchesSpecies =
         speciesFilter === "All" || pet.species === speciesFilter;
 
-      return matchesSearch && matchesSpecies;
+      const matchesStatus =
+        statusFilter === "Archived" ? !!pet.isArchived : !pet.isArchived;
+
+      return matchesSearch && matchesSpecies && matchesStatus;
     });
-  }, [pets, search, speciesFilter, ownerMap]);
+  }, [pets, search, speciesFilter, statusFilter, ownerMap]);
 
   // ------------------------------------------------------------
   // Pet Modal Actions
@@ -330,12 +335,12 @@ export default function PetsPage() {
   }
 
   // ------------------------------------------------------------
-  // Delete Pet
+  // Remove (archive) / Restore Pet
   // ------------------------------------------------------------
 
-  async function handleDeletePet(pet: Pet) {
+  async function handleRemovePet(pet: Pet) {
     const confirmed = window.confirm(
-      `Are you sure you want to delete ${pet.name}?`
+      `Remove Pet?\n\nThis will remove ${pet.name} from your active pets. Medical and billing history will be preserved.`
     );
 
     if (!confirmed) return;
@@ -344,12 +349,34 @@ export default function PetsPage() {
       setError("");
       setSuccess("");
 
-      await petService.deletePet(pet.id);
-      setPets((current) => current.filter((item) => item.id !== pet.id));
-      setSuccess(`${pet.name} was deleted successfully.`);
+      await petService.archivePet(pet.id);
+      setPets((current) =>
+        current.map((item) =>
+          item.id === pet.id ? { ...item, isArchived: true } : item
+        )
+      );
+      setSuccess(`${pet.name} was removed from your active pets. Its history is preserved.`);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || "Unable to delete the pet.");
+      setError(err?.message || "Unable to remove the pet.");
+    }
+  }
+
+  async function handleRestorePet(pet: Pet) {
+    try {
+      setError("");
+      setSuccess("");
+
+      await petService.restorePet(pet.id);
+      setPets((current) =>
+        current.map((item) =>
+          item.id === pet.id ? { ...item, isArchived: false } : item
+        )
+      );
+      setSuccess(`${pet.name} was restored to your active pets.`);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Unable to restore the pet.");
     }
   }
 
@@ -424,6 +451,22 @@ export default function PetsPage() {
           <SlidersHorizontal size={16} />
 
           <select
+            aria-label="Pet status"
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as "Active" | "Archived")
+            }
+          >
+            <option value="Active">Active</option>
+            <option value="Archived">Archived</option>
+          </select>
+        </div>
+
+        <div className="select-input">
+          <SlidersHorizontal size={16} />
+
+          <select
+            aria-label="Species"
             value={speciesFilter}
             onChange={(event) => setSpeciesFilter(event.target.value)}
           >
@@ -512,6 +555,11 @@ export default function PetsPage() {
 
                           <div>
                             <strong>{pet.name}</strong>
+                            {pet.isArchived && (
+                              <span className="badge badge-neutral" style={{ marginLeft: "6px" }}>
+                                Archived
+                              </span>
+                            )}
                             <span className="muted">ID: {pet.id}</span>
                           </div>
                         </div>
@@ -548,22 +596,35 @@ export default function PetsPage() {
                             alignItems: "center",
                           }}
                         >
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => openEditPetModal(pet)}
-                          >
-                            Edit
-                          </button>
+                          {pet.isArchived ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => handleRestorePet(pet)}
+                              title={`Restore ${pet.name} to active pets`}
+                            >
+                              Restore
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => openEditPetModal(pet)}
+                              >
+                                Edit
+                              </button>
 
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            onClick={() => handleDeletePet(pet)}
-                            title={`Delete ${pet.name}`}
-                          >
-                            Delete
-                          </button>
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                onClick={() => handleRemovePet(pet)}
+                                title={`Remove ${pet.name} from active pets (history is preserved)`}
+                              >
+                                Remove
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

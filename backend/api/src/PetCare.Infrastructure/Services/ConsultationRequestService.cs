@@ -89,6 +89,14 @@ public class ConsultationRequestService : IConsultationRequestService
             throw new ArgumentException(
                 "Pet was not found or does not belong to this owner.");
 
+        // Archived pets keep their history but cannot start new
+        // operational workflows.
+        if (pet.IsArchived)
+        {
+            throw new ArgumentException(
+                "This pet is archived and cannot be used for a new consultation request. Restore the pet first.");
+        }
+
         var consultation = new ConsultationRequest
         {
             Id = $"CON-{Guid.NewGuid():N}"

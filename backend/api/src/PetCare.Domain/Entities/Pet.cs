@@ -24,6 +24,13 @@ public class Pet
 
     public string? PhotoUrl { get; set; }
 
+    /// <summary>
+    /// Archived pets are hidden from the owner's active list and blocked
+    /// from new consultations/appointments, but all historical clinical
+    /// and billing records remain intact and viewable.
+    /// </summary>
+    public bool IsArchived { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

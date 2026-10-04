@@ -208,7 +208,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Shadow'), findsOneWidget);
-      expect(client.requestedPaths, contains('/pets'));
+      expect(
+        client.requestedPaths.any((p) => p.startsWith('/pets')),
+        isTrue,
+      );
     });
 
     group('tab slide transitions', () {
