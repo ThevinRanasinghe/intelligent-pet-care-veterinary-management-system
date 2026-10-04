@@ -1,9 +1,11 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using PetCare.Application.DTOs;
 using PetCare.Application.DTOs.Inventory;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Enums;
+using System.Text.Json;
 
 namespace PetCare.Application.Services;
 
@@ -20,19 +22,25 @@ public class MedicineRequestService : IMedicineRequestService
     private readonly IBillingService _billing;
     private readonly ITenantContext _tenant;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAgenticClient? _agenticClient;
+    private readonly ILogger<MedicineRequestService>? _logger;
 
     public MedicineRequestService(
         IPrescriptionRepository prescriptions,
         IInventoryService inventory,
         IBillingService billing,
         ITenantContext tenant,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IAgenticClient? agenticClient = null,
+        ILogger<MedicineRequestService>? logger = null)
     {
         _prescriptions = prescriptions;
         _inventory = inventory;
         _billing = billing;
         _tenant = tenant;
         _unitOfWork = unitOfWork;
+        _agenticClient = agenticClient;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyList<PrescriptionResponseDto>> GetRequestsAsync(
@@ -138,6 +146,73 @@ public class MedicineRequestService : IMedicineRequestService
 
         return PrescriptionMapper.ToDto(prescription);
     }
+
+    /// <summary>
+    /// Advisory AI inventory plan for a medicine request (identified by
+    /// treatment record). Read-only: verifies the record's prescriptions
+    /// are in the caller's organization before invoking the agent, maps
+    /// the agent's validated assessment, and returns Source="unavailable"
+    /// on any failure — the officer's manual issue/unavailable workflow
+    /// is never blocked. No inventory, prescription, or billing writes.
+    /// </summary>
+    public async Task<InventoryPlanDto> GetInventoryPlanAsync(
+        Guid treatmentRecordId,
+        string? bearerToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        // The treatment record must exist as an in-scope medicine request;
+        // out-of-scope (cross-organization) records get the same
+        // "unavailable" response so existence is never leaked.
+        var exists = await _prescriptions.ExistsForTreatmentRecordAsync(treatmentRecordId, cancellationToken);
+        if (!exists || _agenticClient == null)
+            return UnavailablePlan(treatmentRecordId);
+
+        var result = await _agenticClient.PlanInventoryAsync(
+            treatmentRecordId.ToString(), bearerToken, cancellationToken);
+        if (!result.Success || string.IsNullOrWhiteSpace(result.Content))
+            return UnavailablePlan(treatmentRecordId);
+
+        InventoryPlanDto? plan;
+        try
+        {
+            plan = JsonSerializer.Deserialize<InventoryPlanDto>(result.Content);
+        }
+        catch (JsonException)
+        {
+            _logger?.LogWarning("Inventory agent returned malformed JSON for treatment record {TreatmentRecordId}", treatmentRecordId);
+            return UnavailablePlan(treatmentRecordId);
+        }
+
+        if (plan == null || string.IsNullOrWhiteSpace(plan.PlanningNotes))
+            return UnavailablePlan(treatmentRecordId);
+
+        plan.Source = "agentic-ai";
+        plan.RequestId = treatmentRecordId.ToString();
+        plan.Confidence = NormalizeConfidence(plan.Confidence);
+        plan.AlternativeMedicines ??= new List<InventoryAlternativeMedicineDto>();
+        return plan;
+    }
+
+    private static string NormalizeConfidence(string? confidence) =>
+        confidence?.Trim().ToLowerInvariant() switch
+        {
+            "moderate" => "Moderate",
+            "high" => "High",
+            _ => "Low"
+        };
+
+    private static InventoryPlanDto UnavailablePlan(Guid treatmentRecordId) => new()
+    {
+        Source = "unavailable",
+        RequestId = treatmentRecordId.ToString(),
+        MedicineRecommendation = null,
+        RecommendedBatch = null,
+        AlternativeMedicines = new List<InventoryAlternativeMedicineDto>(),
+        InventorySummary = new InventoryPlanSummaryDto(),
+        Confidence = "Low",
+        PlanningNotes = "AI inventory analysis is currently unavailable — process the medicine request normally.",
+        Disclaimer = "AI-generated medicine and inventory recommendation — deterministic backend validation and authorized staff review are required before any inventory action."
+    };
 
     private async Task RefreshBillAsync(Domain.Entities.Prescription prescription, Guid userId, CancellationToken cancellationToken)
     {

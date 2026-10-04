@@ -254,3 +254,59 @@ export function markMedicineRequestUnavailable(prescriptionId: string, reason: s
     });
 }
 
+// ---- Advisory AI Inventory Analysis (Business-Specific Operation) ----
+
+export interface InventoryMedicineRecommendation {
+    medicineId: string;
+    medicineName: string;
+    requiredQuantity: number;
+    availableQuantity: number;
+    sufficientStock: boolean;
+    reason: string;
+}
+
+export interface InventoryRecommendedBatch {
+    batchId: string;
+    batchNumber: string;
+    quantityAvailable: number;
+    expiryDate: string;
+    expiryStatus: string;
+}
+
+export interface InventoryAlternativeMedicine {
+    medicineId?: string | null;
+    medicineName?: string | null;
+    availableQuantity?: number | null;
+    reason?: string | null;
+}
+
+export interface InventoryPlanSummary {
+    medicineFound: boolean;
+    stockAvailable: boolean;
+    sufficientQuantity: boolean;
+    batchAvailable: boolean;
+    notExpired: boolean;
+    lowStock: boolean;
+}
+
+/**
+ * Advisory AI inventory plan for a medicine request. `source` is
+ * "agentic-ai" for a real assessment or "unavailable" for the safe
+ * placeholder — display only; never drives an issue/unavailable action.
+ */
+export interface InventoryPlanApi {
+    source?: string;
+    requestId: string;
+    medicineRecommendation?: InventoryMedicineRecommendation | null;
+    recommendedBatch?: InventoryRecommendedBatch | null;
+    alternativeMedicines: InventoryAlternativeMedicine[];
+    inventorySummary: InventoryPlanSummary;
+    confidence: string;
+    planningNotes: string;
+    disclaimer: string;
+}
+
+export function getInventoryPlan(treatmentRecordId: string) {
+    return apiRequest<InventoryPlanApi>(`/prescriptions/treatment/${treatmentRecordId}/inventory-plan`);
+}
+

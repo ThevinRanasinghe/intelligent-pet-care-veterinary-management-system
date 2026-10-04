@@ -6,9 +6,11 @@ import { Card } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
 import { useAuth } from '../auth/AuthContext';
 import {
+  getInventoryPlan,
   getMedicineRequests,
   issueMedicineRequest,
   markMedicineRequestUnavailable,
+  type InventoryPlanApi,
   type MedicineRequest,
 } from '../../services/treatmentService';
 import { messageFrom } from '../../utils/errors';
@@ -39,6 +41,10 @@ export function MedicineRequestsPage() {
   const [unavailableTarget, setUnavailableTarget] = useState<MedicineRequest | null>(null);
   const [unavailableReason, setUnavailableReason] = useState('');
   const [unavailableError, setUnavailableError] = useState('');
+
+  // Advisory AI plans keyed by treatmentRecordId (the request group key) —
+  // keyed state guarantees one request's analysis never shows on another's.
+  const [plans, setPlans] = useState<Record<string, 'loading' | InventoryPlanApi>>({});
 
   const load = async (status = statusFilter) => {
     setLoading(true);
@@ -92,6 +98,32 @@ export function MedicineRequestsPage() {
       setError(messageFrom(err));
     } finally {
       setActioningId(null);
+    }
+  };
+
+  // Advisory only — displays the agent's validated plan; never issues,
+  // reserves, or substitutes anything. Failures surface as "unavailable".
+  const handleAnalyze = async (treatmentRecordId: string) => {
+    setPlans((prev) => ({ ...prev, [treatmentRecordId]: 'loading' }));
+    try {
+      const plan = await getInventoryPlan(treatmentRecordId);
+      setPlans((prev) => ({ ...prev, [treatmentRecordId]: plan }));
+    } catch {
+      setPlans((prev) => ({
+        ...prev,
+        [treatmentRecordId]: {
+          source: 'unavailable',
+          requestId: treatmentRecordId,
+          alternativeMedicines: [],
+          inventorySummary: {
+            medicineFound: false, stockAvailable: false, sufficientQuantity: false,
+            batchAvailable: false, notExpired: false, lowStock: false,
+          },
+          confidence: 'Low',
+          planningNotes: 'AI inventory analysis is currently unavailable — process the medicine request normally.',
+          disclaimer: 'AI-generated medicine and inventory recommendation — deterministic backend validation and authorized staff review are required before any inventory action.',
+        },
+      }));
     }
   };
 
@@ -149,8 +181,11 @@ export function MedicineRequestsPage() {
         <div style={{ display: 'grid', gap: '1rem' }}>
           {requestGroups.map((items) => {
             const head = items[0];
+            const groupKey = head.treatmentRecordId ?? head.id;
+            const plan = plans[groupKey];
+            const planReady = plan !== undefined && plan !== 'loading' && plan.source === 'agentic-ai';
             return (
-              <Card key={head.treatmentRecordId ?? head.id}>
+              <Card key={groupKey}>
                 <div className="card-header">
                   <div>
                     <div className="eyebrow">{formatDate(head.createdAt.slice(0, 10))} · {items.length} medicine{items.length === 1 ? '' : 's'}</div>
@@ -159,6 +194,15 @@ export function MedicineRequestsPage() {
                       Vet: {head.veterinarianName ?? '—'} · Owner: {head.ownerName ?? '—'} · Vet charge {formatLkr(head.veterinarianCharge ?? 0)}
                     </p>
                   </div>
+                  {canProcess && head.treatmentRecordId && (
+                    <Button
+                      variant="secondary"
+                      disabled={plan === 'loading'}
+                      onClick={() => void handleAnalyze(head.treatmentRecordId!)}
+                    >
+                      {plan === 'loading' ? 'Analysing…' : 'AI Inventory Analysis'}
+                    </Button>
+                  )}
                 </div>
                 <div style={{ display: 'grid', gap: '0.6rem' }}>
                   {items.map((request, index) => (
@@ -196,6 +240,61 @@ export function MedicineRequestsPage() {
                     </div>
                   ))}
                 </div>
+
+                {plan !== undefined && plan !== 'loading' && (
+                  <div className="info-strip" style={{ display: 'block', marginTop: '0.75rem' }} data-testid={`ai-plan-${groupKey}`}>
+                    <div className="eyebrow" style={{ marginBottom: '6px' }}>AI INVENTORY ANALYSIS — ADVISORY ONLY</div>
+                    {planReady ? (
+                      <>
+                        {plan.medicineRecommendation && (
+                          <p style={{ margin: '0 0 6px' }}>
+                            <strong>{plan.medicineRecommendation.medicineName || 'Recommended medicine'}</strong>
+                            <span className="muted">
+                              {' '}— required {plan.medicineRecommendation.requiredQuantity}, available {plan.medicineRecommendation.availableQuantity},{' '}
+                              {plan.medicineRecommendation.sufficientStock ? 'sufficient stock' : 'insufficient stock'}
+                            </span>
+                            {plan.medicineRecommendation.reason && (
+                              <span className="muted"> · {plan.medicineRecommendation.reason}</span>
+                            )}
+                          </p>
+                        )}
+                        {plan.recommendedBatch && (
+                          <p style={{ margin: '0 0 6px' }}>
+                            Suggested batch: <strong>{plan.recommendedBatch.batchNumber}</strong>
+                            <span className="muted">
+                              {' '}— {plan.recommendedBatch.quantityAvailable} available, expires {plan.recommendedBatch.expiryDate} ({plan.recommendedBatch.expiryStatus})
+                            </span>
+                          </p>
+                        )}
+                        <p className="muted" style={{ margin: '0 0 6px', fontSize: '0.8rem' }}>
+                          Checks: medicine found {plan.inventorySummary.medicineFound ? 'yes' : 'no'}
+                          {' · '}stock {plan.inventorySummary.stockAvailable ? 'yes' : 'no'}
+                          {' · '}sufficient qty {plan.inventorySummary.sufficientQuantity ? 'yes' : 'no'}
+                          {' · '}batch {plan.inventorySummary.batchAvailable ? 'yes' : 'no'}
+                          {' · '}not expired {plan.inventorySummary.notExpired ? 'yes' : 'no'}
+                          {' · '}low stock {plan.inventorySummary.lowStock ? 'yes' : 'no'}
+                          {' · '}confidence {plan.confidence}
+                        </p>
+                        {plan.alternativeMedicines.length > 0 && (
+                          <p className="muted" style={{ margin: '0 0 6px', fontSize: '0.8rem' }}>
+                            Alternatives (informational only — veterinarian approval required before any substitution):
+                            {plan.alternativeMedicines.map((alt, i) => (
+                              <span key={i}> {alt.medicineName ?? alt.medicineId ?? 'Alternative'}{alt.reason ? ` — ${alt.reason}` : ''}{i < plan.alternativeMedicines.length - 1 ? ';' : ''}</span>
+                            ))}
+                          </p>
+                        )}
+                        {plan.planningNotes && (
+                          <p className="muted" style={{ margin: '0 0 6px', fontSize: '0.8rem' }}>{plan.planningNotes}</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="muted" style={{ margin: '0 0 6px' }}>
+                        {plan.planningNotes || 'AI inventory analysis is currently unavailable — process the medicine request normally.'}
+                      </p>
+                    )}
+                    <p className="muted" style={{ margin: 0, fontSize: '0.75rem', fontStyle: 'italic' }}>{plan.disclaimer}</p>
+                  </div>
+                )}
               </Card>
             );
           })}

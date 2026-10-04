@@ -28,4 +28,12 @@ public interface IPrescriptionRepository
 
     /// <summary>All prescriptions written on the given veterinarian's examinations.</summary>
     Task<IReadOnlyList<Prescription>> GetByVeterinarianAsync(Guid veterinarianId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// True when at least one prescription for the treatment record is
+    /// visible to the caller's organization — i.e. the treatment record is
+    /// an in-scope medicine request. Used by the advisory AI seam so
+    /// cross-organization treatment records are never analysed.
+    /// </summary>
+    Task<bool> ExistsForTreatmentRecordAsync(Guid treatmentRecordId, CancellationToken cancellationToken = default);
 }

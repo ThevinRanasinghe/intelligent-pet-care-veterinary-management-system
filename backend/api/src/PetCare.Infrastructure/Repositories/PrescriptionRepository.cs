@@ -69,4 +69,17 @@ public class PrescriptionRepository : IPrescriptionRepository
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<bool> ExistsForTreatmentRecordAsync(Guid treatmentRecordId, CancellationToken cancellationToken = default)
+    {
+        // No detail includes needed for an existence check — the scope
+        // expression itself carries the organization join.
+        var query = await _context.Prescriptions
+            .ScopeToOrganizationAsync(
+                _tenant,
+                p => p.TreatmentRecord!.Diagnosis!.Examination!.Veterinarian!.OrganizationId,
+                cancellationToken);
+
+        return await query.AnyAsync(p => p.TreatmentRecordId == treatmentRecordId, cancellationToken);
+    }
 }

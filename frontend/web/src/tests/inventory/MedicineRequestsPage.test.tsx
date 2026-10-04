@@ -34,11 +34,56 @@ const pendingRequest = {
   createdAt: '2026-09-26T00:00:00Z',
 };
 
-function stubFetch(issueResult?: { body: unknown; ok?: boolean; status?: number }, afterIssueStatus = 'Issued', requests: typeof pendingRequest[] = [pendingRequest]) {
+const aiPlan = {
+  source: 'agentic-ai',
+  requestId: 'tr-1',
+  medicineRecommendation: {
+    medicineId: 'med-1',
+    medicineName: 'Amoxicillin',
+    requiredQuantity: 14,
+    availableQuantity: 40,
+    sufficientStock: true,
+    reason: 'Requested item is in stock',
+  },
+  recommendedBatch: {
+    batchId: 'b1',
+    batchNumber: 'BN-100',
+    quantityAvailable: 40,
+    expiryDate: '2027-06-01',
+    expiryStatus: 'Valid',
+  },
+  alternativeMedicines: [
+    { medicineId: 'med-9', medicineName: 'Doxycycline', availableQuantity: 12, reason: 'In stock if needed' },
+  ],
+  inventorySummary: {
+    medicineFound: true,
+    stockAvailable: true,
+    sufficientQuantity: true,
+    batchAvailable: true,
+    notExpired: true,
+    lowStock: false,
+  },
+  confidence: 'High',
+  planningNotes: 'Issue from the earliest valid batch.',
+  disclaimer: 'AI-generated medicine and inventory recommendation — deterministic backend validation and authorized staff review are required.',
+};
+
+function stubFetch(
+  issueResult?: { body: unknown; ok?: boolean; status?: number },
+  afterIssueStatus = 'Issued',
+  requests: typeof pendingRequest[] = [pendingRequest],
+  planResult?: { body: unknown; ok?: boolean; status?: number },
+) {
   const issuedIds = new Set<string>();
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
+    if (url.includes('/inventory-plan')) {
+      if (planResult && !(planResult.ok ?? true)) {
+        return jsonResponse(planResult.body, planResult.ok ?? true, planResult.status ?? 500);
+      }
+      return jsonResponse(planResult?.body ?? aiPlan);
+    }
     const issueMatch = url.match(/\/prescriptions\/(rx-[\w-]+)\/issue$/);
     if (method === 'POST' && issueMatch) {
       issuedIds.add(issueMatch[1]);
@@ -144,5 +189,85 @@ describe('MedicineRequestsPage', () => {
       expect(call).toBeTruthy();
       expect(JSON.parse(String((call![1] as RequestInit).body))).toEqual({ reason: 'Out of stock' });
     });
+  });
+
+  // --- Advisory AI inventory analysis -------------------------------------
+
+  it('Inventory Officer sees the AI Inventory Analysis control', async () => {
+    stubFetch();
+    renderWithAuth(<MedicineRequestsPage />, { role: 'InventoryOfficer' });
+
+    await screen.findByText(/Amoxicillin/);
+    expect(screen.getByRole('button', { name: /AI Inventory Analysis/i })).toBeInTheDocument();
+  });
+
+  it('non-processing roles do not see the AI control', async () => {
+    stubFetch();
+    renderWithAuth(<MedicineRequestsPage />, { role: 'Veterinarian' });
+
+    await screen.findByText(/Amoxicillin/);
+    expect(screen.queryByRole('button', { name: /AI Inventory Analysis/i })).not.toBeInTheDocument();
+  });
+
+  it('clicking the control requests the plan for the treatmentRecordId and renders it', async () => {
+    const fetchMock = stubFetch();
+    renderWithAuth(<MedicineRequestsPage />, { role: 'InventoryOfficer' });
+
+    await userEvent.click(await screen.findByRole('button', { name: /AI Inventory Analysis/i }));
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url, init]) =>
+        String(url).endsWith('/prescriptions/treatment/tr-1/inventory-plan')
+        && ((init as RequestInit)?.method ?? 'GET') === 'GET')).toBe(true);
+    });
+    // Advisory content renders — recommendation, batch, checks, notes.
+    expect(await screen.findByText(/sufficient stock/i)).toBeInTheDocument();
+    expect(screen.getByText(/BN-100/)).toBeInTheDocument();
+    expect(screen.getByText(/Issue from the earliest valid batch/)).toBeInTheDocument();
+    // Advisory disclaimer is visible.
+    expect(screen.getByText(/deterministic backend validation and authorized staff review/i)).toBeInTheDocument();
+    // Alternatives are shown as informational only, not applied.
+    expect(screen.getByText(/veterinarian approval required/i)).toBeInTheDocument();
+    expect(screen.getByText(/Doxycycline/)).toBeInTheDocument();
+    // No mutation request was made by the analysis itself.
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit)?.method === 'POST')).toBe(false);
+  });
+
+  it('an unavailable response renders safely and Issue still works', async () => {
+    stubFetch(undefined, 'Issued', [pendingRequest], {
+      body: { source: 'unavailable', requestId: 'tr-1', alternativeMedicines: [], inventorySummary: {}, confidence: 'Low', planningNotes: 'AI inventory analysis is currently unavailable — process the medicine request normally.', disclaimer: 'AI-generated medicine and inventory recommendation' },
+    });
+    renderWithAuth(<MedicineRequestsPage />, { role: 'InventoryOfficer' });
+
+    await userEvent.click(await screen.findByRole('button', { name: /AI Inventory Analysis/i }));
+
+    expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument();
+    // Manual processing is unaffected.
+    await userEvent.click(screen.getByRole('button', { name: 'Issue' }));
+    expect(await screen.findByText(/issued and dispensed/i)).toBeInTheDocument();
+  });
+
+  it('a failed analysis call falls back to the unavailable state', async () => {
+    stubFetch(undefined, 'Issued', [pendingRequest], { body: {}, ok: false, status: 500 });
+    renderWithAuth(<MedicineRequestsPage />, { role: 'InventoryOfficer' });
+
+    await userEvent.click(await screen.findByRole('button', { name: /AI Inventory Analysis/i }));
+
+    expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Issue' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Mark Unavailable' })).toBeEnabled();
+  });
+
+  it('AI state is keyed per treatment record — a second group shows no foreign plan', async () => {
+    const otherOrgItem = { ...pendingRequest, id: 'rx-9', treatmentRecordId: 'tr-2', medicineName: 'Meloxicam' };
+    stubFetch(undefined, 'Issued', [pendingRequest, otherOrgItem]);
+    renderWithAuth(<MedicineRequestsPage />, { role: 'InventoryOfficer' });
+
+    await screen.findByText(/Amoxicillin/);
+    await userEvent.click(screen.getAllByRole('button', { name: /AI Inventory Analysis/i })[0]);
+
+    expect(await screen.findByTestId('ai-plan-tr-1')).toBeInTheDocument();
+    // The second request group never received an analysis panel.
+    expect(screen.queryByTestId('ai-plan-tr-2')).not.toBeInTheDocument();
   });
 });

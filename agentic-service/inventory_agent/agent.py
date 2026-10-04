@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from shared.backend import BackendApiError
 from shared.config import ConfigurationError
-from shared.llm import content_to_text, extract_json_object, get_llm
+from shared.llm import content_to_text, extract_json_object, get_llm, is_non_retryable_error
 
 from .models import InventoryAgentState, InventoryAssessment, get_safe_fallback
 from .tools import (
@@ -250,6 +250,8 @@ def fallback_node(state: InventoryAgentState) -> InventoryAgentState:
 def route_after_validation(state: InventoryAgentState) -> str:
     if state.get("assessment") is not None:
         return "end"
+    if is_non_retryable_error(state.get("error")):
+        return "fallback"
     if state["retry_count"] < 2:
         return "retry"
     return "fallback"

@@ -67,3 +67,45 @@ def test_missing_internal_key_config_returns_503(client, monkeypatch):
         headers={"X-Internal-Key": "test-internal-key"},
     )
     assert resp.status_code == 503
+
+
+class _FakeInventoryGraph:
+    """Minimal stand-in for the compiled inventory LangGraph app."""
+
+    async def ainvoke(self, state):
+        from inventory_agent.models import InventoryAssessment, InventorySummary
+
+        state["assessment"] = InventoryAssessment(
+            requestId=state["treatment_record_id"],
+            inventorySummary=InventorySummary(
+                medicineFound=True,
+                stockAvailable=True,
+                sufficientQuantity=True,
+                batchAvailable=True,
+                notExpired=True,
+                lowStock=False,
+            ),
+            confidence="High",
+            planningNotes="Issue from the earliest valid batch.",
+        )
+        return state
+
+
+def test_inventory_endpoint_requires_internal_key(client):
+    resp = client.post("/api/agents/inventory-planning/tr-1")
+    assert resp.status_code == 401
+
+
+def test_inventory_endpoint_uses_treatment_record_id(client, monkeypatch):
+    """The inventory route keys the assessment by the TreatmentRecordId."""
+    import main
+
+    monkeypatch.setattr(main, "inventory_agent_app", _FakeInventoryGraph())
+    resp = client.post(
+        "/api/agents/inventory-planning/tr-42",
+        headers={"X-Internal-Key": "test-internal-key"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["requestId"] == "tr-42"
+    assert "authorized staff review" in body["disclaimer"]

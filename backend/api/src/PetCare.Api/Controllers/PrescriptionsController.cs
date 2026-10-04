@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PetCare.Application.DTOs;
+using PetCare.Application.DTOs.Inventory;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Constants;
 
@@ -122,6 +123,29 @@ public class PrescriptionsController : ControllerBase
     {
         var prescription = await _medicineRequests.IssueAsync(id, cancellationToken);
         return Ok(prescription);
+    }
+
+    /// <summary>
+    /// Advisory AI inventory analysis for a medicine request (keyed by
+    /// treatment record). Read-only: the caller's bearer token is
+    /// forwarded to the agentic service so the agent's backend reads keep
+    /// the caller's role and organization scope. Nothing is issued,
+    /// reserved, or persisted — the inventory officer still acts manually
+    /// and the issue/unavailable endpoints remain authoritative. Agent
+    /// unavailability returns Source="unavailable" rather than blocking
+    /// fulfillment.
+    /// </summary>
+    [HttpGet("treatment/{treatmentRecordId}/inventory-plan")]
+    [Authorize(Roles = MedicineRequestProcessRoles)]
+    [ProducesResponseType(typeof(InventoryPlanDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<InventoryPlanDto>> GetInventoryPlan(
+        Guid treatmentRecordId,
+        CancellationToken cancellationToken)
+    {
+        var bearerToken = Request.Headers.Authorization.ToString();
+        var plan = await _medicineRequests.GetInventoryPlanAsync(
+            treatmentRecordId, bearerToken, cancellationToken);
+        return Ok(plan);
     }
 
     /// <summary>Marks a pending request Unavailable with a required reason.</summary>
