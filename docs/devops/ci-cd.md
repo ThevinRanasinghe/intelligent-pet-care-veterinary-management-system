@@ -62,15 +62,19 @@ All paths are relative to the repository root, which is the default working dire
 
 ## 5. Backend test scope
 
-The CI workflow runs the existing xUnit test projects in the backend solution:
+The CI workflow runs the xUnit test projects in the backend solution:
 
-| Test project | Tests | Scope |
+| Test project | Latest local count | Scope |
 |---|---|---|
-| `PetCare.Application.Tests` | 67 | `SchedulingService`, `BillingService`, `ApprovalService`, `AuthService`, and all FluentValidation validators |
-| `PetCare.Infrastructure.Tests` | 9 | `JwtTokenGenerator`, `PasswordHasher` |
-| **Total** | **76** | Pure unit tests using xUnit + Moq |
+| `PetCare.Tests` | 137 | service + validation unit tests |
+| `PetCare.Application.Tests` | 203 | application services incl. `AgentWorkflowService` |
+| `PetCare.Infrastructure.Tests` | 25 | `WebApplicationFactory` integration tests — **require a real PostgreSQL** (`PETCARE_TEST_DB_CONNECTION`) |
 
-These tests are pure unit tests — they do not reference `PetCareDbContext`, `Npgsql`, or `WebApplicationFactory`. No PostgreSQL service container is required in the CI workflow.
+The workflow provisions a throwaway `postgres:16` service container, applies
+EF migrations (`dotnet ef database update`), and supplies
+`PETCARE_TEST_DB_CONNECTION`/`PETCARE_DB_CONNECTION` pointing at it — the
+credentials are disposable CI-only values. The older "pure unit tests, no
+database required" state no longer applies.
 
 ---
 
@@ -143,6 +147,25 @@ None of the above are part of the current `.github/workflows/backend-ci.yml`.
 
 ## 10. Security
 
-- No secrets, API keys, passwords, or connection strings appear in the workflow file.
-- The workflow does not configure any secrets, environment variables, or database services.
-- **Known limitation:** the workflow's own comment predates `PetCare.Infrastructure.Tests`. `dotnet test` runs the whole solution, so the 4 database-backed integration tests would fail on CI without a `PETCARE_TEST_DB_CONNECTION` (or `PETCARE_DB_CONNECTION`) secret pointing at a migrated PostgreSQL service container — if this workflow is enabled for `Merge_2`/`main` merges, either provision that secret + service or scope the test step to `PetCare.Tests` and `PetCare.Application.Tests`.
+- No secrets, API keys, passwords, or production connection strings appear in the workflow file. The postgres credentials in it are disposable CI-service values only.
+- **Resolved:** the previous limitation (whole-solution `dotnet test` failing on `PetCare.Infrastructure.Tests` without a database) is fixed — the job now provisions a `postgres:16` service, applies EF migrations, and exports `PETCARE_TEST_DB_CONNECTION` + `PETCARE_DB_CONNECTION`.
+
+---
+
+## 11. Orchestration phase — suite inventory
+
+The test surface grew, but **CI remains backend-only**
+(`.github/workflows/backend-ci.yml` — restore/build/`dotnet test` on
+`backend/api`). New and existing suites:
+
+| Suite | Command | Latest local result |
+|---|---|---|
+| `PetCare.Tests` / `PetCare.Application.Tests` / `PetCare.Infrastructure.Tests` | `dotnet test` (infra needs `PETCARE_TEST_DB_CONNECTION`) | 137 / 203 / 25 passed |
+| Agentic unit + graph + endpoint + evaluation tests | `pytest tests -q` (agentic-service) | 127 passed |
+| Agentic workflow E2E (real API + agentic + Docker PG) | `backend/api/tests/e2e/agentic-workflow-e2e.ps1` | 91/91 assertions |
+| Performance benchmark | `tests/performance/perf-benchmark.ps1` | `results/latest.json` |
+| React Vitest / Flutter test | `npx vitest run` / `flutter test` | 186 / 115 passed |
+
+Python, E2E, and performance suites are **not** in the GitHub Actions
+workflow — they require the agentic service (and real Gemini credentials)
+or a disposable Postgres; they remain locally executed evidence.

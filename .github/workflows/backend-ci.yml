@@ -4,8 +4,10 @@ name: backend-ci
 # Owned component: Scheduling, Billing & Approval Management.
 # Scope: build and run the existing xUnit test projects in the backend
 # solution on every push to / pull request against the main branch.
-# The existing tests are pure unit tests (no DbContext, Npgsql, or
-# WebApplicationFactory usage), so no PostgreSQL service is required.
+# PetCare.Infrastructure.Tests use WebApplicationFactory against a real
+# PostgreSQL database (PETCARE_TEST_DB_CONNECTION), so the job provisions
+# a throwaway postgres service and applies EF migrations before testing.
+# The credentials below are disposable CI-only values, not secrets.
 
 on:
   push:
@@ -13,10 +15,29 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  PETCARE_TEST_DB_CONNECTION: Host=localhost;Port=5432;Database=petcare_ci;Username=postgres;Password=postgres
+  PETCARE_DB_CONNECTION: Host=localhost;Port=5432;Database=petcare_ci;Username=postgres;Password=postgres
+
 jobs:
   backend:
     name: Backend restore / build / test
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: petcare_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d petcare_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -32,6 +53,12 @@ jobs:
 
       - name: Build solution
         run: dotnet build backend/api/PetCare.sln --no-restore --configuration Release
+
+      - name: Setup EF Core tools
+        run: dotnet tool install --global dotnet-ef --version 8.*
+
+      - name: Apply migrations to CI database
+        run: dotnet ef database update --project backend/api/src/PetCare.Infrastructure --startup-project backend/api/src/PetCare.Infrastructure --configuration Release
 
       - name: Run tests
         run: dotnet test backend/api/PetCare.sln --no-build --configuration Release --logger "console;verbosity=normal"
