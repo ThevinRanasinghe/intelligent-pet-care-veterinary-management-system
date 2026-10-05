@@ -171,11 +171,39 @@ flutter build apk --debug            # debug APK
 # or via Gradle: cd android; ./gradlew.bat assembleDebug "-Pkotlin.incremental=false"
 ```
 
+## Production release build
+
+The deployed backend is `https://petcare-api-9hsw.onrender.com/api` (Render).
+The app never talks to Supabase or the agentic service directly.
+
+```powershell
+flutter build apk --release `
+  --dart-define=API_BASE_URL=https://petcare-api-9hsw.onrender.com/api
+```
+
+Output: `build/app/outputs/flutter-apk/app-release.apk`
+Install on a device: `adb install app-release.apk`
+
+- **API:** production value comes from the `API_BASE_URL` dart-define — no
+  source change needed; the compiled default stays the emulator URL for dev.
+- **Maps:** Android reads `GOOGLE_MAPS_API_KEY` from gitignored
+  `android/local.properties` (see `local.properties.example`). Without a key
+  the clinic picker falls back to its list view.
+- **Signing:** release builds sign with a local keystore when gitignored
+  `android/key.properties` exists (`storeFile`/`keyAlias`/`storePassword`/
+  `keyPassword`), otherwise fall back to debug signing so CI/dev machines
+  without the keystore still build. The keystore itself lives outside the
+  repo (`%USERPROFILE%\petcare-release.jks`) and is never committed.
+- **Version:** `pubspec.yaml` → `version: 1.0.0+1`.
+- **Cold start:** the free-tier API sleeps after ~15 min idle — warm
+  `https://petcare-api-9hsw.onrender.com/health` before demoing on device;
+  a slow first request is expected infrastructure behavior, not an app bug.
+
 ## Testing
 
 ```powershell
 flutter analyze    # clean — 0 issues
-flutter test       # 115 tests: unit, api-integration (FakeApiClient), widget
+flutter test       # 116 tests: unit, api-integration (FakeApiClient), widget
 ```
 
 Coverage includes the booking wizard (clinic list, fully-booked dates,

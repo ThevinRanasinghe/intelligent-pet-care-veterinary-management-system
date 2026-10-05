@@ -8,7 +8,7 @@ Deployed production architecture for PetCare AI — all three Render services tr
 |---|---|---|
 | ASP.NET Core API | **DEPLOYED** — Render web service `petcare-api` (Docker, `backend/api/Dockerfile`, region oregon) | https://petcare-api-9hsw.onrender.com — Health: `/health` (200, database reachable) · Swagger: `/swagger` (enabled via `Swagger__Enabled=true`) |
 | React web | **DEPLOYED** — Render static site `petcare-web` (`rootDir: frontend/web`, `npm ci && npm run build` → `dist/`) | https://petcare-web-cfgv.onrender.com — SPA rewrite `/* → /index.html` (Render Redirects/Rewrites) |
-| Flutter mobile | **BUILT** — `frontend/mobile/build/app/outputs/flutter-apk/app-release.apk` (~55 MB) | distributed build artifact; device install + run verification pending |
+| Flutter mobile | **BUILT** — release APK v1.0.0+1 (~52 MB), release-signed, production `API_BASE_URL` baked in | `frontend/mobile/build/app/outputs/flutter-apk/app-release.apk`; device install + run verification pending physical device |
 | PostgreSQL | **DEPLOYED** — Supabase, **all EF migrations applied** (verified 2026-10-05, incl. `AddAgentWorkflows` + full live workflow smoke test) | `aws-0-ap-southeast-2.pooler.supabase.com` (database `postgres`) |
 | Agentic AI service | **DEPLOYED** — Render web service `petcare-agentic` (Docker, `agentic-service/Dockerfile`, region oregon) | https://petcare-agentic.onrender.com — internal-only (`X-Internal-Key` required; 401 without it) |
 

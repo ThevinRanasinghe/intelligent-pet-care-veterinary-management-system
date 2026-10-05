@@ -16,6 +16,16 @@ val googleMapsApiKey = localProperties.getProperty("GOOGLE_MAPS_API_KEY")
     ?: System.getenv("GOOGLE_MAPS_API_KEY")
     ?: ""
 
+// Release signing: gitignored android/key.properties supplies a local
+// release keystore kept OUTSIDE the repository. If it is absent (e.g. CI),
+// the release build falls back to the debug signing config so
+// `flutter build apk --release` still succeeds.
+val keyProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use(::load)
+}
+val hasReleaseKeystore = keyProperties.containsKey("storeFile")
+
 android {
     namespace = "com.example.petcare_mobile"
     compileSdk = flutter.compileSdkVersion
@@ -27,8 +37,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.petcare_mobile"
+        applicationId = "com.petcare.mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -44,11 +53,26 @@ android {
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keyProperties["keyAlias"] as String
+                keyPassword = keyProperties["keyPassword"] as String
+                storeFile = file(keyProperties["storeFile"] as String)
+                storePassword = keyProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Uses the local release keystore when android/key.properties
+            // exists; otherwise falls back to debug signing so CI/dev
+            // machines without the keystore can still build.
+            signingConfig = if (hasReleaseKeystore)
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
         }
     }
 }
