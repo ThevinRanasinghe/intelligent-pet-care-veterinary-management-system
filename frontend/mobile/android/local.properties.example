@@ -1,0 +1,4 @@
+# Copy values into android/local.properties (gitignored — never commit).
+# Google Maps SDK key used by the Android manifest placeholder and, via
+# tool/flutter_web.ps1, by the web build's --dart-define.
+GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY

@@ -1,0 +1,92 @@
+using PetCare.Api.Extensions;
+using PetCare.Api.Middleware;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+
+builder.Services.AddControllers();
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "PetCare AI API",
+        Version = "v1",
+        Description = "Scheduling, Billing & Approval Management endpoints."
+    });
+});
+
+// Reuses the existing PetCare.Application / PetCare.Infrastructure implementations.
+builder.Services.AddPetCareInfrastructure(builder.Configuration);
+builder.Services.AddPetCareApplication();
+builder.Services.AddPetCareAuthentication(builder.Configuration);
+
+const string CorsPolicyName = "PetCareFrontend";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(CorsPolicyName, policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
+    });
+});
+
+var app = builder.Build();
+
+// Liveness/readiness probe: anonymous, verifies the PostgreSQL connection.
+app.MapGet("/health", async (IConfiguration config, CancellationToken ct) =>
+{
+    var connectionString = config.GetConnectionString("PetCareDb");
+    if (string.IsNullOrEmpty(connectionString))
+        return Results.Problem(statusCode: 503, title: "Unhealthy",
+            detail: "Database connection string is not configured.");
+    try
+    {
+        await using var conn = new Npgsql.NpgsqlConnection(connectionString);
+        await conn.OpenAsync(ct);
+        return Results.Ok(new { status = "Healthy", database = "reachable" });
+    }
+    catch
+    {
+        return Results.Problem(statusCode: 503, title: "Unhealthy",
+            detail: "Database unreachable.");
+    }
+});
+
+// Configure the HTTP request pipeline.
+// Swagger is on in Development; a deployed demo can opt in with Swagger:Enabled=true.
+var swaggerEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Swagger:Enabled");
+if (swaggerEnabled)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseCors(CorsPolicyName);
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+
+// Exposes the top-level Program for WebApplicationFactory<Program> in
+// integration tests (PetCare.Api.Tests).
+public partial class Program { }

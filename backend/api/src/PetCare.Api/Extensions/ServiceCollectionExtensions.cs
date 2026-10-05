@@ -1,0 +1,234 @@
+using System.Text;
+using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using PetCare.Api.Services;
+using PetCare.Application.DTOs.Admin;
+using PetCare.Application.DTOs.Agentic.Workflows;
+using PetCare.Application.DTOs.Manager;
+using PetCare.Application.DTOs.Approval;
+using PetCare.Application.DTOs.Auth;
+using PetCare.Application.DTOs.Billing;
+using PetCare.Application.DTOs;
+using PetCare.Application.DTOs.Consultations;
+using PetCare.Application.DTOs.Inventory;
+using PetCare.Application.DTOs.Scheduling;
+using PetCare.Application.Interfaces;
+using PetCare.Application.Services;
+using PetCare.Application.Validators;
+using PetCare.Infrastructure;
+using PetCare.Infrastructure.Agentic;
+using PetCare.Infrastructure.Repositories;
+using PetCare.Infrastructure.Security;
+using PetCare.Infrastructure.Services;
+
+namespace PetCare.Api.Extensions;
+
+/// <summary>
+/// Composition-root wiring for PetCare.Application and PetCare.Infrastructure.
+/// Reuses the existing repository/service/validator implementations from
+/// those two projects; no duplicate classes are created here.
+/// </summary>
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddPetCareInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Resolve from app configuration first; if missing or empty, fall back
+        // to the PETCARE_DB_CONNECTION environment variable. No hardcoded
+        // fallback is provided so authentication failures are caught at startup
+        // rather than silently trying a default password that may not exist.
+        var configured = configuration.GetConnectionString("PetCareDb");
+        var connectionString = !string.IsNullOrWhiteSpace(configured)
+            ? configured
+            : Environment.GetEnvironmentVariable("PETCARE_DB_CONNECTION");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "A PostgreSQL connection string must be configured. " +
+                "Set it via user secrets: dotnet user-secrets set \"ConnectionStrings:PetCareDb\" \"<connection-string>\" " +
+                "or via the environment variable PETCARE_DB_CONNECTION.");
+        }
+
+        services.AddDbContext<PetCareDbContext>(options => options.UseNpgsql(connectionString));
+
+        services.AddScoped<IVeterinarianRepository, VeterinarianRepository>();
+        services.AddScoped<IAppointmentSlotRepository, AppointmentSlotRepository>();
+        services.AddScoped<IAppointmentRepository, AppointmentRepository>();
+        services.AddScoped<IQuotationRepository, QuotationRepository>();
+        services.AddScoped<IApprovalRepository, ApprovalRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IPetOwnerRepository, PetOwnerRepository>();
+        services.AddScoped<IOrganizationRepository, OrganizationRepository>();
+        services.AddScoped<IConsultationRequestRepository, ConsultationRequestRepository>();
+        services.AddScoped<IAgentWorkflowRepository, AgentWorkflowRepository>();
+        services.AddScoped<IExaminationRepository, ExaminationRepository>();
+        services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // Pet / Consultation services (from Pet-and-Consultation-Request-Management-v2)
+        services.AddScoped<IPetCareDbContext>(provider => provider.GetRequiredService<PetCareDbContext>());
+        services.AddScoped<IPetService, PetService>();
+        services.AddScoped<IPetOwnerService, PetOwnerService>();
+        services.AddScoped<IConsultationRequestService, ConsultationRequestService>();
+
+        // Resolves the caller's PetOwner profile from JWT claims and answers
+        // resource-ownership questions for controller-level authorization.
+        services.AddHttpContextAccessor();
+        services.AddScoped<IOwnerAccessService, OwnerAccessService>();
+        // Resolves the caller's organization (User.OrganizationId) for
+        // tenant scoping of org-owned data in repositories/services.
+        services.AddScoped<ITenantContext, TenantContext>();
+
+        // Diagnosis / Treatment services (from Diagnosis-and-Treatment-Management)
+        services.AddScoped<IExaminationService, ExaminationService>();
+        services.AddScoped<IDiagnosisService, DiagnosisService>();
+        services.AddScoped<ITreatmentRecordService, TreatmentRecordService>();
+        services.AddScoped<IPrescriptionService, PrescriptionService>();
+
+        // Medicine & Inventory repositories (from Medicine-and-Inventory-Management)
+        services.AddScoped<ISupplierRepository, SupplierRepository>();
+        services.AddScoped<IMedicineRepository, MedicineRepository>();
+        services.AddScoped<IMedicineBatchRepository, MedicineBatchRepository>();
+        services.AddScoped<IMedicineReservationRepository, MedicineReservationRepository>();
+        services.AddScoped<IInventoryTransactionRepository, InventoryTransactionRepository>();
+
+        services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.Configure<JwtOptions>(configuration.GetSection("Jwt"));
+        services.PostConfigure<JwtOptions>(options =>
+        {
+            // The signing key must never be hardcoded/committed. Resolve from
+            // configuration first (appsettings/user-secrets), falling back to
+            // the PETCARE_JWT_KEY environment variable, mirroring how the DB
+            // connection string is resolved above.
+            if (string.IsNullOrWhiteSpace(options.Key))
+            {
+                options.Key = Environment.GetEnvironmentVariable("PETCARE_JWT_KEY") ?? string.Empty;
+            }
+        });
+
+        // Agentic AI integration seam (advisory only — see docs/adr/0006).
+        // The typed client is always registered; when AgenticService:BaseUrl
+        // is unset the client reports "agentic_not_configured" rather than
+        // failing, so the core API is unaffected by AI configuration.
+        services.Configure<AgenticServiceOptions>(configuration.GetSection(AgenticServiceOptions.SectionName));
+        services.PostConfigure<AgenticServiceOptions>(options =>
+        {
+            if (string.IsNullOrWhiteSpace(options.InternalKey))
+            {
+                options.InternalKey =
+                    Environment.GetEnvironmentVariable("PETCARE_AGENTIC_INTERNAL_KEY") ?? string.Empty;
+            }
+        });
+        services.AddHttpClient<IAgenticClient, AgenticClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<AgenticServiceOptions>>().Value;
+            if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+            {
+                client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+            }
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+        });
+
+        return services;
+    }
+
+    public static IServiceCollection AddPetCareApplication(this IServiceCollection services)
+    {
+        services.AddScoped<ISchedulingService, SchedulingService>();
+        services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<IApprovalService, ApprovalService>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IInventoryService, InventoryService>();
+        services.AddScoped<IAdminService, AdminService>();
+        services.AddScoped<IManagerService, ManagerService>();
+        services.AddScoped<ICurrentVeterinarianResolver, CurrentVeterinarianResolver>();
+        services.AddScoped<IConsultationWorkflowService, ConsultationWorkflowService>();
+        services.AddScoped<IMedicineRequestService, MedicineRequestService>();
+        services.AddScoped<IBookingAvailabilityService, BookingAvailabilityService>();
+        services.AddScoped<IClinicLocatorService, ClinicLocatorService>();
+        services.AddScoped<IAgentWorkflowService, AgentWorkflowService>();
+
+        services.AddScoped<IValidator<CreateAppointmentRequest>, CreateAppointmentRequestValidator>();
+        services.AddScoped<IValidator<UpdateAppointmentRequest>, UpdateAppointmentRequestValidator>();
+        services.AddScoped<IValidator<CreateQuotationRequest>, CreateQuotationRequestValidator>();
+        services.AddScoped<IValidator<UpdateQuotationRequest>, UpdateQuotationRequestValidator>();
+        services.AddScoped<IValidator<ApproveRequest>, ApproveRequestValidator>();
+        services.AddScoped<IValidator<RejectRequest>, RejectRequestValidator>();
+        services.AddScoped<IValidator<RequestRevisionRequest>, RequestRevisionRequestValidator>();
+        services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
+        services.AddScoped<IValidator<RegisterPetOwnerRequest>, RegisterPetOwnerRequestValidator>();
+        services.AddScoped<IValidator<RegisterOrganizationRequest>, RegisterOrganizationRequestValidator>();
+        services.AddScoped<IValidator<ChangePasswordRequest>, ChangePasswordRequestValidator>();
+        services.AddScoped<IValidator<UpdateProfileRequest>, UpdateProfileRequestValidator>();
+        services.AddScoped<IValidator<CreateMedicineRequest>, CreateMedicineRequestValidator>();
+        services.AddScoped<IValidator<ReceiveStockRequest>, ReceiveStockRequestValidator>();
+        services.AddScoped<IValidator<ReserveMedicineRequest>, ReserveMedicineRequestValidator>();
+        services.AddScoped<IValidator<CreateSupplierRequest>, CreateSupplierRequestValidator>();
+        services.AddScoped<IValidator<ManagerCreateStaffRequest>, ManagerCreateStaffRequestValidator>();
+        services.AddScoped<IValidator<AssignVeterinarianRequest>, AssignVeterinarianRequestValidator>();
+        services.AddScoped<IValidator<CreateFollowUpRequest>, CreateFollowUpRequestValidator>();
+        services.AddScoped<IValidator<MarkPrescriptionUnavailableRequest>, MarkPrescriptionUnavailableValidator>();
+        services.AddScoped<IValidator<CreateConsultationRequestDto>, CreateConsultationRequestValidator>();
+        services.AddScoped<IValidator<UpdateConsultationRequestDto>, UpdateConsultationRequestValidator>();
+        services.AddScoped<IValidator<WorkflowDecisionRequest>, WorkflowDecisionRequestValidator>();
+        services.AddScoped<WorkflowDecisionWithCommentsValidator>();
+        services.AddScoped<IValidator<WorkflowEventRequest>, WorkflowEventRequestValidator>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures JWT bearer authentication and role-based authorization.
+    /// The signing key comes from configuration ("Jwt:Key", sourced from
+    /// user-secrets or the PETCARE_JWT_KEY environment variable) — never
+    /// hardcoded here. Throws at startup if no key is configured, so a
+    /// missing secret fails fast instead of silently accepting unsigned/
+    /// unverifiable tokens.
+    /// </summary>
+    public static IServiceCollection AddPetCareAuthentication(this IServiceCollection services, IConfiguration configuration)
+    {
+        var jwtSection = configuration.GetSection("Jwt");
+        var issuer = jwtSection["Issuer"] ?? "PetCareApi";
+        var audience = jwtSection["Audience"] ?? "PetCareClient";
+        var key = !string.IsNullOrWhiteSpace(jwtSection["Key"])
+            ? jwtSection["Key"]
+            : Environment.GetEnvironmentVariable("PETCARE_JWT_KEY");
+
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new InvalidOperationException(
+                "A JWT signing key must be configured. Set it via user secrets: " +
+                "dotnet user-secrets set \"Jwt:Key\" \"<a long random secret>\" " +
+                "or via the environment variable PETCARE_JWT_KEY.");
+        }
+
+        services
+            .AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = issuer,
+                    ValidateAudience = true,
+                    ValidAudience = audience,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromSeconds(30)
+                };
+            });
+
+        services.AddAuthorization();
+
+        return services;
+    }
+}
