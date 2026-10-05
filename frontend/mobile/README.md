@@ -16,6 +16,11 @@ on the web app; this app covers the pet-owner journey end to end:
   diagnoses, treatments and prescriptions
 - Bills — owner invoices from `/quotations/mine` with payment status
 - Profile — account details, edit profile, change password, logout
+- AI workflow status — `ConsultationRequest.agentWorkflowStatus` (nullable,
+  tolerant parsing) renders a friendly chip (`StatusBadge`) on the
+  appointments list and consultation detail — e.g. `PendingManagerApproval`
+  → "Clinic reviewing", `AwaitingExamination` → "Appointment confirmed";
+  nothing renders when the field is absent (model-parsing + widget tests).
 
 ## Project structure
 
@@ -170,7 +175,7 @@ flutter build apk --debug            # debug APK
 
 ```powershell
 flutter analyze    # clean — 0 issues
-flutter test       # 111 tests: unit, api-integration (FakeApiClient), widget
+flutter test       # 115 tests: unit, api-integration (FakeApiClient), widget
 ```
 
 Coverage includes the booking wizard (clinic list, fully-booked dates,

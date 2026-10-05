@@ -33,10 +33,13 @@ petcare-ai/
 │   ├── diagnosis_agent/
 │   ├── scheduling_agent/
 │   ├── inventory_agent/
-│   ├── shared/                  # backend client, config, LLM wiring
-│   └── tests/
+│   ├── supervisor/              # orchestration: graph.py (StateGraph + approval gate), planner.py, specialists.py, validation.py, models.py
+│   ├── shared/                  # backend client, config, LLM wiring, sanitize.py + tool_registry.py (allow-list + tracing)
+│   └── tests/                   # unit/graph/endpoint tests + evaluation/ (deterministic golden + prompt-injection suite)
+├── tests/
+│   └── performance/             # perf-benchmark.ps1 + results/latest.json (local measured evidence)
 ├── docs/
 └── infra/
 ```
 
-The React app implements all feature folders — `admin`, `auth`, `pets`, `consultations`, `scheduling`, `billing`, `approvals`, `treatment`, `inventory`, `vet`, `manager`, `dashboard`, `shared`. The advisory AI surfaces are embedded per-feature (consultation analysis + scheduling plan on the Consultation Requests page, "AI Assist" on examinations, "AI Plan" on medicine requests) rather than in a standalone `ai-workflows` folder, which was removed.
+The React app implements all feature folders — `admin`, `auth`, `pets`, `consultations`, `scheduling`, `billing`, `approvals`, `treatment`, `inventory`, `vet`, `manager`, `dashboard`, `shared`. The advisory AI surfaces are embedded per-feature (consultation analysis + scheduling plan on the Consultation Requests page, "AI Assist" on examinations, "AI Plan" on medicine requests) rather than in a standalone `ai-workflows` folder, which was removed. The orchestrated-workflow UI likewise lives inside `features/manager/AgentWorkflowPanel.tsx` (with `services/agentWorkflowService.ts`), rendered inside Consultation Requests; backend adds `Controllers/AgentWorkflowsController.cs`, `Services/AgentWorkflowService.cs`, `Repositories/AgentWorkflowRepository.cs`, `Configurations/AgentWorkflowConfiguration.cs`, `Constants/AgentWorkflowStatus.cs`, and `DTOs/Agentic/Workflows/`.

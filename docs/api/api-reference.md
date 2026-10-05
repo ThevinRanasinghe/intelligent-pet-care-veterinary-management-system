@@ -231,3 +231,42 @@ The backend exposes four **advisory** endpoints that proxy to the internal `agen
 | GET | `/api/prescriptions/treatment/{treatmentRecordId}/inventory-plan` | IO, Admin | `InventoryPlanDto` | Inventory plan (stock/batch fulfilment recommendation) |
 
 **Contract:** each response carries a `source` field — `"agent"` on success or `"unavailable"`/safe fallback on timeout, LLM failure, or validation failure. The agentic service is internal-only: callers hit the ASP.NET API with their JWT; the API adds `X-Internal-Key` and forwards the caller's bearer token so agent data reads inherit the caller's role/organization scope. The service-to-service `POST /api/agents/*` endpoints are documented in `agentic-service/README.md` and are never exposed to browsers.
+
+## Agent Workflows — `api/agent-workflows`
+
+Orchestrated AI consultation workflow (Supervisor/Planner + four advisory
+specialists in `agentic-service`; persisted in `AgentWorkflow*` tables — see
+`docs/agentic/orchestration-workflow.md`). A workflow row is auto-created
+when a consultation is submitted; owners see only a reduced status DTO.
+
+| Method | Route | Roles | Body | Notes |
+|---|---|---|---|---|
+| POST | `/start` | CM, Admin | `StartAgentWorkflowRequest { consultationRequestId }` | Idempotent create → `AgentWorkflowDto` (`Created`) |
+| POST | `/{id}/run` | CM, Admin | — → `AgentWorkflowDto` | Runs the Python graph to the approval gate; **409** while `PendingManagerApproval` |
+| GET | `/{id}` | CM, Vet, Admin | — → `AgentWorkflowDto` | Full workflow incl. `plan`, `proposal`, `steps`, `approvals` |
+| GET | `/by-consultation/{consultationId}` | CM, Admin, **PetOwner** | — → `AgentWorkflowDto` \| `AgentWorkflowStatusDto` | PetOwner receives only `{workflowId, status, updatedAt}`; 404 absent/not-owned |
+| GET | `/{id}/history` | CM, Admin | — → `AgentWorkflowHistoryDto` | `{workflow, steps, approvals, events}` — audit trajectory |
+| POST | `/{id}/approve` | **CM only** | `WorkflowDecisionRequest { comments? }` | Resumes the graph and books the appointment via `AssignConsultationAsync` → `AwaitingExamination`; **409** duplicate decision |
+| POST | `/{id}/reject` | **CM only** | `WorkflowDecisionRequest { comments }` | Comments required → **400**; status `Rejected` |
+| POST | `/{id}/revision` | **CM only** | `WorkflowDecisionRequest { comments }` | Comments required → **400**; replans into a new pending proposal (cap 2) |
+| POST | `/{id}/events` | CM, Admin | `WorkflowEventRequest { eventType, referenceId }` | `examination_recorded` / `prescription_created`; 404 mismatched reference |
+
+**Error contract:** 401 unauthenticated · 403 wrong role / foreign org ·
+400 validation (missing/oversized comments — FluentValidation) · 404
+unknown/foreign-org workflow or mismatched event reference · 409
+`ApprovalConflictException` (run while awaiting decision; duplicate
+decision; non-pending approval). Agentic-service failures never surface as
+500: the workflow keeps its prior status with an `agentic_unavailable:<err>`
+trajectory event.
+
+`ConsultationRequestDto` now carries a nullable `agentWorkflowStatus`
+(filled by one grouped query over the returned ids — no N+1).
+
+**Workflow-routed advisory calls:** when a workflow for the linked
+consultation is in `AwaitingExamination`, `GET
+/api/examinations/{id}/recommendations` advances it (`POST
+/api/workflows/{id}/advance` → `diagnosis_agent`) instead of the direct
+agent call; likewise `GET
+/api/prescriptions/treatment/{id}/inventory-plan` advances
+`AwaitingPrescription` workflows (`inventory_agent`). Without an active
+workflow the direct advisory call is unchanged.

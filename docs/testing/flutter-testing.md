@@ -1,7 +1,14 @@
 # Flutter Testing — Scheduling, Billing & Approval
 
-> **Current suite status (Merge_2 final):** after the PetOwner redesign (H9/H10)
-> and follow-on coverage the suite is **111 tests** (`flutter test`) with
+> **Current suite status (orchestration phase):** **115 tests**
+> (`flutter test`), `flutter analyze` clean — see `test-evidence-index.md`
+> Step 28. New coverage: `ConsultationRequest.agentWorkflowStatus` model
+> parsing (present/missing-null/all friendly labels) and a widget test for
+> the owner-facing workflow status chip ("Clinic reviewing" for
+> `PendingManagerApproval`, absent when null).
+>
+> Earlier (Merge_2 final): after the PetOwner redesign (H9/H10)
+> and follow-on coverage the suite was **111 tests** (`flutter test`) with
 > `flutter analyze` clean — see `test-evidence-index.md` Steps 25–27. The
 > document below records the original Step-12 verification (49 tests) and the
 > staff-facing app that existed at that time; it is preserved as historical

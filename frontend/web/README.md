@@ -60,11 +60,21 @@ src/
   Requests (CM/Admin), "AI Assist" on Examinations (Vet), "AI Plan" on
   Medicine Requests (IO). They call the backend advisory GET endpoints and
   degrade to a plain notice when the agentic service is unavailable.
+- **Orchestrated workflow UI** — `features/manager/AgentWorkflowPanel.tsx`
+  (via `services/agentWorkflowService.ts` → `api/agent-workflows`) renders
+  inside the Consultation Requests details view for managers: status badge,
+  run/start, the pending AI proposal, approve/reject/request-revision with
+  required-comment validation, and a toggleable execution-history view
+  (plan steps, agent steps, tool calls, approvals, trajectory). PetOwners
+  see a friendly `agentWorkflowStatus` badge on their consultation cards.
 - **Google Maps** is loaded dynamically by `lib/googleMaps.ts` — no npm
   dependency; the key is never committed (`VITE_GOOGLE_MAPS_API_KEY`).
 
 ## Testing
 
-171 Vitest tests covering component render, form validation, API-integration
-(mocked `fetch`), and error/empty/loading states. See
+186 Vitest tests covering component render, form validation, API-integration
+(mocked `fetch`), and error/empty/loading states — including
+`tests/manager/AgentWorkflowPanel.test.tsx` and
+`tests/manager/agentWorkflowService.api.test.ts` for the orchestrated
+workflow UI. See
 `docs/testing/react-testing.md` and `docs/testing/test-evidence-index.md`.

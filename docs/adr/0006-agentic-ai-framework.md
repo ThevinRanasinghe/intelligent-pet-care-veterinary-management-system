@@ -30,3 +30,15 @@ Each agent follows `retrieve_context (read-only PetCare API calls) → LLM analy
 - The former mock `/ai-workflows` monitor UI was removed; real agent integration landed per-workflow (manager consultation analysis + scheduling plan, vet "AI Assist", IO "AI Plan")
 - `GET /api/examinations/{id}/recommendations` remains the vet-facing contract; its keyword internals were swapped for the diagnosis agent in Phase 2A
 - `GEMINI_API_KEY`, `GEMINI_MODEL`, `API_BASE_URL`, `AGENTIC_INTERNAL_KEY`, `BACKEND_TIMEOUT_SECONDS` configure the service (see `agentic-service/.env.example`)
+
+## Addendum (orchestration phase)
+
+The four advisory agents remain, but they are now also coordinated by a
+**Supervisor/Planner** (`agentic-service/supervisor/`) on an explicit
+LangGraph `StateGraph` with a LangGraph `interrupt()` human-approval gate
+and persisted workflow state in the ASP.NET database — see
+`docs/agentic/orchestration-workflow.md` and **ADR 0009** for the full
+decision. Status updated to *Decided — supervisor orchestration +
+approval gate implemented*. The single-agent advisory endpoints and their
+behaviour contract are unchanged; the supervisor reuses the same specialist
+graphs with isolated contexts and a tool allow-list.

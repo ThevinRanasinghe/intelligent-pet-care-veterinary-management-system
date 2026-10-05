@@ -274,3 +274,31 @@ Quotation
 
 - **`BookingRules` (`20260927070805`)** adds `ConsultationRequests.OrganizationId` (`uuid` nullable, indexed, FK → `Organizations` `SetNull`) — the clinic an owner books at; booking rules (09:00–18:00, nine 1-hour slots, hour-aligned starts, org slot capacity) live in `BookingRules`/validators. The pre-existing unique `IX_AppointmentSlots_VeterinarianId_Date_StartTime` converts concurrent same-vet/slot assigns into 23505 → 409.
 - **`OrganizationLocation` (`20260927081008`)** adds `Organizations.Latitude`/`Longitude` (nullable `double precision`) — optional clinic map coordinates captured at organization registration; feeds `GET /api/consultations/nearby-clinics` / `nearest-clinic` and the React `ClinicMap`. Also **not yet applied to Supabase** (verified on local disposable DBs only).
+
+---
+
+## Addendum — Agent workflow entities (`AddAgentWorkflows`)
+
+Consultation-stage AI orchestration state is stored on the backend (the
+Python service never touches the database):
+
+```text
+ConsultationRequest 1──1 AgentWorkflow 1──* AgentWorkflowStep
+                                      1──* AgentWorkflowApproval
+                                      1──* AgentWorkflowEvent
+```
+
+- `AgentWorkflow` — `ConsultationRequestId` (unique), `OrganizationId`,
+  `Objective`, `Status` (`Created`→`Running`→`PendingManagerApproval`→
+  `Approved`→`AwaitingExamination`→`AwaitingPrescription`→`Completed` |
+  `Rejected` | `Failed`), `PlanJson`/`ProposalJson`/`ApprovedActionJson`/
+  `SnapshotJson`, counters (`DelegationCount`, `RevisionCount`),
+  `FailureReason`, timestamps.
+- `AgentWorkflowStep` — per-delegation records (agent, task, status, retry
+  count, tool calls, validation summary, input/output JSON).
+- `AgentWorkflowApproval` — decision rows (`Pending` → decided) with
+  `DecidedByUserId`, `DecidedAt`, `Comments`, `ProposalJson`. **Separate
+  from `Approval`** (quotation approval is 1:1 with `Quotation` and has a
+  different lifecycle — see ADR 0009 / business doc).
+- `AgentWorkflowEvent` — backend-sequenced trajectory (`Seq` strictly
+  increasing per workflow; node, event, agent, detail JSON).

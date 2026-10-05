@@ -85,6 +85,7 @@ flowchart TD
 | `ApprovalsController` | `api/approvals` | `GET/pending`, `GET/{id}`, `POST/{id}/approve`, `POST/{id}/reject`, `POST/{id}/revision`, `GET/{id}/history` |
 | `PrescriptionsController` | `api/prescriptions` | CRUD + `GET/requests`, `POST/{id}/issue`, `POST/{id}/unavailable`, `GET/treatment/{id}/inventory-plan` (advisory AI) (IO/Admin) |
 | `ManagerController` | `api/manager` | `GET/veterinarians`, `GET/veterinarians/{id}/history`, `POST/users/veterinarians`, `POST/users/inventory-officers` (CM only) |
+| `AgentWorkflowsController` | `api/agent-workflows` | `POST/start`, `POST/{id}/run`, `GET/{id}`, `GET/by-consultation/{id}` (PetOwner → reduced status DTO), `GET/{id}/history`, `POST/{id}/approve`/`reject`/`revision` (**CM only**), `POST/{id}/events` — orchestrated AI workflow lifecycle |
 
 Controllers are intentionally thin: they delegate all business logic to the Application-layer services and only handle HTTP concerns (routing, status codes, model binding).
 
@@ -102,18 +103,19 @@ Controllers are intentionally thin: they delegate all business logic to the Appl
 | `ClinicLocatorService` | `FindNearbyAsync(lat,lng,radiusKm)` — Active + `IsActive` orgs with coordinates, Haversine `DistanceKm` (2dp), radius filter, nearest-first |
 | `AdminService` | Platform administration — user/organization listing and status transitions, role catalog, system stats (no staff creation — that is the ClinicManager's job) |
 | `ManagerService` | ClinicManager self-administration — creates Veterinarian / InventoryOfficer accounts inside the caller's own organization (org from `ITenantContext`, `MustChangePassword = true`, one-time temporary password; vet creation also creates the linked `Veterinarian` profile), plus org vet list + veterinarian work history |
+| `AgentWorkflowService` | Orchestrated AI workflow lifecycle: auto-create on consultation submit, `RunAsync` (Python graph → `PendingManagerApproval` + pending approval row), `DecideAsync` (CM-only; Approved → resume graph → `AssignConsultationAsync` booking; Rejected/RevisionRequested), `AdvanceAsync` (examination/prescription events → remaining specialists), tenant-scoped reads, reduced PetOwner status DTO, backend-assigned strictly increasing trajectory seq |
 
 ### Repositories (`PetCare.Infrastructure/Repositories/`)
 
-`VeterinarianRepository`, `AppointmentSlotRepository`, `AppointmentRepository`, `QuotationRepository`, `ApprovalRepository`, `UserRepository`, `UnitOfWork` — all implementing interfaces declared in `PetCare.Application/Interfaces/`.
+`VeterinarianRepository`, `AppointmentSlotRepository`, `AppointmentRepository`, `QuotationRepository`, `ApprovalRepository`, `UserRepository`, `AgentWorkflowRepository`, `UnitOfWork` — all implementing interfaces declared in `PetCare.Application/Interfaces/`.
 
 ### DTOs (`PetCare.Application/DTOs/`)
 
-Organized by sub-domain: `Auth/`, `Scheduling/`, `Billing/`, `Approval/`. Each request/response DTO maps to a specific endpoint contract.
+Organized by sub-domain: `Auth/`, `Scheduling/`, `Billing/`, `Approval/`, `Agentic/` (incl. `Agentic/Workflows/` — `AgentWorkflowDto`, `AgentWorkflowStepDto`, `AgentWorkflowApprovalDto`, `AgentWorkflowEventDto`, `AgentWorkflowHistoryDto`, `AgentWorkflowStatusDto`, decision/event requests). Each request/response DTO maps to a specific endpoint contract.
 
 ### Validators (`PetCare.Application/Validators/`)
 
-FluentValidation validators for `CreateAppointmentRequest`, `UpdateAppointmentRequest`, `CreateQuotationRequest`, `UpdateQuotationRequest`, `ApproveRequest`, `RejectRequest`, `RequestRevisionRequest`, `LoginRequest`.
+FluentValidation validators for `CreateAppointmentRequest`, `UpdateAppointmentRequest`, `CreateQuotationRequest`, `UpdateQuotationRequest`, `ApproveRequest`, `RejectRequest`, `RequestRevisionRequest`, `LoginRequest`, and `WorkflowDecisionRequest` (comments required for reject/revision, ≤ 1000 chars).
 
 ### Domain entities (`PetCare.Domain/Entities/`)
 
@@ -137,6 +139,7 @@ See section 6 below.
 | Pet owner | `PetOwnerDashboard` — "My Appointments" + "My Bills" cards |
 | Approval | `features/approvals/ApprovalPage.tsx`; `services/approvalService.ts` |
 | AI assistance | Advisory panels integrated per-workflow (manager consultation analysis + scheduling plan, vet "AI Assist" on examinations, inventory-officer "AI Plan" on medicine requests) — backed by `agentic-service` via `IAgenticClient`; the former mock `/ai-workflows` monitor page was removed |
+| Agent workflow | `features/manager/AgentWorkflowPanel.tsx` + `services/agentWorkflowService.ts` — status badge, run/start, proposal review, approve/reject/revision (comment rules), execution-history view; owners see a friendly status badge from `ConsultationRequestDto.agentWorkflowStatus` |
 | Maps / location | `lib/googleMaps.ts` (script loader + `directionsUrl`), `features/shared/maps/LocationPickerMap.tsx` (org registration: search → pin → confirm; retryable notice on load failure), `features/shared/maps/ClinicMap.tsx` (owner booking; card fallback); optional Maps key via `.env.example` |
 | API boundary | `services/api.ts` — `ApiError` class, `apiRequest` helper, attaches `Authorization: Bearer` header |
 
@@ -262,6 +265,7 @@ All entities below are confirmed in `PetCare.Domain/Entities/` and mapped via EF
 | Flutter mobile — Auth, Provider state management | **Implemented** |
 | GitHub Actions backend CI workflow | **Implemented** (local verification; hosted run pending) |
 | Agentic AI advisory integration (diagnosis, consultation, scheduling, inventory agents) | **Implemented** — `agentic-service/` FastAPI + LangGraph + Gemini proxied via `IAgenticClient` (`X-Internal-Key` + caller-JWT forwarding); all four advisory surfaces live in the React staff UI |
+| Agentic supervisor orchestration (plan→delegate→validate→CM approval gate→backend booking→audit) | **Implemented** — `agentic-service/supervisor/` LangGraph `StateGraph` + `api/agent-workflows` + `AgentWorkflow*` persistence (migration `AddAgentWorkflows` pending apply on Supabase) + React `AgentWorkflowPanel`; verified E2E 57/57 |
 | Android runtime verification | **Pending** — no emulator/device available |
 | GitHub-hosted Actions run | **Pending** — workflow targets `main` push/PR events |
 

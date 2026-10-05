@@ -507,3 +507,29 @@ All four `agentic-service` agents integrated into the ASP.NET API via `IAgenticC
 | Secret sweep | `git grep` for Google-API-key pattern across tracked files | **0 matches** - no key committed |
 
 - **Commits:** `fcdbd1f` (diagnosis agent), `3358fa0` (consultation agent), `f8da4db` (scheduling agent), `1988ef1` (inventory agent), `652f5af` (non-retryable LLM error fast-path), `1c0f0fe` (Maps key externalization) - all on `Merge_2`.
+
+---
+
+## Step 28 — Agentic Supervisor Orchestration + Human Approval Gate (Merge_3)
+
+Added a Supervisor/Planner agent (`agentic-service/supervisor/`) orchestrating the four existing specialist agents on an explicit LangGraph `StateGraph`: structured LLM plan + deterministic `validate_plan`/`DEFAULT_PLAN` fallback → code routing (`select_next`) → isolated specialist delegation → `validate_proposal` → `interrupt()` approval gate resumed only by an authenticated ClinicManager decision → `backend_action` emitted → **backend** books the appointment via `AssignConsultationAsync`. New persistence (`AddAgentWorkflows`: `AgentWorkflows`, `AgentWorkflowSteps`, `AgentWorkflowApprovals`, `AgentWorkflowEvents`), backend controller `api/agent-workflows`, React `AgentWorkflowPanel` + owner status badges, Flutter `agentWorkflowStatus` chip. E2E found and fixed four real defects (DateTime Local→Utc, EF child-state INSERTs, Available-slot adoption, backend-side strictly-increasing trajectory seq).
+
+### Verified results (local, executed today)
+
+| Check | Command | Result |
+|---|---|---|
+| Agentic unit tests | `pytest tests -q` | **121/121 passed** |
+| Agentic evaluation | `python -m tests.evaluation.run_eval` | **32/32 passed** (`results/latest.json`) |
+| Backend service tests | `dotnet test` | `PetCare.Tests` — **137/137 passed** |
+| Application tests | `dotnet test` | `PetCare.Application.Tests` — **201/201 passed** (+ slot-adoption tests) |
+| Infrastructure tests | `dotnet test` (`PETCARE_TEST_DB_CONNECTION` → local Postgres) | `PetCare.Infrastructure.Tests` — **25/25 passed** |
+| E2E (real API + agentic + Docker PG + real Gemini) | `backend/api/tests/e2e/agentic-workflow-e2e.ps1` | **57/57 passed** (`results/latest-run.txt`) |
+| Performance benchmark | `tests/performance/perf-benchmark.ps1` | recorded → `tests/performance/results/latest.json` (`docs/testing/performance-evidence.md`) |
+| Web typecheck | `npx tsc --noEmit` | **0 errors** |
+| Web tests | `npx vitest run` | **186/186 passed** |
+| Web build | `npm run build` | **succeeds** |
+| Mobile analysis | `flutter analyze` | **0 issues** |
+| Mobile tests | `flutter test` | **115/115 passed** |
+
+- **Commit:** _(uncommitted working tree at time of verification)_
+- **Note:** `AddAgentWorkflows` is applied to the disposable local DB only; pending on Supabase — do not apply without approval.

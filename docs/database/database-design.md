@@ -394,3 +394,28 @@ The first three are applied to the shared **Supabase PostgreSQL** database. Live
 - **`AddUsers` migration remains applied:** The migration and any inserted user rows remain in the database. No rollback was performed.
 - **`WorkflowRedesign` / `BookingRules` / `OrganizationLocation` pending apply:** the model is ahead of the shared Supabase schema (new columns/FKs/indexes above); run the migrations before pointing the new API build at Supabase.
 - **Seeded veterinarians are unlinkable:** the 3 `HasData` vet rows have `UserId = NULL`; only `POST /api/manager/users/veterinarians` creates a `Veterinarian` row linked to a login.
+
+---
+
+## 11. Agent workflow tables (migration `20261005135119_AddAgentWorkflows`)
+
+Four tables owned by the ASP.NET system of record (the Python service has
+no DB access). `text` columns store plan/proposal/tool-call/trajectory JSON.
+All children cascade-delete with the workflow.
+
+| Table | Key columns |
+|---|---|
+| `AgentWorkflows` | `Id` uuid PK; `ConsultationRequestId` varchar(30) FK → `ConsultationRequests` (**unique** `UX_AgentWorkflows_ConsultationRequestId`); `OrganizationId` uuid FK; `Objective`, `Status`, `CurrentStep`, `PlanJson`, `ProposalJson`, `ApprovedActionJson`, `SnapshotJson` (text); `DelegationCount`, `RevisionCount`, `FailureReason`; `InitiatedByUserId` FK → `Users`; `CreatedAt`/`UpdatedAt`/`CompletedAt` |
+| `AgentWorkflowSteps` | `Id` uuid PK; `WorkflowId` FK → `AgentWorkflows` (`IX_AgentWorkflowSteps_WorkflowId`, cascade); `StepNumber`, `AgentName`, `Task`, `Status`, `RetryCount`, `InputSummaryJson`, `OutputJson`, `ToolCallsJson`, `ValidationSummaryJson`, `Error`, `StartedAt`/`CompletedAt` |
+| `AgentWorkflowApprovals` | `Id` uuid PK; `WorkflowId` FK (cascade); `Status` (`Pending`/`Approved`/`Rejected`/`RevisionRequested`); `ProposalJson`; `DecidedByUserId` FK → `Users`; `DecidedAt`; `Comments` |
+| `AgentWorkflowEvents` | `Id` uuid PK; `WorkflowId` FK (`IX_AgentWorkflowEvents_WorkflowId`, cascade); `Seq` int (backend-assigned, strictly increasing per workflow); `Timestamp`, `Node`, `Event`, `Agent`, `DetailJson` |
+
+**ER addendum:** the ER diagram (`Scheduling-Billing-Approval-ER-v1.png`)
+predates these tables. Textual addition: `AgentWorkflows` 1─* `AgentWorkflowSteps`,
+1─* `AgentWorkflowApprovals`, 1─* `AgentWorkflowEvents`; `AgentWorkflows` *─1
+`ConsultationRequests` (unique — one workflow per consultation) and *─1
+`Organizations`; `InitiatedByUserId`/`DecidedByUserId` *─1 `Users`.
+
+**Status:** applied to the disposable local PostgreSQL used for E2E;
+**pending on Supabase** — the API fails with `42P01` on
+`AgentWorkflows`-touching queries until it is applied.

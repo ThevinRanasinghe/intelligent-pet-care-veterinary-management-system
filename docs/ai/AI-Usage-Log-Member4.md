@@ -116,7 +116,7 @@ Kept the controller thin, delegating all business logic to `ISchedulingService` 
 Ran `dotnet build backend/api/PetCare.sln` and confirmed all projects compiled with 0 warnings and 0 errors. Started the API with `dotnet run` and opened the Swagger UI at `http://localhost:5080/swagger` (the URL used in this session). Exercised the endpoints against the seeded PostgreSQL database.
 
 **Issues encountered:**
-`password authentication failed for user "postgres"` at runtime because `AddPetCareInfrastructure` had a hardcoded fallback connection string `Host=localhost;Port=5432;Database=petcare;Username=postgres;Password=postgres` that masked a missing real credential.
+`password authentication failed for user "postgres"` at runtime because `AddPetCareInfrastructure` had a hardcoded fallback connection string `Host=localhost;Port=5432;Database=petcare;Username=postgres;Password=[REDACTED LOCAL DATABASE PASSWORD]` that masked a missing real credential.
 
 **How the issue was resolved:**
 Removed the hardcoded PostgreSQL password fallback in `ServiceCollectionExtensions.cs` and made the connection-string resolution explicit: it now reads `ConnectionStrings:PetCareDb` from config (user secrets / appsettings), then `PETCARE_DB_CONNECTION` environment variable, and throws a clear `InvalidOperationException` if neither is set. Updated the comment in `appsettings.Development.json` to explain how to set the secret without committing it. Also fixed the empty-string handling so an empty `ConnectionStrings:PetCareDb` in `appsettings.Development.json` falls back to the environment variable instead of being treated as a valid connection string.
@@ -263,7 +263,7 @@ Rejected redesigning any UI layout, CSS, routing, or component structure â€” all
 1. `npm install` â€” 136 packages installed, 0 vulnerabilities.
 2. `npm run build` (`tsc -b && vite build`) â€” initially failed with 803 TypeScript errors (missing `@types/react`, no `JSX.IntrinsicElements`), then failed with 1 error (missing `hasVetConflict` export), then **passed** after adding `@types/react`/`@types/react-dom` and restoring `hasVetConflict`: 0 TypeScript errors, Vite build completed (236.97 kB JS, 20.18 kB CSS gzipped to 74.61 kB / 4.89 kB).
 3. `npx vitest run` â€” **3/3 tests passed** (2 scheduling conflict tests, 1 billing total calculation test).
-4. Runtime end-to-end verification: started the backend with `$env:PETCARE_DB_CONNECTION="Host=localhost;Port=5432;Database=petcare;Username=postgres;Password=Miran"; dotnet run --project "backend/api/src/PetCare.Api/PetCare.Api.csproj" --urls "http://localhost:5080"` â€” backend started successfully on port 5080. Started the Vite dev server (`npm run dev`) on `http://localhost:5173`. Fetched all three API endpoints directly via `Invoke-RestMethod` to confirm real PostgreSQL data flows through:
+4. Runtime end-to-end verification: started the backend with `$env:PETCARE_DB_CONNECTION="Host=localhost;Port=5432;Database=petcare;Username=postgres;Password=[REDACTED LOCAL DATABASE PASSWORD]"; dotnet run --project "backend/api/src/PetCare.Api/PetCare.Api.csproj" --urls "http://localhost:5080"` â€” backend started successfully on port 5080. Started the Vite dev server (`npm run dev`) on `http://localhost:5173`. Fetched all three API endpoints directly via `Invoke-RestMethod` to confirm real PostgreSQL data flows through:
    - `GET /api/appointments/available-slots` â†’ **3 slots** returned (Colombo + Galle branches, statuses: Available).
    - `GET /api/quotations` â†’ **3 quotations** returned with line items, server-calculated totals, budgets, and statuses (Draft, PendingApproval, Approved).
    - `GET /api/approvals/pending` â†’ **1 pending approval** returned (quotation total 40.00, budget 100.00, status: Pending).
@@ -1039,7 +1039,7 @@ Redesigned `frontend/mobile` from a mixed staff/scheduling client into a PetOwne
 **Result:**
 - Flutter is used as the Pet Owner mobile application. Pet Owners can register/login, manage their pets, find active PetCare clinics on a map, submit consultation requests, view appointments and follow-up appointments, and view their bills. Clinic Manager, Veterinarian, Inventory Officer and Administrator workflows remain in the React staff application. Verified locally; uncommitted at time of writing.
 
-## Entry 23 — Flutter UI Reskin to Beacon Design System (H10)
+## Entry 23 ï¿½ Flutter UI Reskin to Beacon Design System (H10)
 
 **Date:**
 28 September 2026
@@ -1051,15 +1051,15 @@ Devin IDE
 UI/UX-only reskin of `frontend/mobile` to the React "Beacon Pet Health" design system. Added `lib/core/theme/app_colors.dart` + `app_theme.dart` (Beacon tokens: `#FFBE00`/`#E6AB00`/`#FFF3CC` yellow ramp, `#111111` black, `#FAFAE9` cream, `#55554A` muted, `#F26422` orange, `#B8B49C` neutral, `#FFFBEA`/`#EADF9C` selected-card pair, badge semantic triples, `#E2E9E6` borders; `ColorScheme`, light app-bar, dark `#111` bottom nav with yellow active, radius-17 cards, radius-10 inputs/buttons) and `lib/core/widgets/` primitives (`AppCard`, `StatusBadge`, `AppEmptyState`, `AppErrorState`, `AppLoading`, `SectionHeader`, `DetailRow`, `BrandLogoTile`, `BrandLockup`). Restyled splash, login, register, staff-blocked, main shell nav, owner home, appointments + detail, pets list/detail/form, quotations + detail, profile, booking wizard, clinic picker, consultation detail, and the retained approval pages.
 
 **What I changed / rejected:**
-- Kept Material `Icons.*` and the system font — the web Inter font is not bundled; matched type hierarchy only.
+- Kept Material `Icons.*` and the system font ï¿½ the web Inter font is not bundled; matched type hierarchy only.
 - Chose yellow `#FFBE00` + near-black `#171717` text as the primary `FilledButton` style (dominant CTA across the React modal/dashboard pages); the auth pages'' black-pill variant is echoed by the black hero card + black logout button.
 - No API endpoints, payloads, models, provider logic, or booking rules touched; `BookingWizardPage(useMap:false)` and all test-relied-on copy kept verbatim; `GoogleMap` widget untouched.
 - Replaced the stale counter `widget_test.dart` (referenced a nonexistent `MyApp`) with a real splash-to-login smoke test.
 
 **How I verified it:**
-- `flutter analyze` — **0 issues**.
-- `flutter test` — **72/72 passed**.
-- `git diff --cached --name-only` — empty; nothing staged.
+- `flutter analyze` ï¿½ **0 issues**.
+- `flutter test` ï¿½ **72/72 passed**.
+- `git diff --cached --name-only` ï¿½ empty; nothing staged.
 
 **Result:**
 - The Flutter PetOwner app visually matches the Beacon design system; verified locally; uncommitted at time of writing.
@@ -1078,16 +1078,43 @@ Integrated all four `agentic-service` agents (FastAPI + LangGraph + Gemini) into
 **What I changed / rejected:**
 - Kept every agent advisory-only: no operational writes; assignment, dispensing, billing and approval stay human decisions. The former mock `/ai-workflows` monitoring page was removed rather than kept alongside real panels.
 - Rejected trusting LLM medicine selections with database ids: agents return medicine names only; ASP.NET resolves a name to a `medicineId` only on a unique org-scoped catalogue match (name / name+strength / name+form / name+strength+form), otherwise the suggestion is surfaced as unmatched advisory text.
-- Added a non-retryable-error fast-path (429/quota/permanent failures) so agents short-circuit to the safe `unavailable` fallback instead of wasting retry budget — matching the pattern already used by the inventory agent.
+- Added a non-retryable-error fast-path (429/quota/permanent failures) so agents short-circuit to the safe `unavailable` fallback instead of wasting retry budget ï¿½ matching the pattern already used by the inventory agent.
 - Chose graceful degradation over hard failure: timeouts, 4xx/5xx, malformed JSON, and schema-validation misses all return `Source = "unavailable"`, and the manual workflow remains fully usable.
 - Externalized the Google Maps key out of tracked files (commit `1c0f0fe`): Android reads `GOOGLE_MAPS_API_KEY` from gitignored `local.properties` via a Gradle manifest placeholder; Flutter web injects the Maps JS SDK at runtime from `--dart-define` via `lib/core/maps/google_maps_loader{,_stub,_web}.dart` and `tool/flutter_web.ps1`; React keeps `VITE_GOOGLE_MAPS_API_KEY`.
 
 **How I verified it:**
-- `dotnet test` — PetCare.Tests **131/131**, PetCare.Application.Tests **184/184**, PetCare.Infrastructure.Tests **17/21** (4 integration tests fail fast without `PETCARE_TEST_DB_CONNECTION` — environment requirement, not a defect).
-- `pytest tests -q` — **48/48** (clean `GEMINI_MODEL` environment).
-- `npx tsc --noEmit` — 0 errors; `npx vitest run` — 170/171 (one Maps-mock timing flake, passes 8/8 isolated); `npm run build` — succeeds.
-- `flutter analyze` — 0 issues; `flutter test` — **111/111**; `gradlew :app:processDebugMainManifest` — placeholder merges correctly.
-- Secret sweep — `git grep` finds no Google API key in tracked files; the key was never committed.
+- `dotnet test` ï¿½ PetCare.Tests **131/131**, PetCare.Application.Tests **184/184**, PetCare.Infrastructure.Tests **17/21** (4 integration tests fail fast without `PETCARE_TEST_DB_CONNECTION` ï¿½ environment requirement, not a defect).
+- `pytest tests -q` ï¿½ **48/48** (clean `GEMINI_MODEL` environment).
+- `npx tsc --noEmit` ï¿½ 0 errors; `npx vitest run` ï¿½ 170/171 (one Maps-mock timing flake, passes 8/8 isolated); `npm run build` ï¿½ succeeds.
+- `flutter analyze` ï¿½ 0 issues; `flutter test` ï¿½ **111/111**; `gradlew :app:processDebugMainManifest` ï¿½ placeholder merges correctly.
+- Secret sweep ï¿½ `git grep` finds no Google API key in tracked files; the key was never committed.
 
 **Result:**
 - All four advisory agents live and reachable from staff workflows; AI remains non-authoritative end to end. Commits `fcdbd1f`, `3358fa0`, `f8da4db`, `1988ef1`, `652f5af`, `1c0f0fe` on `Merge_2`.
+
+## Entry 25 â€” Agentic Supervisor Orchestration + Human Approval Gate (orchestration phase)
+
+**Date:**
+October 2026
+
+**AI Tool / Model:**
+Devin (CLI/SWE agent)
+
+**Task / Section:**
+Added a Supervisor/Planner agent orchestrating the four existing advisory agents end-to-end. `agentic-service/supervisor/` implements an explicit LangGraph `StateGraph` (`graph.py`, `planner.py`, `specialists.py`, `validation.py`, `models.py`): structured LLM plan with deterministic `validate_plan` and `DEFAULT_PLAN` fallback; code-level routing via `select_next`; isolated specialist contexts; deterministic `validate_proposal`/`final_validation`; an `interrupt()`/`Command(resume)` approval gate with `MemorySaver` keyed by `workflowId`; caps (plans 8 steps, delegations 6, revisions 2, iterations 10); shared tool allow-list registry + input sanitization. Backend: `AgentWorkflow{,Step,Approval,Event}` entities + `AddAgentWorkflows` migration, `AgentWorkflowsController`, `AgentWorkflowService` (auto-create on submit, run, CM-only decide, advance, reduced PetOwner status DTO, backend-sequenced trajectory), hooks routing `GetRecommendationsAsync`/`GetInventoryPlanAsync` through active workflows. React `AgentWorkflowPanel` + `agentWorkflowService`; Flutter `agentWorkflowStatus` chip. Verified end-to-end with real Gemini calls against a disposable Docker Postgres.
+
+**What I changed / rejected:**
+- Kept the LLM away from decisions: approvals are recorded by the backend from an authenticated ClinicManager and injected into the graph via `Command(resume)`; the graph only *emits* `book_appointment`, executed by `AssignConsultationAsync`.
+- Rejected Python-side Postgres checkpointing (would break the no-DB-access boundary) â€” backend snapshot rehydration keeps the service stateless-restartable.
+- Rejected reusing quotation `Approval` (1:1 with `Quotation`) â€” separate `AgentWorkflowApproval` for consultation-stage proposals.
+- Chose `MemorySaver` for the checkpointer (per-process; documented trade-off).
+
+**How I verified it:**
+- `pytest tests -q` â€” **121/121**; `python -m tests.evaluation.run_eval` â€” **32/32** (deterministic golden + prompt-injection cases, `results/latest.json`).
+- `dotnet test` â€” `PetCare.Tests` **137/137**, `PetCare.Application.Tests` **201/201** (incl. slot-adoption tests), `PetCare.Infrastructure.Tests` **25/25** against a local `PETCARE_TEST_DB_CONNECTION`.
+- E2E (`backend/api/tests/e2e/agentic-workflow-e2e.ps1`, real API + agentic + Docker PG + real Gemini) â€” **57/57** assertions (`results/latest-run.txt`); performance recorded to `tests/performance/results/latest.json`.
+- The E2E surfaced and fixed four real defects: (1) `DateTime` `Kind=Local` from Python ISO offsets rejected by Npgsql â†’ `ToUtc()` normalization; (2) new child entities emitted as UPDATEs â†’ explicit `AddStep`/`AddApproval`/`AddEvent` repository methods; (3) booking collided with pre-posted `Available` slots (23505) â†’ slot adoption (Availableâ†’Reserved reuse, Reserved/Bookedâ†’409); (4) duplicate trajectory seqs across resumes â†’ backend assigns strictly increasing `Seq`.
+- **Supabase near-miss:** the first API boot used the user-secret Supabase connection (precedence over the intended env fallback); it was killed within seconds. The captured log shows only read queries (incl. two failed `GET /api/consultations` hitting `42P01` on the missing `AgentWorkflows` table) â€” zero INSERT/UPDATE/DELETE reached Supabase; no migration or write was applied. The API was then restarted with an explicit `ConnectionStrings__PetCareDb` env override to the disposable container.
+
+**Result:**
+- Orchestrated, audited, human-gated AI workflow live end-to-end; all suites green. Uncommitted at time of writing.

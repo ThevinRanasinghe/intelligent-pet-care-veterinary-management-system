@@ -215,6 +215,36 @@ The Administrator does **not** create staff — they retain full management visi
 
 ---
 
+### Agent workflow authorization (`api/agent-workflows`)
+
+Orchestrated-AI workflow endpoints (see
+`docs/agentic/orchestration-workflow.md`):
+
+| Route | Roles |
+|---|---|
+| `POST /start`, `POST /{id}/run`, `GET /{id}/history`, `POST /{id}/events` | ClinicManager, Administrator |
+| `GET /{id}` | ClinicManager, Administrator, Veterinarian |
+| `GET /by-consultation/{id}` | ClinicManager, Administrator, PetOwner |
+| `POST /{id}/approve`, `/{id}/reject`, `/{id}/revision` | **ClinicManager only** — controller attribute *and* `AgentWorkflowService` re-check `IsInRole(Roles.ClinicManager)` |
+
+Additional rules:
+
+- **Tenant scoping:** every workflow method rejects a workflow whose
+  `OrganizationId` differs from the org-scoped caller's tenant (404 —
+  same pattern as other foreign-org rows); SuperAdmin unscoped.
+- **PetOwner reduced DTO:** `by-consultation` returns only
+  `{workflowId, status, updatedAt}` (`AgentWorkflowStatusDto`) for owners,
+  and only when `IOwnerAccessService.OwnsConsultationAsync` confirms
+  ownership — no plan/proposal/steps are exposed.
+- **Decisions are backend-only:** approve/reject/revision record the
+  authenticated user's id + timestamp and inject the decision into the
+  Python graph via `/api/workflows/{id}/resume`. The Python service never
+  writes business data, never calls the DB, and cannot create or decide
+  approvals — duplicate/non-pending decisions get 409.
+- **Booking authority:** the approved `book_appointment` action is
+  executed by `ConsultationWorkflowService.AssignConsultationAsync` — the
+  same authoritative, tenant-checked path as manual assignment.
+
 ## 6. PetOwner ownership enforcement
 
 Ownership is resolved **server-side** from the authenticated identity — never from caller-supplied owner ids:

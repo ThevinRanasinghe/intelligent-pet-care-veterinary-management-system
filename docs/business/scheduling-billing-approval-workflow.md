@@ -363,3 +363,39 @@ The following are genuine limitations discovered from the implementation, not sp
 - **No refresh-token flow:** The JWT has a fixed expiry (default 60 minutes). After expiry, the user must log in again.
 - **Android runtime verification pending:** No Android emulator or physical device was available during the original verification, so Flutter runtime behaviour on Android was verified via `flutter analyze`/`flutter test` and manifest-merge checks rather than on-device.
 - **AI is advisory only:** the `agentic-service` agents (consultation triage, diagnosis assist, scheduling plan, inventory plan) produce recommendations surfaced to staff — a manager may consult "AI Consultation Analysis"/"AI Scheduling Plan" before assigning, a vet may consult "AI Assist" before diagnosing, and an inventory officer may consult "AI Plan" before issuing. None of them performs an action: assignment, fulfilment, billing and payment remain the human-decision points listed above. On agent failure the endpoints return a safe `unavailable` fallback and the workflow continues manually.
+
+---
+
+## AI-proposal approval flow (orchestration phase)
+
+An optional orchestrated AI path now coexists with the manual assign flow
+(`docs/agentic/orchestration-workflow.md`, ADR 0009). When a consultation
+is submitted, an `AgentWorkflow` row (status `Created`) is auto-created. A
+ClinicManager runs it (`POST /api/agent-workflows/{id}/run`); the
+supervisor delegates to the consultation + scheduling agents and produces a
+**proposal** (vet, slot, quotation draft) — nothing is booked.
+
+The manager then decides via `api/agent-workflows/{id}`:
+
+- **approve** → the backend executes
+  `ConsultationWorkflowService.AssignConsultationAsync` — the same
+  authoritative booking as manual assignment (slot adoption/reservation,
+  overlap checks, `AppointmentConfirmed`) — and the workflow advances to
+  `AwaitingExamination`. Examination/prescription events advance the
+  remaining specialists until `Completed`.
+- **reject** (comments required) → `Rejected`; the consultation stays
+  `Submitted` and remains manually assignable.
+- **revision** (comments required) → the graph replans and returns a new
+  pending proposal (cap: 2 revisions).
+
+### Relationship to the quotation `Approval` entity
+
+`AgentWorkflowApproval` is deliberately **separate** from the existing
+`Approval` entity: `Approval` is 1:1 with `Quotation` (a finalized bill
+decision with a different lifecycle), whereas a workflow approval is a
+consultation-stage decision on an AI proposal — it exists before any
+quotation row, may recur per revision (multiple rows per workflow), and
+records the proposal snapshot + comments. Reusing `Approvals` would force
+a bogus `QuotationId` and conflate two different human-decision points.
+The manual quotation `Approval` flow is untouched and continues to work
+independently.

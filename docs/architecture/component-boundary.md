@@ -30,7 +30,8 @@
 
 ## 3. Advisory AI (separate service, non-authoritative)
 - `agentic-service/` (FastAPI + LangGraph + Gemini) implements four advisory agents — consultation triage, diagnosis, scheduling plan, inventory plan — all wired through `IAgenticClient` behind staff-only GET endpoints. They analyse and recommend only; they never create, modify, approve, dispense, or bill.
-- Direct cross-component database coupling remains excluded (integration via clean service/API boundaries)
+- A **Supervisor/Planner** (`agentic-service/supervisor/`) orchestrates the four agents on an explicit LangGraph `StateGraph` with deterministic validation and an `interrupt()` human-approval gate. The gate is resumed only by an authenticated ClinicManager decision posted to `api/agent-workflows`; the emitted `book_appointment` action is executed by the backend (`ConsultationWorkflowService.AssignConsultationAsync`), never by Python. Workflow state is persisted in `AgentWorkflow*` tables (see `docs/agentic/orchestration-workflow.md`).
+- Direct cross-component database coupling remains excluded (integration via clean service/API boundaries); the Python service holds no DB credentials and never writes business data.
 
 Note: the Flutter mobile client **is implemented** as the PetOwner-only app under `frontend/mobile` — register/login, pet management, clinic-map consultation booking, appointments, bills and profile. Flutter is used as the Pet Owner mobile application. Pet Owners can register/login, manage their pets, find active PetCare clinics on a map, submit consultation requests, view appointments and follow-up appointments, and view their bills. Clinic Manager, Veterinarian, Inventory Officer and Administrator workflows remain in the React staff application. Google Maps is used for map visualization, clinic selection and directions. Bookable clinics are the active organizations registered in the PetCare system. (See `docs/testing/flutter-testing.md`.)
 

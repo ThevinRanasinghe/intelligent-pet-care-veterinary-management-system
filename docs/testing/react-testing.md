@@ -28,7 +28,15 @@ npx vitest run      # or: npm run test:run
 ```
 
 > **Current suite status (Merge_2 final):** the suite has grown well beyond the
-> Step-10 baseline recorded below — **171 tests** (`npx vitest run`), plus a
+> **Current suite (orchestration phase):** **186 tests, 33 files**
+> (`npx vitest run`), clean `npx tsc --noEmit`, `npm run build` succeeds.
+> New coverage: `src/tests/manager/AgentWorkflowPanel.test.tsx` (workflow
+> panel render, run/approve/reject/revision flows incl. required-comment
+> validation, execution-history tables, error states) and
+> `src/tests/manager/agentWorkflowService.api.test.ts` (URLs/methods/bodies
+> for all eight `agentWorkflowService` calls).
+>
+> Earlier: Step-10 baseline recorded below — **171 tests** (`npx vitest run`), plus a
 > clean `tsc --noEmit` typecheck and production build. In a full-suite run one
 > Google Maps-mock timing timeout was observed in
 > `src/tests/auth/RegisterPage.location.test.tsx` (170/171); the file passes

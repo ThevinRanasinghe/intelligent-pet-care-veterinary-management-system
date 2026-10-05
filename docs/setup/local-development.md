@@ -112,7 +112,7 @@ npm run dev        # Vite dev server → http://localhost:5173
   - **Google Cloud requirements:** the key's project must have **billing enabled** and the **Maps JavaScript API** + **Places API** enabled — otherwise the browser console shows `BillingNotEnabledMapError`/`ApiNotActivatedMapError` and Google renders an error overlay on the map. Key restrictions must allow the dev origin (`http://localhost:5173/*`). These are Google Cloud configuration issues, not app bugs — the app correctly passes the key to the loader (`src/lib/googleMaps.ts`, `libraries=places`, `loading=async`).
 - `npm run build` — typecheck + production bundle
 - `npm run lint` — `tsc --noEmit` typecheck
-- `npm run test` / `npm run test:run` — Vitest (171 tests, jsdom + Testing Library; `fetch` stubbed — no backend needed). One Google Maps-mock timing flake in `RegisterPage.location.test.tsx` has been observed only in a full-suite run — the file passes in isolation (8/8)
+- `npm run test` / `npm run test:run` — Vitest (186 tests, jsdom + Testing Library; `fetch` stubbed — no backend needed). One Google Maps-mock timing flake in `RegisterPage.location.test.tsx` has been observed only in a full-suite run — the file passes in isolation (8/8)
 
 ## Mobile (`frontend/mobile`)
 
@@ -131,7 +131,7 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5019/api
 
 ## Database
 
-The team database lives on **Supabase PostgreSQL** (pooled connection). The first three EF migrations (`InitialSchedulingBillingApproval`, `AddUsers`, `ConsolidatedDomainModel`) are applied there — but the three latest migrations — **`20260926165049_WorkflowRedesign`, `20260927070805_BookingRules`, and `20260927081008_OrganizationLocation` — are not yet applied to Supabase**. All are additive-only (new columns/indexes/FKs + one CHECK constraint), but the new API build will fail at query time against a schema that lacks them — apply them before running against the shared database:
+The team database lives on **Supabase PostgreSQL** (pooled connection). The first three EF migrations (`InitialSchedulingBillingApproval`, `AddUsers`, `ConsolidatedDomainModel`) are applied there — but the latest migrations — **`20260926165049_WorkflowRedesign`, `20260927070805_BookingRules`, `20260927081008_OrganizationLocation`, `AddPrescriptionRoute`, `PetArchiveFlag`, and `20261005135119_AddAgentWorkflows` (AI workflow tables) — are not yet applied to Supabase**. All are additive-only (new columns/indexes/FKs/tables + one CHECK constraint), but the new API build will fail at query time against a schema that lacks them — apply them before running against the shared database:
 
 ```bash
 $env:PETCARE_DB_CONNECTION="<supabase-connection-string>"   # same shell!
@@ -155,3 +155,46 @@ There is no automatic seeding (`DevelopmentSeeder` exists but `Program.cs` does 
 2. `POST /api/auth/register/pet-owner` — creates a PetOwner account
 3. An Administrator approves the org via `PATCH /api/admin/organizations/{id}/status` — the **first** Administrator has no API creation path and must be inserted directly (PBKDF2 `{iterations}.{b64salt}.{b64hash}` format — see `PasswordHasher.cs`) or via a seeding step
 4. Staff (Veterinarian/InventoryOfficer) — the ClinicManager creates them via `/api/manager/users/*`; they land in the manager's own organization automatically. Vet creation also creates the linked `Veterinarian` profile (`UserId` bound), which is what lets them log in and see "my" appointments — the 3 seeded `HasData` veterinarian rows have no `UserId` and cannot be logged into.
+
+---
+
+## Disposable Docker database (verified recipe)
+
+For E2E/perf verification we used a throwaway Postgres container instead of
+Supabase:
+
+```powershell
+docker run -d --name petcare-e2e-pg `
+  -e POSTGRES_PASSWORD=petcare `
+  -e POSTGRES_DB=petcare_e2e `
+  -p 55432:5432 postgres:16
+
+$env:PETCARE_DB_CONNECTION="Host=localhost;Port=55432;Database=petcare_e2e;Username=postgres;Password=petcare"
+dotnet ef database update --project backend/api/src/PetCare.Infrastructure --startup-project backend/api/src/PetCare.Api
+```
+
+When running the API against it, override the connection with
+`ConnectionStrings__PetCareDb` (env beats user-secrets) so a user-secret
+Supabase connection cannot win by accident — e.g.
+`$env:ConnectionStrings__PetCareDb = "Host=localhost;Port=55432;..."` in the
+API shell.
+
+## Startup order (full orchestrated stack)
+
+1. **PostgreSQL** — Supabase (all migrations applied) or the disposable
+   Docker container above (migrations incl. `AddAgentWorkflows`)
+2. **API** — `dotnet run --project backend/api/src/PetCare.Api`
+3. **Agentic service** — `cd agentic-service; python main.py` (:8000);
+   workflow endpoints return `agentic_unavailable` gracefully if it's down
+4. **React** (`npm run dev` :5173) and/or **Flutter** (`flutter run`)
+
+## E2E + performance harnesses
+
+```powershell
+# E2E (real API + agentic + disposable PG + real Gemini) — services must be up
+powershell -File backend/api/tests/e2e/agentic-workflow-e2e.ps1   # 57 assertions
+# see backend/api/tests/e2e/README.md for env vars
+
+# Performance benchmark — services must be up
+powershell -File tests/performance/perf-benchmark.ps1             # → results/latest.json
+```
