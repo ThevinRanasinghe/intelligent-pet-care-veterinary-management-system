@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from shared.backend import BackendApiError
 from shared.config import ConfigurationError
 from shared.llm import content_to_text, extract_json_object, get_llm, is_non_retryable_error
+from shared.sanitize import sanitize_input_data
 
 from .models import DiagnosisAgentState, DiagnosisAssessment, get_safe_fallback
 from .tools import fetch_examination_details, fetch_pet_medical_history
@@ -72,7 +73,7 @@ async def analyze_request_node(state: DiagnosisAgentState) -> DiagnosisAgentStat
     if state["error"] and state["retry_count"] > 0:
         sys_prompt += f"\n\nPREVIOUS ERROR (Fix this in your JSON output): {state['error']}"
 
-    human_msg = f"Examination Data to Analyze: {json.dumps(state['raw_input_data'])}"
+    human_msg = f"Examination Data to Analyze: {json.dumps(sanitize_input_data(state['raw_input_data']))}"
 
     try:
         response = await get_llm().ainvoke([

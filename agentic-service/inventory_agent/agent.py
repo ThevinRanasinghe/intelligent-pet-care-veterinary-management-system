@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from shared.backend import BackendApiError
 from shared.config import ConfigurationError
 from shared.llm import content_to_text, extract_json_object, get_llm, is_non_retryable_error
+from shared.sanitize import sanitize_input_data
 
 from .models import InventoryAgentState, InventoryAssessment, get_safe_fallback
 from .tools import (
@@ -126,7 +127,7 @@ async def plan_inventory_node(state: InventoryAgentState) -> InventoryAgentState
     if state["error"] and state["retry_count"] > 0:
         sys_prompt += f"\n\nPREVIOUS ERROR (Fix this in your JSON output): {state['error']}"
 
-    human_msg = f"Data to Analyze: {json.dumps(state['raw_input_data'], default=str)}"
+    human_msg = f"Data to Analyze: {json.dumps(sanitize_input_data(state['raw_input_data']), default=str)}"
 
     try:
         response = await get_llm().ainvoke([

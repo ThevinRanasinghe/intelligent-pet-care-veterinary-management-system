@@ -2,11 +2,25 @@
 import logging
 from typing import Optional
 
+from pydantic import BaseModel
+
 from shared.backend import BackendApiError, backend_get
+from shared.tool_registry import IdStr, registered_tool
 
 logger = logging.getLogger(__name__)
 
+_AGENT = "diagnosis_agent"
 
+
+class _ExaminationIdInput(BaseModel):
+    examination_id: IdStr
+
+
+class _PetIdInput(BaseModel):
+    pet_id: IdStr
+
+
+@registered_tool(_AGENT, _ExaminationIdInput)
 async def fetch_examination_details(examination_id: str, auth_token: Optional[str] = None) -> dict:
     """Reads the examination from the ASP.NET Core backend.
 
@@ -15,6 +29,7 @@ async def fetch_examination_details(examination_id: str, auth_token: Optional[st
     return await backend_get(f"/examinations/{examination_id}", auth_token)
 
 
+@registered_tool(_AGENT, _PetIdInput)
 async def fetch_pet_medical_history(pet_id: str, auth_token: Optional[str] = None) -> list:
     """Reads the pet's prior examinations.
 

@@ -15,19 +15,45 @@ stock figure (totalQuantity - reservedQuantity); the non-existent
 import logging
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
+
 from shared.backend import BackendApiError, backend_get
+from shared.tool_registry import IdStr, registered_tool
 
 logger = logging.getLogger("InventoryAgentTools")
+
+_AGENT = "inventory_agent"
+
+
+class _TreatmentRecordIdInput(BaseModel):
+    treatment_record_id: IdStr
+
+
+class _MedicineIdInput(BaseModel):
+    medicine_id: IdStr
+
+
+class _AvailableQuantityInput(BaseModel):
+    medicines: List[Dict[str, Any]]
+    medicine_id: IdStr
+
+
+class _StockCheckInput(BaseModel):
+    medicines: List[Dict[str, Any]]
+    medicine_id: IdStr
+    required_quantity: int = Field(ge=0)
 
 _MEDICINE_PAGE_SIZE = 200
 _MAX_PAGES = 20  # hard cap: 4000 medicines — far beyond any realistic catalog
 
 
+@registered_tool(_AGENT, _TreatmentRecordIdInput)
 async def fetch_treatment_record(treatment_record_id: str, auth_token: Optional[str] = None) -> Dict[str, Any]:
     """Fetches the treatment record. Raises BackendApiError on failure."""
     return await backend_get(f"/treatmentrecords/{treatment_record_id}", auth_token)
 
 
+@registered_tool(_AGENT, _TreatmentRecordIdInput)
 async def fetch_prescription_items(treatment_record_id: str, auth_token: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetches the medicine-request items (prescriptions) for a treatment record.
 
@@ -44,6 +70,7 @@ async def fetch_prescription_items(treatment_record_id: str, auth_token: Optiona
     return result if isinstance(result, list) else []
 
 
+@registered_tool(_AGENT)
 async def fetch_all_medicines(auth_token: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetches the full medicine catalog, following backend pagination.
 
@@ -72,12 +99,14 @@ async def fetch_all_medicines(auth_token: Optional[str] = None) -> List[Dict[str
     return items
 
 
+@registered_tool(_AGENT, _MedicineIdInput)
 async def fetch_medicine_batches(medicine_id: str, auth_token: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetches real stock batches (batch number, quantity, expiry) for a medicine."""
     result = await backend_get(f"/medicines/{medicine_id}/batches", auth_token)
     return result if isinstance(result, list) else []
 
 
+@registered_tool(_AGENT)
 async def fetch_low_stock_medicines(auth_token: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetches medicines at/below reorder level. Advisory context only —
     a failure here degrades to empty context rather than failing the run,
@@ -90,6 +119,7 @@ async def fetch_low_stock_medicines(auth_token: Optional[str] = None) -> List[Di
     return result if isinstance(result, list) else []
 
 
+@registered_tool(_AGENT, _AvailableQuantityInput)
 def get_available_quantity(medicines: List[Dict[str, Any]], medicine_id: str) -> int:
     """Reads the real availableQuantity for a medicine id, 0 when unknown."""
     for med in medicines:
@@ -98,6 +128,7 @@ def get_available_quantity(medicines: List[Dict[str, Any]], medicine_id: str) ->
     return 0
 
 
+@registered_tool(_AGENT, _StockCheckInput)
 def check_stock_availability(
     medicines: List[Dict[str, Any]],
     medicine_id: str,

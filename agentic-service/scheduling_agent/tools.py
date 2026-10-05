@@ -2,16 +2,39 @@
 import logging
 from typing import Optional
 
+from pydantic import BaseModel
+
 from shared.backend import backend_get, backend_post
+from shared.tool_registry import DateStr, IdStr, TimeStr, registered_tool
 
 logger = logging.getLogger(__name__)
 
+_AGENT = "scheduling_agent"
 
+
+class _RequestIdInput(BaseModel):
+    request_id: IdStr
+
+
+class _AvailableSlotsInput(BaseModel):
+    veterinarian_id: Optional[IdStr] = None
+    date: Optional[DateStr] = None
+
+
+class _CheckConflictInput(BaseModel):
+    veterinarian_id: IdStr
+    date: DateStr
+    start_time: TimeStr
+    end_time: TimeStr
+
+
+@registered_tool(_AGENT, _RequestIdInput)
 async def fetch_consultation_request(request_id: str, auth_token: Optional[str] = None) -> dict:
     """Reads the consultation request. Raises BackendApiError on failure."""
     return await backend_get(f"/consultations/{request_id}", auth_token)
 
 
+@registered_tool(_AGENT, _AvailableSlotsInput)
 async def fetch_available_slots(
     auth_token: Optional[str] = None,
     veterinarian_id: Optional[str] = None,
@@ -33,6 +56,7 @@ async def fetch_available_slots(
     return await backend_get("/appointments/available-slots", auth_token, params=params or None)
 
 
+@registered_tool(_AGENT, _CheckConflictInput)
 async def check_conflict(
     veterinarian_id: str,
     date: str,
