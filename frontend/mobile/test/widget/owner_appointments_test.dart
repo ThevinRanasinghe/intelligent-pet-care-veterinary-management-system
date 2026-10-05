@@ -40,6 +40,7 @@ Map<String, dynamic> consultationJson({
   String petName = 'Shadow',
   String status = 'Submitted',
   String requestType = 'Initial',
+  String? agentWorkflowStatus,
 }) =>
     {
       'id': id,
@@ -53,6 +54,7 @@ Map<String, dynamic> consultationJson({
       'organizationId': 'org-1',
       'organizationName': 'CityVets Colombo',
       'status': status,
+      'agentWorkflowStatus': agentWorkflowStatus,
       'requestType': requestType,
       'createdAt': '2026-09-26T00:00:00',
       'updatedAt': '2026-09-26T00:00:00',
@@ -112,6 +114,30 @@ void main() {
       expect(find.text('Rex'), findsOneWidget);
       expect(find.text('Completed'), findsOneWidget);
       expect(find.text('Cancelled'), findsOneWidget);
+    });
+
+    testWidgets(
+        'shows the AI workflow chip with a friendly label and nothing when null',
+        (tester) async {
+      final client = FakeApiClient();
+      client.setResponse('/consultations', [
+        consultationJson(
+            id: 'CON-1',
+            petName: 'Shadow',
+            agentWorkflowStatus: 'PendingManagerApproval'),
+        consultationJson(id: 'CON-2', petName: 'Milo'),
+      ]);
+      client.setResponse('/appointments/mine', <Map<String, dynamic>>[]);
+
+      await tester.pumpWidget(appFor(client));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Pending (2)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Clinic reviewing'), findsOneWidget);
+      // Milo has no workflow — no chip, only the request status badge.
+      expect(find.text('Planning'), findsNothing);
     });
 
     testWidgets('empty upcoming state is friendly', (tester) async {

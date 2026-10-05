@@ -132,6 +132,8 @@ export type ConsultationRequestApi = {
   longitude?: number | null;
   additionalNotes?: string | null;
   status: string;
+  /** Status of the AI-supervised workflow, when one exists for this request. */
+  agentWorkflowStatus?: string | null;
   /** "Initial" (owner-filed) | "FollowUp" (veterinarian-requested). */
   requestType?: string;
   requestedByVeterinarianId?: string | null;

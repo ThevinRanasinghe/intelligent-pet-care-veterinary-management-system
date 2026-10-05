@@ -136,6 +136,9 @@ class _OwnerConsultationDetailPageState
                           value: r.requestedByVeterinarianName!),
                   ],
                   DetailRow('Status', child: StatusBadge(r.status)),
+                  if (r.agentWorkflowStatusLabel != null)
+                    DetailRow('AI workflow',
+                        child: StatusBadge(r.agentWorkflowStatusLabel!)),
                   if (r.symptoms.isNotEmpty)
                     DetailRow('Symptoms', value: r.symptoms),
                   if (r.additionalNotes != null &&

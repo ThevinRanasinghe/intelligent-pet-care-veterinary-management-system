@@ -75,6 +75,7 @@ class _AppointmentDetailPageState extends State<AppointmentDetailPage> {
                   DetailRow('Slot ID', value: appt.appointmentSlotId),
                   DetailRow('Start', value: appt.scheduledStart),
                   DetailRow('End', value: appt.scheduledEnd),
+                  DetailRow('Duration', value: appt.durationLabel),
                   DetailRow('Status', child: StatusBadge(appt.status)),
                   if (appt.symptoms != null && appt.symptoms!.isNotEmpty)
                     DetailRow('Symptoms', value: appt.symptoms!),

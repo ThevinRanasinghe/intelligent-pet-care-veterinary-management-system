@@ -236,7 +236,17 @@ class _ConsultationTile extends StatelessWidget {
           '${request.requestType == 'FollowUp' ? '  ·  Follow-up request' : ''}',
         ),
         isThreeLine: true,
-        trailing: StatusBadge(request.status),
+        trailing: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            StatusBadge(request.status),
+            if (request.agentWorkflowStatusLabel != null) ...[
+              const SizedBox(height: 4),
+              StatusBadge(request.agentWorkflowStatusLabel!),
+            ],
+          ],
+        ),
       ),
     );
   }

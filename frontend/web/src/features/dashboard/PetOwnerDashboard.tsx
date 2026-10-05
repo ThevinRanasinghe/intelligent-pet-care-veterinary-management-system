@@ -28,6 +28,21 @@ const formatTimeOfDay = (iso: string) => {
   return parsed.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 };
 
+/** Whole-window time range + duration — matters for multi-slot appointments. */
+const formatWindow = (start: string, end: string) => {
+  const from = new Date(start);
+  const to = new Date(end);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+    return formatTimeOfDay(start);
+  }
+  const minutes = Math.round((to.getTime() - from.getTime()) / 60000);
+  const duration =
+    minutes % 60 === 0
+      ? `${minutes / 60}-hour`
+      : `${minutes}-minute`;
+  return `${formatTimeOfDay(start)} – ${formatTimeOfDay(end)} (${duration})`;
+};
+
 export function PetOwnerDashboard() {
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
   const [bills, setBills] = useState<Quotation[]>([]);
@@ -97,7 +112,7 @@ export function PetOwnerDashboard() {
                     <span className="muted"> · {a.veterinarianName ?? 'Veterinarian'}{a.type === 'FollowUp' ? ' · Follow-up' : ''}</span>
                   </div>
                   <span className="muted" style={{ fontSize: '0.8rem' }}>
-                    {formatDate(a.scheduledStart.slice(0, 10))} · {formatTimeOfDay(a.scheduledStart)} · {a.status}
+                    {formatDate(a.scheduledStart.slice(0, 10))} · {formatWindow(a.scheduledStart, a.scheduledEnd)} · {a.status}
                   </span>
                 </div>
               ))}

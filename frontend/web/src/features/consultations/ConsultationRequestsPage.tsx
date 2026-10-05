@@ -33,6 +33,7 @@ import {
   type AvailabilitySlot,
 } from "../../services/lookupsService";
 import { messageFrom } from "../../utils/errors";
+import { AgentWorkflowPanel } from "../manager/AgentWorkflowPanel";
 import { SlotPicker } from "../shared/booking/SlotPicker";
 import { useAuth } from "../auth/AuthContext";
 
@@ -65,6 +66,8 @@ type ConsultationRequest = {
   preferredTime: string;
   clinic: string;
   status: ConsultationStatus;
+  /** AI workflow status returned by the backend, when one exists. */
+  agentWorkflowStatus?: string | null;
   /** "Initial" | "FollowUp" — veterinarian-requested re-checks show a badge. */
   requestType: string;
 };
@@ -145,6 +148,30 @@ function getStatusClass(status: string): string {
   }
 }
 
+/** Friendly owner-facing label for the advisory AI workflow status. */
+export function agentWorkflowStatusLabel(status: string): string {
+  switch (status) {
+    case "PendingManagerApproval":
+      return "Clinic reviewing";
+    case "AwaitingExamination":
+      return "Appointment confirmed";
+    case "AwaitingPrescription":
+      return "In treatment";
+    case "Completed":
+      return "Completed";
+    case "Rejected":
+      return "Needs clinic follow-up";
+    case "Failed":
+      return "Manual review";
+    case "Created":
+    case "Running":
+    case "Planning":
+      return "Planning";
+    default:
+      return "Planning";
+  }
+}
+
 function getUrgencyClass(urgency: string): string {
   switch (urgency) {
     case "Emergency":
@@ -182,6 +209,9 @@ export function ConsultationRequestsPage() {
   // Assign Veterinarian / Cancel Request, never Submit.
   const canSubmitRequest =
     canManageRequests && user?.role !== "ClinicManager";
+  const isPetOwnerView = user?.role === "PetOwner";
+  // Decision endpoints are ClinicManager-only on the backend.
+  const canDecideWorkflow = user?.role === "ClinicManager";
   const [search, setSearch] = useState("");
 
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -363,6 +393,8 @@ export function ConsultationRequestsPage() {
           clinic: item.organizationName ?? "Happy Paws Veterinary Hospital",
 
           status: (item.status as ConsultationStatus) || "Draft",
+
+          agentWorkflowStatus: item.agentWorkflowStatus ?? null,
 
           requestType: item.requestType || "Initial",
         };
@@ -1099,6 +1131,14 @@ export function ConsultationRequestsPage() {
                         <span className={getStatusClass(request.status)}>
                           {request.status}
                         </span>
+
+                        {isPetOwnerView && request.agentWorkflowStatus && (
+                          <span className="badge badge-info">
+                            {agentWorkflowStatusLabel(
+                              request.agentWorkflowStatus,
+                            )}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -2007,6 +2047,25 @@ export function ConsultationRequestsPage() {
                         )}
                       </div>
                     )}
+
+                  {/* ==================================================== */}
+                  {/* AI WORKFLOW PANEL (advisory supervisor, manager)       */}
+                  {/* ==================================================== */}
+
+                  {canAssignVeterinarian && (
+                    <AgentWorkflowPanel
+                      consultationId={selectedConsultation.id}
+                      canDecide={canDecideWorkflow}
+                      request={selectedConsultation}
+                      onChanged={() => {
+                        void consultationService
+                          .getConsultationById(selectedConsultation.id)
+                          .then(setSelectedConsultation)
+                          .catch(() => undefined);
+                        void loadConsultations();
+                      }}
+                    />
+                  )}
 
                   {/* ==================================================== */}
                   {/* ASSIGN VETERINARIAN PANEL                             */}

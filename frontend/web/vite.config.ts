@@ -10,5 +10,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
     css: true,
+    // Multi-step userEvent flows (e.g. RegisterPage.location) can exceed the
+    // 5s default when test files run in parallel under CPU contention.
+    testTimeout: 20000,
   },
 });

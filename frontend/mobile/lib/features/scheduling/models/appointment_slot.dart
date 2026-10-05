@@ -72,6 +72,21 @@ class Appointment {
     required this.updatedAt,
   });
 
+  /// Whole-window duration for multi-slot appointments, e.g. "2 hours".
+  /// "—" when the timestamps are missing or malformed.
+  String get durationLabel {
+    final from = DateTime.tryParse(scheduledStart);
+    final to = DateTime.tryParse(scheduledEnd);
+    if (from == null || to == null) return '—';
+    final minutes = to.difference(from).inMinutes;
+    if (minutes <= 0) return '—';
+    if (minutes % 60 == 0) {
+      final hours = minutes ~/ 60;
+      return hours == 1 ? '1 hour' : '$hours hours';
+    }
+    return '$minutes minutes';
+  }
+
   factory Appointment.fromJson(Map<String, dynamic> json) {
     return Appointment(
       id: json['id'] as String,

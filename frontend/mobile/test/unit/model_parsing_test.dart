@@ -2,8 +2,56 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:petcare_mobile/features/scheduling/models/appointment_slot.dart';
 import 'package:petcare_mobile/features/billing/models/quotation.dart';
 import 'package:petcare_mobile/features/approval/models/approval.dart';
+import 'package:petcare_mobile/features/consultations/models/consultation_request.dart';
 
 void main() {
+  group('ConsultationRequest.fromJson — agentWorkflowStatus', () {
+    Map<String, dynamic> baseJson({String? agentWorkflowStatus}) => {
+          'id': 'CON-1',
+          'petId': 'pet-1',
+          'ownerId': 'own-1',
+          'status': 'Submitted',
+          'agentWorkflowStatus': agentWorkflowStatus,
+        };
+
+    test('parses the field when present', () {
+      final r = ConsultationRequest.fromJson(
+          baseJson(agentWorkflowStatus: 'PendingManagerApproval'));
+      expect(r.agentWorkflowStatus, 'PendingManagerApproval');
+      expect(r.agentWorkflowStatusLabel, 'Clinic reviewing');
+    });
+
+    test('tolerates missing and null values', () {
+      final withoutKey =
+          ConsultationRequest.fromJson({'id': 'CON-2', 'status': 'Submitted'});
+      expect(withoutKey.agentWorkflowStatus, isNull);
+      expect(withoutKey.agentWorkflowStatusLabel, isNull);
+
+      final nullValue = ConsultationRequest.fromJson(baseJson());
+      expect(nullValue.agentWorkflowStatus, isNull);
+      expect(nullValue.agentWorkflowStatusLabel, isNull);
+    });
+
+    test('maps each known status to a friendly label', () {
+      const expected = {
+        'PendingManagerApproval': 'Clinic reviewing',
+        'AwaitingExamination': 'Appointment confirmed',
+        'AwaitingPrescription': 'In treatment',
+        'Completed': 'Completed',
+        'Rejected': 'Needs clinic follow-up',
+        'Failed': 'Manual review',
+        'Created': 'Planning',
+        'Running': 'Planning',
+      };
+      for (final entry in expected.entries) {
+        final r = ConsultationRequest.fromJson(
+            baseJson(agentWorkflowStatus: entry.key));
+        expect(r.agentWorkflowStatusLabel, entry.value,
+            reason: entry.key);
+      }
+    });
+  });
+
   group('AppointmentSlot.fromJson', () {
     test('parses all fields correctly', () {
       final json = {
@@ -64,6 +112,27 @@ void main() {
       expect(appt.notes, isNull);
       expect(appt.type, isNull);
       expect(appt.petName, isNull);
+    });
+
+    test('durationLabel reports multi-slot windows', () {
+      Appointment appt(String start, String end) => Appointment.fromJson({
+            'id': 'a',
+            'petId': 'p',
+            'veterinarianId': 'v',
+            'appointmentSlotId': 's',
+            'scheduledStart': start,
+            'scheduledEnd': end,
+            'status': 'Confirmed',
+            'createdAt': '2026-01-01T00:00:00',
+            'updatedAt': '2026-01-01T00:00:00',
+          });
+      expect(appt('2026-10-10T12:00:00', '2026-10-10T14:00:00').durationLabel,
+          '2 hours');
+      expect(appt('2026-10-10T12:00:00', '2026-10-10T13:00:00').durationLabel,
+          '1 hour');
+      expect(appt('2026-10-10T12:00:00', '2026-10-10T13:30:00').durationLabel,
+          '90 minutes');
+      expect(appt('bad', 'bad').durationLabel, '—');
     });
 
     test('parses workflow-redesign denormalised fields', () {

@@ -160,6 +160,7 @@ class _OwnerAppointmentDetailPageState
                   DetailRow('Time',
                       value:
                           '${_time(appt.scheduledStart)} – ${_time(appt.scheduledEnd)}'),
+                  DetailRow('Duration', value: appt.durationLabel),
                   DetailRow('Veterinarian',
                       value: appt.veterinarianName ?? appt.veterinarianId),
                   if (_clinic != null)

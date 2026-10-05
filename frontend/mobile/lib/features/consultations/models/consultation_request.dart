@@ -17,6 +17,11 @@ class ConsultationRequest {
   final String? additionalNotes;
   final String status;
 
+  /// Status of the AI-supervised workflow for this request, when the
+  /// backend created one (e.g. "PendingManagerApproval"). Null when the
+  /// consultation was never routed through the supervisor.
+  final String? agentWorkflowStatus;
+
   /// "Initial" (owner-filed) | "FollowUp" (veterinarian-requested).
   final String requestType;
   final String? requestedByVeterinarianName;
@@ -36,6 +41,7 @@ class ConsultationRequest {
     this.organizationName,
     this.additionalNotes,
     required this.status,
+    this.agentWorkflowStatus,
     this.requestType = 'Initial',
     this.requestedByVeterinarianName,
     this.createdAt,
@@ -62,6 +68,31 @@ class ConsultationRequest {
     return d.length >= 10 ? d.substring(0, 10) : d;
   }
 
+  /// Friendly owner-facing label for the advisory AI workflow, or null when
+  /// no workflow exists — callers render nothing in that case.
+  String? get agentWorkflowStatusLabel {
+    switch (agentWorkflowStatus) {
+      case 'PendingManagerApproval':
+        return 'Clinic reviewing';
+      case 'AwaitingExamination':
+        return 'Appointment confirmed';
+      case 'AwaitingPrescription':
+        return 'In treatment';
+      case 'Completed':
+        return 'Completed';
+      case 'Rejected':
+        return 'Needs clinic follow-up';
+      case 'Failed':
+        return 'Manual review';
+      case 'Created':
+      case 'Running':
+      case 'Planning':
+        return 'Planning';
+      default:
+        return null;
+    }
+  }
+
   factory ConsultationRequest.fromJson(Map<String, dynamic> json) {
     return ConsultationRequest(
       id: json['id'] as String,
@@ -77,6 +108,7 @@ class ConsultationRequest {
       organizationName: json['organizationName'] as String?,
       additionalNotes: json['additionalNotes'] as String?,
       status: json['status'] as String? ?? 'Draft',
+      agentWorkflowStatus: json['agentWorkflowStatus'] as String?,
       requestType: json['requestType'] as String? ?? 'Initial',
       requestedByVeterinarianName:
           json['requestedByVeterinarianName'] as String?,
