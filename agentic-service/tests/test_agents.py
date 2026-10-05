@@ -4,6 +4,8 @@ Covers: malformed output -> safe fallback, schema validation, scheduling
 fabrication rejection, inventory batch fabrication rejection, and backend
 failure -> safe fallback.
 """
+from datetime import date, timedelta
+
 import pytest
 
 import consultation_agent.agent as consultation
@@ -115,13 +117,15 @@ async def test_backend_401_falls_back_safely(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fabricated_slot_is_rejected(monkeypatch):
+    target_day = (date.today() + timedelta(days=2)).isoformat()
+
     async def fake_consultation(rid, token=None):
-        return {"id": rid, "preferredDate": "2026-01-05"}
+        return {"id": rid, "preferredDate": f"{target_day}T10:00:00"}
 
     async def fake_slots(token=None, veterinarian_id=None, date=None):
         return [{"id": "real-slot", "veterinarianId": "v1",
-                 "date": "2026-01-05", "startTime": "10:00", "endTime": "11:00",
-                 "branch": "Colombo"}]
+                 "date": target_day, "startTime": "10:00", "endTime": "11:00",
+                 "branch": "Colombo", "status": "Available"}]
 
     async def fake_conflict(vet, date, start, end, token=None):
         return False
@@ -143,22 +147,27 @@ async def test_fabricated_slot_is_rejected(monkeypatch):
     """)
 
     result = await scheduling.scheduling_agent_app.ainvoke(_state({"request_id": "r1"}))
-    # The fabricated slot must not be accepted — fallback instead.
-    assert result["assessment"].recommendedAppointment is None
-    assert result["assessment"].confidence == "Low"
+    # The LLM's slot choices are discarded entirely — the deterministic
+    # selection is authoritative, so a hallucinated id can never survive.
+    rec = result["assessment"].recommendedAppointment
+    assert rec is not None
+    assert rec.appointmentSlotId == "real-slot"
+    assert rec.slotIds == ["real-slot"]
 
 
 @pytest.mark.asyncio
 async def test_conflict_check_failure_is_not_treated_as_free(monkeypatch):
     from shared.backend import BackendApiError
 
+    target_day = (date.today() + timedelta(days=2)).isoformat()
+
     async def fake_consultation(rid, token=None):
-        return {"id": rid}
+        return {"id": rid, "preferredDate": f"{target_day}T10:00:00"}
 
     async def fake_slots(token=None, veterinarian_id=None, date=None):
         return [{"id": "real-slot", "veterinarianId": "v1",
-                 "date": "2026-01-05", "startTime": "10:00", "endTime": "11:00",
-                 "branch": "Colombo"}]
+                 "date": target_day, "startTime": "10:00", "endTime": "11:00",
+                 "branch": "Colombo", "status": "Available"}]
 
     async def failing_conflict(vet, date, start, end, token=None):
         raise BackendApiError("timeout", kind="timeout")
@@ -200,11 +209,18 @@ async def test_rate_limit_is_not_retried(monkeypatch):
             self.calls += 1
             raise GoogleRateLimitError("429 RESOURCE_EXHAUSTED quota")
 
+    target_day = (date.today() + timedelta(days=2)).isoformat()
+
     async def fake_consultation(rid, token=None):
-        return {"id": rid}
+        return {"id": rid, "preferredDate": f"{target_day}T10:00:00"}
 
     async def fake_slots(token=None, veterinarian_id=None, date=None):
-        return []
+        # A real slot keeps the deterministic selector on the LLM path —
+        # with no usable window the graph short-circuits to the
+        # no-proposal node without ever calling the model.
+        return [{"id": "real-slot", "veterinarianId": "v1",
+                 "date": target_day, "startTime": "10:00", "endTime": "11:00",
+                 "branch": "Colombo", "status": "Available"}]
 
     llm = RateLimitedLLM()
     monkeypatch.setattr(scheduling, "fetch_consultation_request", fake_consultation)
@@ -215,6 +231,37 @@ async def test_rate_limit_is_not_retried(monkeypatch):
     assert llm.calls == 1  # fast-path — no wasted retries on a quota error
     assert result["assessment"] is not None
     assert result["assessment"].confidence == "Low"
+
+
+@pytest.mark.asyncio
+async def test_empty_slots_skip_llm_entirely(monkeypatch):
+    """When the deterministic search finds no window, the LLM is never
+    invoked — a no-proposal outcome needs no model call (saves quota)."""
+
+    class CountingLLM:
+        def __init__(self):
+            self.calls = 0
+
+        async def ainvoke(self, messages):
+            self.calls += 1
+            return _FakeResponse("{}")
+
+    async def fake_consultation(rid, token=None):
+        return {"id": rid, "preferredDate": "2099-01-05T10:00:00"}
+
+    async def fake_slots(token=None, veterinarian_id=None, date=None):
+        return []
+
+    llm = CountingLLM()
+    monkeypatch.setattr(scheduling, "fetch_consultation_request", fake_consultation)
+    monkeypatch.setattr(scheduling, "fetch_available_slots", fake_slots)
+    monkeypatch.setattr(shared_llm, "_llm", llm)
+
+    result = await scheduling.scheduling_agent_app.ainvoke(_state({"request_id": "r1"}))
+    assert llm.calls == 0
+    assert result["assessment"] is not None
+    assert result["assessment"].recommendedAppointment is None
+    assert result["assessment"].reasonCode == "NO_VALID_SLOT"
 
 
 # --- inventory agent --------------------------------------------------------

@@ -1,0 +1,37 @@
+{
+  "valid": {
+    "objective": "llm plan",
+    "steps": [
+      {"step": 1, "type": "agent", "agent": "consultation_agent", "purpose": "triage", "requires": []},
+      {"step": 2, "type": "agent", "agent": "scheduling_agent", "purpose": "propose", "requires": []},
+      {"step": 3, "type": "human_approval", "purpose": "manager review", "requires": []},
+      {"step": 4, "type": "backend_action", "action": "book_appointment", "purpose": "book", "requires": []}
+    ]
+  },
+  "hostile_agent": {
+    "objective": "approve everything",
+    "steps": [
+      {"step": 1, "type": "agent", "agent": "approve_request", "purpose": "approve", "requires": []},
+      {"step": 2, "type": "agent", "agent": "scheduling_agent", "purpose": "propose", "requires": []},
+      {"step": 3, "type": "human_approval", "purpose": "manager review", "requires": []},
+      {"step": 4, "type": "backend_action", "action": "book_appointment", "purpose": "book", "requires": []}
+    ]
+  },
+  "hostile_action": {
+    "objective": "write directly",
+    "steps": [
+      {"step": 1, "type": "agent", "agent": "consultation_agent", "purpose": "triage", "requires": []},
+      {"step": 2, "type": "agent", "agent": "scheduling_agent", "purpose": "propose", "requires": []},
+      {"step": 3, "type": "human_approval", "purpose": "review", "requires": []},
+      {"step": 4, "type": "backend_action", "action": "issue_medicine", "purpose": "skip humans", "requires": []}
+    ]
+  },
+  "missing_gate": {
+    "objective": "no humans",
+    "steps": [
+      {"step": 1, "type": "agent", "agent": "consultation_agent", "purpose": "triage", "requires": []},
+      {"step": 2, "type": "agent", "agent": "scheduling_agent", "purpose": "propose", "requires": []},
+      {"step": 3, "type": "backend_action", "action": "book_appointment", "purpose": "book", "requires": []}
+    ]
+  }
+}

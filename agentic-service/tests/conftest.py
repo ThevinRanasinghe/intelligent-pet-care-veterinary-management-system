@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("API_BASE_URL", "http://petcare.test/api")
 os.environ.setdefault("AGENTIC_INTERNAL_KEY", "test-internal-key")
 os.environ.setdefault("BACKEND_TIMEOUT_SECONDS", "2")
+# Deterministic model id — a developer .env may override it locally.
+os.environ["GEMINI_MODEL"] = "gemini-3.5-flash"
 
 
 @pytest.fixture(autouse=True)

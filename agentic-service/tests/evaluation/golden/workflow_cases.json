@@ -1,0 +1,69 @@
+{
+  "normal_consultation": {
+    "input": {"objective": "triage a fever consultation"},
+    "expect": {
+      "status": "PendingManagerApproval",
+      "interrupted": true,
+      "delegatedAgents": ["consultation_agent", "scheduling_agent"],
+      "approvedAction": false
+    }
+  },
+  "valid_scheduling_proposal": {
+    "expect": {
+      "status": "AwaitingExamination",
+      "approvedAction": "book_appointment"
+    }
+  },
+  "no_suitable_slot": {
+    "expect": {"status": "Failed", "failureReason": "no_valid_slot"}
+  },
+  "diagnosis_after_examination": {
+    "expect": {
+      "status": "AwaitingPrescription",
+      "delegatedAgentsContain": "diagnosis_agent"
+    }
+  },
+  "inventory_sufficient_stock": {
+    "expect": {
+      "status": "Completed",
+      "delegatedAgentsContain": "inventory_agent"
+    }
+  },
+  "unavailable_invalid_medicine": {
+    "expect": {"status": "Failed"}
+  },
+  "malformed_ai_response": {
+    "expect": {
+      "status": "PendingManagerApproval",
+      "planEvent": "plan_fallback"
+    }
+  },
+  "fabricated_slot": {
+    "expect": {"status": "Failed", "failureReason": "conflict_detected"}
+  },
+  "fabricated_medicine_batch": {
+    "expect": {"status": "Failed"}
+  },
+  "authorization_violation": {
+    "expect": {"status": "Failed"}
+  },
+  "organization_boundary_violation": {
+    "expect": {"status": "Failed"}
+  },
+  "retry_transient_failure": {
+    "expect": {"llmCalls": 2, "planEvent": "plan_created"}
+  },
+  "safe_fallback": {
+    "expect": {"status": "Failed"}
+  },
+  "prompt_injection": {
+    "expect": {
+      "status": "PendingManagerApproval",
+      "planEvent": "plan_fallback",
+      "approvedAction": false
+    }
+  },
+  "approval_enforcement": {
+    "expect": {"interrupted": true, "approvedAction": false}
+  }
+}
