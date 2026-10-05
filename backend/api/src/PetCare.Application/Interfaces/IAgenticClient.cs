@@ -1,4 +1,5 @@
 using PetCare.Application.DTOs.Agentic;
+using PetCare.Application.DTOs.Agentic.Workflows;
 
 namespace PetCare.Application.Interfaces;
 
@@ -32,4 +33,19 @@ public interface IAgenticClient
     /// </summary>
     Task<AgenticServiceResult> PlanInventoryAsync(
         string treatmentRecordId, string? bearerToken, CancellationToken cancellationToken = default);
+
+    /// <summary>Starts (or continues) a supervisor workflow run.</summary>
+    Task<AgenticServiceResult> RunWorkflowAsync(
+        string workflowId, WorkflowRunPayload payload, string? bearerToken,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Applies the manager's approval decision to a paused workflow.</summary>
+    Task<AgenticServiceResult> ResumeWorkflowAsync(
+        string workflowId, WorkflowResumePayload payload, string? bearerToken,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Asserts a business event (examination/prescription) into a workflow.</summary>
+    Task<AgenticServiceResult> AdvanceWorkflowAsync(
+        string workflowId, WorkflowAdvancePayload payload, string? bearerToken,
+        CancellationToken cancellationToken = default);
 }

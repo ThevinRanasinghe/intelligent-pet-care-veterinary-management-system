@@ -46,6 +46,55 @@ public class AppointmentSlotRepository : IAppointmentSlotRepository
         return await query.ToListAsync(cancellationToken);
     }
 
+    public async Task<AppointmentSlot?> GetByVeterinarianDateStartAsync(
+        Guid veterinarianId, DateOnly date, TimeOnly startTime,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.AppointmentSlots
+            .FirstOrDefaultAsync(
+                s => s.VeterinarianId == veterinarianId
+                     && s.Date == date
+                     && s.StartTime == startTime,
+                cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AppointmentSlot>> GetManyByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        var query = _context.AppointmentSlots.Where(s => ids.Contains(s.Id));
+        query = await query.ScopeToOrganizationAsync(_tenant, s => s.Veterinarian.OrganizationId, cancellationToken);
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> TryReserveAvailableAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        // Conditional bulk update: each listed slot flips only while its
+        // status is still Available. Rows already taken by another writer
+        // are simply not updated, and the caller detects the shortfall.
+        // Org membership of the ids is validated by the caller beforehand.
+        return await _context.AppointmentSlots
+            .Where(s => ids.Contains(s.Id) && s.Status == AppointmentSlotStatus.Available)
+            .ExecuteUpdateAsync(
+                u => u.SetProperty(s => s.Status, AppointmentSlotStatus.Reserved),
+                cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AppointmentSlot>> GetByStatusInWindowAsync(
+        Guid veterinarianId, DateOnly date, TimeOnly start, TimeOnly end,
+        AppointmentSlotStatus status,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.AppointmentSlots
+            .Where(s => s.VeterinarianId == veterinarianId
+                        && s.Date == date
+                        && s.StartTime >= start
+                        && s.StartTime < end
+                        && s.Status == status);
+        query = await query.ScopeToOrganizationAsync(_tenant, s => s.Veterinarian.OrganizationId, cancellationToken);
+        return await query.ToListAsync(cancellationToken);
+    }
+
     public Task AddAsync(AppointmentSlot slot, CancellationToken cancellationToken = default)
     {
         _context.AppointmentSlots.Add(slot);

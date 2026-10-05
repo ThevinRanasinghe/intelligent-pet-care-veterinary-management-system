@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PetCare.Application.DTOs.Agentic;
+using PetCare.Application.DTOs.Agentic.Workflows;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
@@ -17,7 +18,7 @@ namespace PetCare.Tests;
 /// Phase 2A: the recommendations endpoint now delegates to the agentic
 /// diagnosis agent through <see cref="IAgenticClient"/>. These tests cover
 /// the agent call, DTO mapping, org-scoped medicine-name resolution, and
-/// safe degradation — and prove nothing is ever persisted.
+/// safe degradation ΓÇö and prove nothing is ever persisted.
 /// </summary>
 public class ExaminationRecommendationTests
 {
@@ -44,6 +45,18 @@ public class ExaminationRecommendationTests
             Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
 
         public Task<AgenticServiceResult> PlanInventoryAsync(string id, string? token, CancellationToken ct = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> RunWorkflowAsync(
+            string workflowId, WorkflowRunPayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> ResumeWorkflowAsync(
+            string workflowId, WorkflowResumePayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> AdvanceWorkflowAsync(
+            string workflowId, WorkflowAdvancePayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
             Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
     }
 

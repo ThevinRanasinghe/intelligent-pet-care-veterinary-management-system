@@ -462,6 +462,309 @@ public class ConsultationWorkflowServiceTests
         Assert.Equal(BookingRules.SlotUnavailableMessage, ex.Message);
     }
 
+    // 13. A pre-posted Available slot for the same vet/date/start is adopted —
+    //     marked Reserved and reused for the appointment instead of colliding
+    //     with the unique index.
+    [Fact]
+    public async Task AssignConsultationAsync_AvailableSlot_IsAdopted()
+    {
+        var consultation = SubmittedConsultation();
+        var request = AssignRequest();
+        var posted = new AppointmentSlot
+        {
+            Id = Guid.NewGuid(),
+            VeterinarianId = VeterinarianId,
+            Date = Date,
+            StartTime = request.StartTime,
+            EndTime = request.StartTime.AddHours(1),
+            Status = AppointmentSlotStatus.Available
+        };
+
+        _consultations.Setup(r => r.GetByIdAsync(consultation.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(consultation);
+        _veterinarians.Setup(r => r.GetByIdAsync(VeterinarianId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ActiveVeterinarian());
+        _appointments
+            .Setup(r => r.GetActiveByVeterinarianAndDateAsync(VeterinarianId, Date, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Appointment>());
+        _slots.Setup(r => r.GetByVeterinarianDateStartAsync(
+                VeterinarianId, Date, request.StartTime, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(posted);
+
+        var service = CreateService();
+        var result = await service.AssignConsultationAsync(consultation.Id, request);
+
+        Assert.Equal(AppointmentSlotStatus.Reserved, posted.Status);
+        _slots.Verify(s => s.AddAsync(It.IsAny<AppointmentSlot>(), It.IsAny<CancellationToken>()), Times.Never);
+        _appointments.Verify(a => a.AddAsync(
+            It.Is<Appointment>(x => x.AppointmentSlotId == posted.Id),
+            It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(AppointmentStatus.Confirmed.ToString(), result.Status);
+    }
+
+    // 14. A slot row already Reserved (or otherwise not Available) for the
+    //     same vet/date/start is a conflict — nothing is booked.
+    [Theory]
+    [InlineData(AppointmentSlotStatus.Reserved)]
+    [InlineData(AppointmentSlotStatus.Confirmed)]
+    [InlineData(AppointmentSlotStatus.Cancelled)]
+    public async Task AssignConsultationAsync_OccupiedSlot_ThrowsConflict(AppointmentSlotStatus status)
+    {
+        var consultation = SubmittedConsultation();
+        var request = AssignRequest();
+        var posted = new AppointmentSlot
+        {
+            Id = Guid.NewGuid(),
+            VeterinarianId = VeterinarianId,
+            Date = Date,
+            StartTime = request.StartTime,
+            EndTime = request.StartTime.AddHours(1),
+            Status = status
+        };
+
+        _consultations.Setup(r => r.GetByIdAsync(consultation.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(consultation);
+        _veterinarians.Setup(r => r.GetByIdAsync(VeterinarianId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ActiveVeterinarian());
+        _appointments
+            .Setup(r => r.GetActiveByVeterinarianAndDateAsync(VeterinarianId, Date, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Appointment>());
+        _slots.Setup(r => r.GetByVeterinarianDateStartAsync(
+                VeterinarianId, Date, request.StartTime, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(posted);
+
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<SchedulingConflictException>(
+            () => service.AssignConsultationAsync(consultation.Id, request));
+
+        _slots.Verify(s => s.AddAsync(It.IsAny<AppointmentSlot>(), It.IsAny<CancellationToken>()), Times.Never);
+        _appointments.Verify(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()), Times.Never);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 15. No pre-existing slot row → a fresh Reserved slot is added
+    //     (the pre-adoption behaviour).
+    [Fact]
+    public async Task AssignConsultationAsync_NoExistingSlot_AddsReservedSlot()
+    {
+        var consultation = SubmittedConsultation();
+        var request = AssignRequest();
+
+        _consultations.Setup(r => r.GetByIdAsync(consultation.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(consultation);
+        _veterinarians.Setup(r => r.GetByIdAsync(VeterinarianId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ActiveVeterinarian());
+        _appointments
+            .Setup(r => r.GetActiveByVeterinarianAndDateAsync(VeterinarianId, Date, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Appointment>());
+        _slots.Setup(r => r.GetByVeterinarianDateStartAsync(
+                VeterinarianId, Date, request.StartTime, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AppointmentSlot?)null);
+
+        var service = CreateService();
+        await service.AssignConsultationAsync(consultation.Id, request);
+
+        _slots.Verify(s => s.AddAsync(
+            It.Is<AppointmentSlot>(x =>
+                x.VeterinarianId == VeterinarianId &&
+                x.Date == Date &&
+                x.StartTime == request.StartTime &&
+                x.Status == AppointmentSlotStatus.Reserved),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _appointments.Verify(a => a.AddAsync(
+            It.Is<Appointment>(x => x.VeterinarianId == VeterinarianId && x.Status == AppointmentStatus.Confirmed),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ---- Multi-slot AI-workflow bookings -------------------------------
+
+    private static AppointmentSlot AvailableSlot(TimeOnly start) => new()
+    {
+        Id = Guid.NewGuid(),
+        VeterinarianId = VeterinarianId,
+        Date = Date,
+        StartTime = start,
+        EndTime = start.AddHours(1),
+        Status = AppointmentSlotStatus.Available
+    };
+
+    private void SetupBaseAssign(ConsultationRequest consultation)
+    {
+        _consultations.Setup(r => r.GetByIdAsync(consultation.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(consultation);
+        _veterinarians.Setup(r => r.GetByIdAsync(VeterinarianId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ActiveVeterinarian());
+        _appointments
+            .Setup(r => r.GetActiveByVeterinarianAndDateAsync(VeterinarianId, Date, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Appointment>());
+        _appointments.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Appointment?)null);
+    }
+
+    private Mock<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> SetupTransaction()
+    {
+        var tx = new Mock<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction>();
+        _unitOfWork
+            .Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tx.Object);
+        return tx;
+    }
+
+    // 16. Two consecutive Available slots are reserved atomically and the
+    //     appointment spans the full window anchored on the first slot.
+    [Fact]
+    public async Task AssignConsultationAsync_MultiSlot_ReservesConsecutiveWindowTransactionally()
+    {
+        var consultation = SubmittedConsultation();
+        var first = AvailableSlot(new TimeOnly(10, 0));
+        var second = AvailableSlot(new TimeOnly(11, 0));
+        var request = new AssignVeterinarianRequest
+        {
+            VeterinarianId = VeterinarianId,
+            Date = Date,
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(12, 0),
+            SlotIds = new List<Guid> { first.Id, second.Id }
+        };
+
+        SetupBaseAssign(consultation);
+        var tx = SetupTransaction();
+        _slots.Setup(r => r.GetManyByIdsAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 2), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AppointmentSlot> { first, second });
+        _slots.Setup(r => r.TryReserveAvailableAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids => ids.Contains(first.Id) && ids.Contains(second.Id)),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2);
+
+        var service = CreateService();
+        var result = await service.AssignConsultationAsync(consultation.Id, request);
+
+        Assert.Equal(new TimeOnly(12, 0), first.EndTime); // anchor spans the window
+        _appointments.Verify(a => a.AddAsync(
+            It.Is<Appointment>(x => x.AppointmentSlotId == first.Id
+                && x.EndTime == new TimeOnly(12, 0)
+                && x.Status == AppointmentStatus.Confirmed),
+            It.IsAny<CancellationToken>()), Times.Once);
+        tx.Verify(t => t.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(AppointmentStatus.Confirmed.ToString(), result.Status);
+    }
+
+    // 17. A slot id that does not resolve in scope aborts the booking.
+    [Fact]
+    public async Task AssignConsultationAsync_UnknownSlotId_ThrowsConflict()
+    {
+        var consultation = SubmittedConsultation();
+        var first = AvailableSlot(new TimeOnly(10, 0));
+        var request = new AssignVeterinarianRequest
+        {
+            VeterinarianId = VeterinarianId,
+            Date = Date,
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(12, 0),
+            SlotIds = new List<Guid> { first.Id, Guid.NewGuid() }
+        };
+
+        SetupBaseAssign(consultation);
+        SetupTransaction();
+        _slots.Setup(r => r.GetManyByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AppointmentSlot> { first });
+
+        var service = CreateService();
+        await Assert.ThrowsAsync<SchedulingConflictException>(
+            () => service.AssignConsultationAsync(consultation.Id, request));
+
+        _slots.Verify(s => s.TryReserveAvailableAsync(It.IsAny<IReadOnlyCollection<Guid>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 18. Slots that skip an hour are not a valid consecutive window.
+    [Fact]
+    public async Task AssignConsultationAsync_NonConsecutiveSlotIds_ThrowsConflict()
+    {
+        var consultation = SubmittedConsultation();
+        var first = AvailableSlot(new TimeOnly(10, 0));
+        var third = AvailableSlot(new TimeOnly(12, 0));
+        var request = new AssignVeterinarianRequest
+        {
+            VeterinarianId = VeterinarianId,
+            Date = Date,
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(12, 0),
+            SlotIds = new List<Guid> { first.Id, third.Id }
+        };
+
+        SetupBaseAssign(consultation);
+        SetupTransaction();
+        _slots.Setup(r => r.GetManyByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AppointmentSlot> { first, third });
+
+        var service = CreateService();
+        await Assert.ThrowsAsync<SchedulingConflictException>(
+            () => service.AssignConsultationAsync(consultation.Id, request));
+    }
+
+    // 19. A slot claimed between proposal and approval is a conflict —
+    //     the atomic reservation updates 0 rows for it and aborts.
+    [Fact]
+    public async Task AssignConsultationAsync_SlotRace_ThrowsConflict()
+    {
+        var consultation = SubmittedConsultation();
+        var first = AvailableSlot(new TimeOnly(10, 0));
+        var second = AvailableSlot(new TimeOnly(11, 0));
+        var request = new AssignVeterinarianRequest
+        {
+            VeterinarianId = VeterinarianId,
+            Date = Date,
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(12, 0),
+            SlotIds = new List<Guid> { first.Id, second.Id }
+        };
+
+        SetupBaseAssign(consultation);
+        var tx = SetupTransaction();
+        _slots.Setup(r => r.GetManyByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AppointmentSlot> { first, second });
+        _slots.Setup(r => r.TryReserveAvailableAsync(It.IsAny<IReadOnlyCollection<Guid>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1); // concurrent booking took one slot
+
+        var service = CreateService();
+        await Assert.ThrowsAsync<SchedulingConflictException>(
+            () => service.AssignConsultationAsync(consultation.Id, request));
+
+        _appointments.Verify(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()), Times.Never);
+        tx.Verify(t => t.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // 20. A slot belonging to another veterinarian is rejected even when
+    //     it resolves in the caller's organization.
+    [Fact]
+    public async Task AssignConsultationAsync_SlotOfAnotherVet_ThrowsConflict()
+    {
+        var consultation = SubmittedConsultation();
+        var foreign = AvailableSlot(new TimeOnly(10, 0));
+        foreign.VeterinarianId = Guid.NewGuid();
+        var request = new AssignVeterinarianRequest
+        {
+            VeterinarianId = VeterinarianId,
+            Date = Date,
+            StartTime = new TimeOnly(10, 0),
+            EndTime = new TimeOnly(11, 0),
+            SlotIds = new List<Guid> { foreign.Id }
+        };
+
+        SetupBaseAssign(consultation);
+        SetupTransaction();
+        _slots.Setup(r => r.GetManyByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AppointmentSlot> { foreign });
+
+        var service = CreateService();
+        await Assert.ThrowsAsync<SchedulingConflictException>(
+            () => service.AssignConsultationAsync(consultation.Id, request));
+    }
+
     /// <summary>Test double for Npgsql.PostgresException — the service
     /// detects it by type name and the SqlState property via reflection.</summary>
     private sealed class PostgresException : Exception

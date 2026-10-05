@@ -91,10 +91,13 @@ public class ConsultationWorkflowService : IConsultationWorkflowService
                 "The veterinarian does not belong to the consultation's organization.");
         }
 
-        // Fixed one-hour slots: the end time is always start + 1h (already
-        // validated when the client supplied it explicitly).
+        // Fixed one-hour slots: a single booking ends at start + 1h; an
+        // AI-workflow multi-slot booking spans N consecutive hours
+        // (already validated when the client supplied EndTime explicitly).
+        var requestedSlotIds = request.SlotIds is { Count: > 0 } ? request.SlotIds : null;
+        var slotCount = requestedSlotIds?.Count ?? 1;
         var endTime = request.EndTime
-            ?? request.StartTime.AddMinutes(BookingRules.SlotDurationMinutes);
+            ?? request.StartTime.AddMinutes(BookingRules.SlotDurationMinutes * slotCount);
 
         // Same overlap rule as SchedulingService.CheckConflictAsync.
         var existing = await _appointments.GetActiveByVeterinarianAndDateAsync(
@@ -106,18 +109,56 @@ public class ConsultationWorkflowService : IConsultationWorkflowService
                 "The veterinarian already has a conflicting appointment for the requested time.");
         }
 
-        var slot = new AppointmentSlot
+        // The multi-slot path claims the published slots inside an explicit
+        // transaction: the conditional reservation and the booking commit
+        // or roll back together.
+        var transaction = requestedSlotIds is null
+            ? null
+            : await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        Appointment? appointment = null;
+        await using (transaction)
         {
-            VeterinarianId = veterinarian.Id,
-            Date = request.Date,
-            StartTime = request.StartTime,
-            EndTime = endTime,
-            Branch = string.IsNullOrWhiteSpace(veterinarian.Branch) ? "Main" : veterinarian.Branch,
-            Status = AppointmentSlotStatus.Reserved
-        };
-        await _slots.AddAsync(slot, cancellationToken);
+        AppointmentSlot slot;
+        if (requestedSlotIds is not null)
+        {
+            slot = await ReserveRequestedSlotsAsync(
+                veterinarian, request.Date, request.StartTime, endTime,
+                requestedSlotIds, cancellationToken);
+        }
+        else
+        {
+        // Adopt a pre-posted Available slot for this vet/date/start instead of
+        // inserting a colliding row; anything else occupying the slot is a
+        // conflict. With no row, materialize the Reserved slot as before.
+        var existingSlot = await _slots.GetByVeterinarianDateStartAsync(
+            veterinarian.Id, request.Date, request.StartTime, cancellationToken);
+        if (existingSlot is not null)
+        {
+            if (existingSlot.Status != AppointmentSlotStatus.Available)
+            {
+                throw new SchedulingConflictException(BookingRules.SlotUnavailableMessage);
+            }
+            existingSlot.Status = AppointmentSlotStatus.Reserved;
+            existingSlot.EndTime = endTime;
+            existingSlot.UpdatedAt = DateTime.UtcNow;
+            slot = existingSlot;
+        }
+        else
+        {
+            slot = new AppointmentSlot
+            {
+                VeterinarianId = veterinarian.Id,
+                Date = request.Date,
+                StartTime = request.StartTime,
+                EndTime = endTime,
+                Branch = string.IsNullOrWhiteSpace(veterinarian.Branch) ? "Main" : veterinarian.Branch,
+                Status = AppointmentSlotStatus.Reserved
+            };
+            await _slots.AddAsync(slot, cancellationToken);
+        }
+        }
 
-        var appointment = new Appointment
+        appointment = new Appointment
         {
             PetId = consultation.PetId,
             VeterinarianId = veterinarian.Id,
@@ -156,9 +197,83 @@ public class ConsultationWorkflowService : IConsultationWorkflowService
                 BookingRules.SlotUnavailableMessage);
         }
 
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+        }
+
         // Reload so the response carries the denormalised display fields.
-        var saved = await _appointments.GetByIdAsync(appointment.Id, cancellationToken) ?? appointment;
+        var saved = await _appointments.GetByIdAsync(appointment!.Id, cancellationToken) ?? appointment;
         return AppointmentMapper.ToResponse(saved);
+    }
+
+    /// <summary>
+    /// Validates and atomically reserves the consecutive published slots the
+    /// AI workflow proposed. Every listed slot must exist in the caller's
+    /// organization, belong to the veterinarian and date, still be
+    /// Available, and cover exactly [startTime, endTime) in order. The
+    /// conditional UPDATE re-checks Available at write time, so a slot
+    /// claimed between proposal and approval aborts the whole booking.
+    /// Returns the anchor (first) slot for the appointment reference.
+    /// </summary>
+    private async Task<AppointmentSlot> ReserveRequestedSlotsAsync(
+        Veterinarian veterinarian,
+        DateOnly date,
+        TimeOnly startTime,
+        TimeOnly endTime,
+        IReadOnlyList<Guid> slotIds,
+        CancellationToken cancellationToken)
+    {
+        var candidates = await _slots.GetManyByIdsAsync(slotIds, cancellationToken);
+        if (candidates.Count != slotIds.Count)
+        {
+            // Missing or wrong-organization ids are indistinguishable here.
+            throw new SchedulingConflictException(
+                "One or more proposed appointment slots do not exist.");
+        }
+
+        var byId = candidates.ToDictionary(s => s.Id);
+        var expectedStart = startTime;
+        foreach (var id in slotIds)
+        {
+            var candidate = byId[id];
+            if (candidate.VeterinarianId != veterinarian.Id || candidate.Date != date)
+            {
+                throw new SchedulingConflictException(
+                    "A proposed slot does not match the veterinarian and date being booked.");
+            }
+            if (candidate.StartTime != expectedStart)
+            {
+                throw new SchedulingConflictException(
+                    "The proposed slots are not consecutive from the requested start time.");
+            }
+            if (candidate.Status != AppointmentSlotStatus.Available)
+            {
+                throw new SchedulingConflictException(BookingRules.SlotUnavailableMessage);
+            }
+            expectedStart = expectedStart.AddMinutes(BookingRules.SlotDurationMinutes);
+        }
+        if (expectedStart != endTime)
+        {
+            throw new SchedulingConflictException(
+                "The proposed slots do not cover the requested time window.");
+        }
+
+        // Atomic claim: rows no longer Available are not updated, so any
+        // shortfall means a concurrent booking won the race.
+        var reserved = await _slots.TryReserveAvailableAsync(slotIds, cancellationToken);
+        if (reserved != slotIds.Count)
+        {
+            throw new SchedulingConflictException(BookingRules.SlotUnavailableMessage);
+        }
+
+        // The anchor slot carries the appointment's full window end so
+        // downstream queries see a coherent Reserved block.
+        var anchor = byId[slotIds[0]];
+        anchor.EndTime = endTime;
+        anchor.UpdatedAt = DateTime.UtcNow;
+        return anchor;
     }
 
     public async Task<ConsultationRequestDto> CreateFollowUpAsync(

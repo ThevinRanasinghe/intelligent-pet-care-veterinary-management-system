@@ -23,6 +23,7 @@ public class MedicineRequestService : IMedicineRequestService
     private readonly ITenantContext _tenant;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAgenticClient? _agenticClient;
+    private readonly IAgentWorkflowService? _agentWorkflows;
     private readonly ILogger<MedicineRequestService>? _logger;
 
     public MedicineRequestService(
@@ -32,6 +33,7 @@ public class MedicineRequestService : IMedicineRequestService
         ITenantContext tenant,
         IUnitOfWork unitOfWork,
         IAgenticClient? agenticClient = null,
+        IAgentWorkflowService? agentWorkflows = null,
         ILogger<MedicineRequestService>? logger = null)
     {
         _prescriptions = prescriptions;
@@ -40,6 +42,7 @@ public class MedicineRequestService : IMedicineRequestService
         _tenant = tenant;
         _unitOfWork = unitOfWork;
         _agenticClient = agenticClient;
+        _agentWorkflows = agentWorkflows;
         _logger = logger;
     }
 
@@ -164,7 +167,48 @@ public class MedicineRequestService : IMedicineRequestService
         // out-of-scope (cross-organization) records get the same
         // "unavailable" response so existence is never leaked.
         var exists = await _prescriptions.ExistsForTreatmentRecordAsync(treatmentRecordId, cancellationToken);
-        if (!exists || _agenticClient == null)
+        if (!exists)
+            return UnavailablePlan(treatmentRecordId);
+
+        // When a supervisor workflow is awaiting this event the specialist
+        // runs INSIDE the workflow so the trajectory records the step.
+        if (_agentWorkflows is not null)
+        {
+            var workflow = await _agentWorkflows.GetByClinicalEventReferenceAsync(
+                Domain.Constants.AgentWorkflowEventType.PrescriptionCreated,
+                treatmentRecordId.ToString(), cancellationToken);
+            if (workflow?.Status == Domain.Constants.AgentWorkflowStatus.AwaitingPrescription)
+            {
+                try
+                {
+                    var advanced = await _agentWorkflows.AdvanceAsync(
+                        workflow.Id,
+                        Domain.Constants.AgentWorkflowEventType.PrescriptionCreated,
+                        treatmentRecordId.ToString(), bearerToken, cancellationToken);
+                    var output = advanced.Steps.LastOrDefault()?.Output;
+                    if (output is { } outputJson)
+                    {
+                        var routed = outputJson.Deserialize<InventoryPlanDto>();
+                        if (routed is not null && !string.IsNullOrWhiteSpace(routed.PlanningNotes))
+                        {
+                            routed.Source = "agentic-ai";
+                            routed.RequestId = treatmentRecordId.ToString();
+                            routed.Confidence = NormalizeConfidence(routed.Confidence);
+                            routed.AlternativeMedicines ??= new List<InventoryAlternativeMedicineDto>();
+                            return routed;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex,
+                        "Workflow advance failed for treatment record {TreatmentRecordId}; falling back to direct agent call",
+                        treatmentRecordId);
+                }
+            }
+        }
+
+        if (_agenticClient == null)
             return UnavailablePlan(treatmentRecordId);
 
         var result = await _agenticClient.PlanInventoryAsync(

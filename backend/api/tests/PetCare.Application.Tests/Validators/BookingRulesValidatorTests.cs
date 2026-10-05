@@ -243,6 +243,58 @@ public class BookingRulesValidatorTests
         Assert.True(result.IsValid);
     }
 
+    [Fact]
+    public void Assign_MultiSlot_EndTimeMatchingSlotCount_Passes()
+    {
+        var request = ValidAssign();
+        request.SlotIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() };
+        request.EndTime = new TimeOnly(12, 0); // 10:00 + 2 × 1h
+
+        var result = new AssignVeterinarianRequestValidator().Validate(request);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Assign_MultiSlot_EndTimeNotMatchingSlotCount_Fails()
+    {
+        var request = ValidAssign();
+        request.SlotIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() };
+        request.EndTime = new TimeOnly(11, 0); // only one hour
+
+        var result = new AssignVeterinarianRequestValidator().Validate(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.EndTime));
+    }
+
+    [Fact]
+    public void Assign_MultiSlot_WindowPastClosing_Fails()
+    {
+        var request = ValidAssign();
+        request.StartTime = new TimeOnly(16, 0);
+        request.SlotIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        // 16:00 + 3h = 19:00 — runs past the 18:00 closing time.
+
+        var result = new AssignVeterinarianRequestValidator().Validate(request);
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Assign_MultiSlot_DuplicateSlotIds_Fail()
+    {
+        var shared = Guid.NewGuid();
+        var request = ValidAssign();
+        request.SlotIds = new List<Guid> { shared, shared };
+        request.EndTime = new TimeOnly(12, 0);
+
+        var result = new AssignVeterinarianRequestValidator().Validate(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(request.SlotIds));
+    }
+
     // ---------------------------------------------------------------
     // CreateFollowUpRequestValidator
     // ---------------------------------------------------------------

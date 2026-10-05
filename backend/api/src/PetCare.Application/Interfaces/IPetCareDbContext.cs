@@ -21,5 +21,7 @@ public interface IPetCareDbContext
 
     DbSet<Examination> Examinations { get; }
 
+    DbSet<AgentWorkflow> AgentWorkflows { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

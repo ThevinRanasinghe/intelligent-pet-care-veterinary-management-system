@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PetCare.Application.DTOs.Agentic;
+using PetCare.Application.DTOs.Agentic.Workflows;
 using PetCare.Application.Interfaces;
 using PetCare.Domain.Entities;
 using PetCare.Infrastructure;
@@ -16,7 +17,7 @@ namespace PetCare.Tests;
 /// Phase 2C: the scheduling-plan endpoint delegates to the agentic
 /// scheduling agent through <see cref="IAgenticClient"/>. These tests
 /// cover the agent call, DTO mapping, organization scoping, and safe
-/// degradation — and prove nothing is ever persisted or booked.
+/// degradation ΓÇö and prove nothing is ever persisted or booked.
 /// </summary>
 public class SchedulingPlanTests
 {
@@ -43,6 +44,18 @@ public class SchedulingPlanTests
             Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
 
         public Task<AgenticServiceResult> PlanInventoryAsync(string id, string? token, CancellationToken ct = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> RunWorkflowAsync(
+            string workflowId, WorkflowRunPayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> ResumeWorkflowAsync(
+            string workflowId, WorkflowResumePayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> AdvanceWorkflowAsync(
+            string workflowId, WorkflowAdvancePayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
             Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
     }
 
@@ -271,7 +284,7 @@ public class SchedulingPlanTests
         using var context = NewContext();
         var consultation = SeedConsultation(context);
         // Agent returns an appointment missing the fields that identify a
-        // slot (empty date/startTime) — it must be dropped, not surfaced.
+        // slot (empty date/startTime) ΓÇö it must be dropped, not surfaced.
         var json = @"{
             ""requestId"":""whatever"",
             ""recommendedAppointment"":{
@@ -322,7 +335,7 @@ public class SchedulingPlanTests
         var before = context.ChangeTracker.Entries().Count();
         await service.GetSchedulingPlanAsync(consultation.Id, "Bearer tok");
 
-        // Read-only: no entities became Added/Modified during the call —
+        // Read-only: no entities became Added/Modified during the call ΓÇö
         // the AI never books, assigns, or mutates business records.
         Assert.DoesNotContain(context.ChangeTracker.Entries(),
             e => e.State == EntityState.Added || e.State == EntityState.Modified);

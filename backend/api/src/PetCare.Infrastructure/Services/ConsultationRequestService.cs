@@ -15,17 +15,20 @@ public class ConsultationRequestService : IConsultationRequestService
     private readonly IPetCareDbContext _context;
     private readonly ITenantContext _tenant;
     private readonly IAgenticClient? _agenticClient;
+    private readonly IAgentWorkflowService? _agentWorkflows;
     private readonly ILogger<ConsultationRequestService>? _logger;
 
     public ConsultationRequestService(
         IPetCareDbContext context,
         ITenantContext tenant,
         IAgenticClient? agenticClient = null,
+        IAgentWorkflowService? agentWorkflows = null,
         ILogger<ConsultationRequestService>? logger = null)
     {
         _context = context;
         _tenant = tenant;
         _agenticClient = agenticClient;
+        _agentWorkflows = agentWorkflows;
         _logger = logger;
     }
 
@@ -184,7 +187,9 @@ public class ConsultationRequestService : IConsultationRequestService
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
 
-        return consultations.Select(MapToDto).ToList();
+        var dtos = consultations.Select(MapToDto).ToList();
+        await PopulateWorkflowStatusesAsync(dtos);
+        return dtos;
     }
 
 
@@ -211,7 +216,9 @@ public class ConsultationRequestService : IConsultationRequestService
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
 
-        return consultations.Select(MapToDto).ToList();
+        var dtos = consultations.Select(MapToDto).ToList();
+        await PopulateWorkflowStatusesAsync(dtos);
+        return dtos;
     }
 
 
@@ -238,7 +245,9 @@ public class ConsultationRequestService : IConsultationRequestService
         if (!await CanAccessAsync(consultation))
             return null;
 
-        return MapToDto(consultation);
+        var dto = MapToDto(consultation);
+        await PopulateWorkflowStatusesAsync(new List<ConsultationRequestDto> { dto });
+        return dto;
     }
 
 
@@ -444,6 +453,23 @@ public class ConsultationRequestService : IConsultationRequestService
             .Add(history);
 
         await _context.SaveChangesAsync();
+
+        // Create the AI-supervised workflow for this submission. Advisory
+        // bookkeeping only — a failure here must never break the submit.
+        if (_agentWorkflows is not null)
+        {
+            try
+            {
+                await _agentWorkflows.EnsureCreatedForConsultationAsync(
+                    consultation.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex,
+                    "Agent workflow creation failed for consultation {ConsultationId}",
+                    consultation.Id);
+            }
+        }
 
         return await GetByIdAsync(id);
     }
@@ -934,6 +960,26 @@ public class ConsultationRequestService : IConsultationRequestService
             EstimatedTotal = Math.Max(0m, quotation.EstimatedTotal),
             WithinBudget = quotation.WithinBudget
         };
+    }
+
+    /// <summary>
+    /// One grouped lookup for the workflow status of each returned
+    /// consultation — no N+1.
+    /// </summary>
+    private async Task PopulateWorkflowStatusesAsync(
+        List<ConsultationRequestDto> dtos)
+    {
+        var ids = dtos.Select(d => d.Id).ToList();
+        if (ids.Count == 0)
+            return;
+
+        var statuses = await _context.AgentWorkflows
+            .AsNoTracking()
+            .Where(w => ids.Contains(w.ConsultationRequestId))
+            .ToDictionaryAsync(w => w.ConsultationRequestId, w => w.Status);
+
+        foreach (var dto in dtos)
+            dto.AgentWorkflowStatus = statuses.GetValueOrDefault(dto.Id);
     }
 
     /// <summary>Foreign-organization requests are invisible to scoped staff.</summary>

@@ -9,7 +9,9 @@ namespace PetCare.Application.Validators;
 /// Structural validation for assigning a veterinarian to a consultation
 /// request. Bookings use fixed one-hour slots: StartTime must be
 /// hour-aligned inside operating hours (09:00–17:00) and, when an EndTime
-/// is supplied, it must equal StartTime + 1 hour.
+/// is supplied, it must equal StartTime + (1 hour × slot count) —
+/// single-slot assignments keep the original +1h rule, multi-slot
+/// AI-workflow bookings span N consecutive hours.
 /// </summary>
 public class AssignVeterinarianRequestValidator : AbstractValidator<AssignVeterinarianRequest>
 {
@@ -29,9 +31,24 @@ public class AssignVeterinarianRequestValidator : AbstractValidator<AssignVeteri
             .WithMessage("The appointment date/time cannot be in the past.");
 
         RuleFor(r => r.EndTime)
-            .Must((r, endTime) => endTime == r.StartTime.AddHours(1))
+            .Must((r, endTime) => endTime == r.StartTime.AddMinutes(
+                BookingRules.SlotDurationMinutes * (r.SlotIds is { Count: > 0 } ? r.SlotIds.Count : 1)))
             .When(r => r.EndTime.HasValue)
-            .WithMessage("EndTime must be exactly one hour after StartTime.");
+            .WithMessage("EndTime must equal StartTime plus one hour per requested slot.");
+
+        RuleFor(r => r.EndTime)
+            .Must(endTime => endTime <= BookingRules.ClosingTime)
+            .When(r => r.EndTime.HasValue)
+            .WithMessage("EndTime cannot run past closing time (18:00).");
+
+        RuleFor(r => r.SlotIds)
+            .Must(ids => ids!.Distinct().Count() == ids!.Count)
+            .WithMessage("SlotIds must be unique.")
+            .Must(ids => ids!.Count <= BookingRules.DaySlots.Count)
+            .WithMessage("SlotIds cannot exceed the number of slots in a working day.")
+            .Must((r, ids) => r.StartTime.AddMinutes(BookingRules.SlotDurationMinutes * ids!.Count) <= BookingRules.ClosingTime)
+            .WithMessage("The requested consecutive slot window runs past closing time (18:00).")
+            .When(r => r.SlotIds is { Count: > 0 });
 
         RuleFor(r => r.Notes)
             .MaximumLength(1000);

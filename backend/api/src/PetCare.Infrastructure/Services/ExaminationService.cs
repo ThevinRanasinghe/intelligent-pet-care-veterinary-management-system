@@ -18,17 +18,20 @@ public class ExaminationService : IExaminationService
     private readonly PetCareDbContext _context;
     private readonly ITenantContext _tenant;
     private readonly IAgenticClient? _agenticClient;
+    private readonly IAgentWorkflowService? _agentWorkflows;
     private readonly ILogger<ExaminationService>? _logger;
 
     public ExaminationService(
         PetCareDbContext context,
         ITenantContext tenant,
         IAgenticClient? agenticClient = null,
+        IAgentWorkflowService? agentWorkflows = null,
         ILogger<ExaminationService>? logger = null)
     {
         _context = context;
         _tenant = tenant;
         _agenticClient = agenticClient;
+        _agentWorkflows = agentWorkflows;
         _logger = logger;
     }
 
@@ -175,9 +178,25 @@ public class ExaminationService : IExaminationService
         if (appointment is not null)
         {
             appointment.Status = AppointmentStatus.Completed;
-            if (appointment.AppointmentSlot is not null)
+            // Multi-slot bookings reserve a consecutive window of published
+            // slots; completing the appointment completes every Reserved
+            // slot the window covered, restoring each slot's own one-hour
+            // end (the anchor carried the full window end while booked).
+            var windowSlots = await _context.AppointmentSlots
+                .Where(s => s.VeterinarianId == appointment.VeterinarianId
+                            && s.Date == appointment.Date
+                            && s.StartTime >= appointment.StartTime
+                            && s.StartTime < appointment.EndTime
+                            && s.Status == AppointmentSlotStatus.Reserved)
+                .ToListAsync();
+            if (windowSlots.Count == 0 && appointment.AppointmentSlot is not null)
             {
-                appointment.AppointmentSlot.Status = AppointmentSlotStatus.Completed;
+                windowSlots.Add(appointment.AppointmentSlot);
+            }
+            foreach (var windowSlot in windowSlots)
+            {
+                windowSlot.Status = AppointmentSlotStatus.Completed;
+                windowSlot.EndTime = windowSlot.StartTime.AddMinutes(BookingRules.SlotDurationMinutes);
             }
         }
 
@@ -228,7 +247,47 @@ public class ExaminationService : IExaminationService
     public async Task<TreatmentRecommendationDto> GetRecommendationsAsync(Guid examinationId, string? bearerToken = null)
     {
         var exists = await (await ScopedAsync()).AnyAsync(e => e.Id == examinationId);
-        if (!exists || _agenticClient == null)
+        if (!exists)
+            return UnavailableRecommendation();
+
+        // When a supervisor workflow is awaiting this event the specialist
+        // runs INSIDE the workflow so the trajectory records the step.
+        if (_agentWorkflows is not null)
+        {
+            var consultationId = await (await ScopedAsync())
+                .Where(e => e.Id == examinationId)
+                .Select(e => e.ConsultationRequestId)
+                .FirstOrDefaultAsync();
+            if (consultationId is not null)
+            {
+                var workflow = await _agentWorkflows.GetByConsultationAsync(consultationId);
+                if (workflow?.Status == AgentWorkflowStatus.AwaitingExamination)
+                {
+                    try
+                    {
+                        var advanced = await _agentWorkflows.AdvanceAsync(
+                            workflow.Id, AgentWorkflowEventType.ExaminationRecorded,
+                            examinationId.ToString(), bearerToken);
+                        var output = advanced.Steps.LastOrDefault()?.Output;
+                        if (output is { } outputJson)
+                        {
+                            var routed = outputJson.Deserialize<DiagnosisAgentResponse>();
+                            if (routed is not null &&
+                                !string.IsNullOrWhiteSpace(routed.SuspectedCondition))
+                                return await MapAssessmentAsync(routed);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex,
+                            "Workflow advance failed for examination {ExaminationId}; falling back to direct agent call",
+                            examinationId);
+                    }
+                }
+            }
+        }
+
+        if (_agenticClient == null)
             return UnavailableRecommendation();
 
         var result = await _agenticClient.AnalyzeDiagnosisAsync(examinationId.ToString(), bearerToken);
@@ -248,6 +307,13 @@ public class ExaminationService : IExaminationService
 
         if (assessment == null || string.IsNullOrWhiteSpace(assessment.SuspectedCondition))
             return UnavailableRecommendation();
+
+        return await MapAssessmentAsync(assessment);
+    }
+
+    private async Task<TreatmentRecommendationDto> MapAssessmentAsync(
+        DiagnosisAgentResponse assessment)
+    {
 
         var medicines = new List<RecommendedMedicineDto>();
         foreach (var med in assessment.SuggestedMedicines ?? Enumerable.Empty<AgenticSuggestedMedicine>())

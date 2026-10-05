@@ -42,6 +42,12 @@ public class ConsultationRequestDto
 
     public string? RequestedByVeterinarianName { get; set; }
 
+    /// <summary>
+    /// Status of the AI-supervised workflow for this consultation, when one
+    /// exists — lets React/Flutter show progress without an extra call.
+    /// </summary>
+    public string? AgentWorkflowStatus { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

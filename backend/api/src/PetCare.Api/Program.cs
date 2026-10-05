@@ -41,8 +41,31 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Liveness/readiness probe: anonymous, verifies the PostgreSQL connection.
+app.MapGet("/health", async (IConfiguration config, CancellationToken ct) =>
+{
+    var connectionString = config.GetConnectionString("PetCareDb");
+    if (string.IsNullOrEmpty(connectionString))
+        return Results.Problem(statusCode: 503, title: "Unhealthy",
+            detail: "Database connection string is not configured.");
+    try
+    {
+        await using var conn = new Npgsql.NpgsqlConnection(connectionString);
+        await conn.OpenAsync(ct);
+        return Results.Ok(new { status = "Healthy", database = "reachable" });
+    }
+    catch
+    {
+        return Results.Problem(statusCode: 503, title: "Unhealthy",
+            detail: "Database unreachable.");
+    }
+});
+
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Swagger is on in Development; a deployed demo can opt in with Swagger:Enabled=true.
+var swaggerEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Swagger:Enabled");
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();

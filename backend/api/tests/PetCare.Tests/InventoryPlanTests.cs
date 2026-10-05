@@ -1,5 +1,6 @@
 using PetCare.Application.DTOs;
 using PetCare.Application.DTOs.Agentic;
+using PetCare.Application.DTOs.Agentic.Workflows;
 using PetCare.Application.DTOs.Billing;
 using PetCare.Application.DTOs.Inventory;
 using PetCare.Application.Interfaces;
@@ -20,7 +21,7 @@ namespace PetCare.Tests;
 /// inventory agent through <see cref="IAgenticClient.PlanInventoryAsync"/>.
 /// These tests cover the agent call, DTO mapping, organization scoping
 /// (via the prescription repository's tenant scoping), and safe
-/// degradation — and prove nothing is ever issued, reserved, or persisted.
+/// degradation ΓÇö and prove nothing is ever issued, reserved, or persisted.
 /// </summary>
 public class InventoryPlanTests
 {
@@ -49,6 +50,18 @@ public class InventoryPlanTests
             Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
 
         public Task<AgenticServiceResult> PlanSchedulingAsync(string id, string? token, CancellationToken ct = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> RunWorkflowAsync(
+            string workflowId, WorkflowRunPayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> ResumeWorkflowAsync(
+            string workflowId, WorkflowResumePayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
+            Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
+
+        public Task<AgenticServiceResult> AdvanceWorkflowAsync(
+            string workflowId, WorkflowAdvancePayload payload, string? bearerToken, CancellationToken cancellationToken = default) =>
             Task.FromResult(AgenticServiceResult.Failed("not_implemented"));
     }
 
@@ -130,6 +143,8 @@ public class InventoryPlanTests
             Saves++;
             return Task.FromResult(0);
         }
+        public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(
+            CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private static (MedicineRequestService service, FakeAgenticClient agent, GuardedInventoryService inventory, GuardedBillingService billing, GuardedUnitOfWork uow)

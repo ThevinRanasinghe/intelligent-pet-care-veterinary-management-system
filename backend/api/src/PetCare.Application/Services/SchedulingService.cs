@@ -249,11 +249,19 @@ public class SchedulingService : ISchedulingService
 
         appointment.Status = AppointmentStatus.Cancelled;
 
-        // Cancelled appointments do not block a slot: free it for reuse.
-        var slot = await _appointmentSlotRepository.GetByIdAsync(appointment.AppointmentSlotId, cancellationToken);
-        if (slot is not null)
+        // Cancelled appointments do not block slots: free every Reserved
+        // slot the appointment occupied. Multi-slot bookings reserve a
+        // consecutive window; each restored slot gets its own one-hour
+        // end time back (the anchor carries the full window end while
+        // booked).
+        var windowSlots = await _appointmentSlotRepository.GetByStatusInWindowAsync(
+            appointment.VeterinarianId, appointment.Date, appointment.StartTime,
+            appointment.EndTime, AppointmentSlotStatus.Reserved, cancellationToken);
+        foreach (var slot in windowSlots)
         {
             slot.Status = AppointmentSlotStatus.Available;
+            slot.EndTime = slot.StartTime.AddMinutes(BookingRules.SlotDurationMinutes);
+            slot.UpdatedAt = DateTime.UtcNow;
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

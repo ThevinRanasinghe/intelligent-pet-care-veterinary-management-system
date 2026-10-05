@@ -136,4 +136,63 @@ public class ControllerAuthorizationTests
         Assert.Single(roles);
         Assert.Contains(Roles.PetOwner, roles);
     }
+
+    // POST /api/agent-workflows/{id}/approve|reject|revision — the approval
+    // decision is the human gate: ClinicManager ONLY. PetOwner and
+    // Veterinarian must never reach it.
+    [Fact]
+    public void AgentWorkflowDecisions_ClinicManagerOnly()
+    {
+        foreach (var method in new[] { "Approve", "Reject", "RequestRevision" })
+        {
+            var roles = AuthorizedRoles(typeof(AgentWorkflowsController), method);
+
+            Assert.Single(roles);
+            Assert.Contains(Roles.ClinicManager, roles);
+            Assert.DoesNotContain(Roles.SuperAdmin, roles);
+            Assert.DoesNotContain(Roles.Veterinarian, roles);
+            Assert.DoesNotContain(Roles.PetOwner, roles);
+        }
+    }
+
+    // POST /api/agent-workflows/start|run + history + events —
+    // clinic management only.
+    [Fact]
+    public void AgentWorkflowRun_ExcludesPetOwnerAndVeterinarian()
+    {
+        foreach (var method in new[] { "Start", "Run", "GetHistory", "RecordEvent" })
+        {
+            var roles = AuthorizedRoles(typeof(AgentWorkflowsController), method);
+
+            Assert.Contains(Roles.ClinicManager, roles);
+            Assert.Contains(Roles.SuperAdmin, roles);
+            Assert.DoesNotContain(Roles.PetOwner, roles);
+            Assert.DoesNotContain(Roles.Veterinarian, roles);
+        }
+    }
+
+    // GET /api/agent-workflows/{id} — staff detail view includes vets.
+    [Fact]
+    public void AgentWorkflowDetail_IncludesVeterinarian()
+    {
+        var roles = AuthorizedRoles(typeof(AgentWorkflowsController), "Get");
+
+        Assert.Contains(Roles.Veterinarian, roles);
+        Assert.Contains(Roles.ClinicManager, roles);
+        Assert.Contains(Roles.SuperAdmin, roles);
+        Assert.DoesNotContain(Roles.PetOwner, roles);
+    }
+
+    // GET /api/agent-workflows/by-consultation/{id} — owners see the reduced
+    // status view; the controller branches on IOwnerAccessService.IsPetOwner.
+    [Fact]
+    public void AgentWorkflowByConsultation_IncludesPetOwner()
+    {
+        var roles = AuthorizedRoles(typeof(AgentWorkflowsController), "GetByConsultation");
+
+        Assert.Contains(Roles.PetOwner, roles);
+        Assert.Contains(Roles.ClinicManager, roles);
+        Assert.Contains(Roles.SuperAdmin, roles);
+        Assert.DoesNotContain(Roles.Veterinarian, roles);
+    }
 }

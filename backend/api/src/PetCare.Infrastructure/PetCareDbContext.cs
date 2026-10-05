@@ -65,6 +65,15 @@ public class PetCareDbContext : DbContext, IPetCareDbContext
 
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
 
+    // Agentic workflow orchestration (advisory AI supervisor mirror)
+    public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
+
+    public DbSet<AgentWorkflowStep> AgentWorkflowSteps => Set<AgentWorkflowStep>();
+
+    public DbSet<AgentWorkflowApproval> AgentWorkflowApprovals => Set<AgentWorkflowApproval>();
+
+    public DbSet<AgentWorkflowEvent> AgentWorkflowEvents => Set<AgentWorkflowEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

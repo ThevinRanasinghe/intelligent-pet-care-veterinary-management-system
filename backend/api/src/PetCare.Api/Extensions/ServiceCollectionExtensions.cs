@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using PetCare.Api.Services;
 using PetCare.Application.DTOs.Admin;
+using PetCare.Application.DTOs.Agentic.Workflows;
 using PetCare.Application.DTOs.Manager;
 using PetCare.Application.DTOs.Approval;
 using PetCare.Application.DTOs.Auth;
@@ -62,6 +63,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPetOwnerRepository, PetOwnerRepository>();
         services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IConsultationRequestRepository, ConsultationRequestRepository>();
+        services.AddScoped<IAgentWorkflowRepository, AgentWorkflowRepository>();
         services.AddScoped<IExaminationRepository, ExaminationRepository>();
         services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -148,6 +150,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMedicineRequestService, MedicineRequestService>();
         services.AddScoped<IBookingAvailabilityService, BookingAvailabilityService>();
         services.AddScoped<IClinicLocatorService, ClinicLocatorService>();
+        services.AddScoped<IAgentWorkflowService, AgentWorkflowService>();
 
         services.AddScoped<IValidator<CreateAppointmentRequest>, CreateAppointmentRequestValidator>();
         services.AddScoped<IValidator<UpdateAppointmentRequest>, UpdateAppointmentRequestValidator>();
@@ -171,6 +174,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IValidator<MarkPrescriptionUnavailableRequest>, MarkPrescriptionUnavailableValidator>();
         services.AddScoped<IValidator<CreateConsultationRequestDto>, CreateConsultationRequestValidator>();
         services.AddScoped<IValidator<UpdateConsultationRequestDto>, UpdateConsultationRequestValidator>();
+        services.AddScoped<IValidator<WorkflowDecisionRequest>, WorkflowDecisionRequestValidator>();
+        services.AddScoped<WorkflowDecisionWithCommentsValidator>();
+        services.AddScoped<IValidator<WorkflowEventRequest>, WorkflowEventRequestValidator>();
 
         return services;
     }
