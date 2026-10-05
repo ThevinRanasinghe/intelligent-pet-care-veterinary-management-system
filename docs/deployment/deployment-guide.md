@@ -1,16 +1,29 @@
 # Deployment Guide
 
-Intended deployment architecture for PetCare AI. **Status: not yet deployed** — everything below documents the target topology and configuration; live URLs are placeholders pending the actual deployment.
+Deployed production architecture for PetCare AI — all three Render services track `main` and auto-deploy on push.
 
 ## Current deployment status
 
 | Component | Status | URL |
 |---|---|---|
-| ASP.NET Core API | [TO BE DEPLOYED] | Health: `/health` (added — DB-reachability check) · Swagger: `/swagger` (config-gated) |
-| React web | [TO BE DEPLOYED] | `[LIVE URL]` |
+| ASP.NET Core API | **DEPLOYED** — Render web service `petcare-api` (Docker, `backend/api/Dockerfile`, region oregon) | https://petcare-api-9hsw.onrender.com — Health: `/health` (200, database reachable) · Swagger: `/swagger` (enabled via `Swagger__Enabled=true`) |
+| React web | **DEPLOYED** — Render static site `petcare-web` (`rootDir: frontend/web`, `npm ci && npm run build` → `dist/`) | https://petcare-web-cfgv.onrender.com — SPA rewrite `/* → /index.html` (Render Redirects/Rewrites) |
 | Flutter mobile | **BUILT** — `frontend/mobile/build/app/outputs/flutter-apk/app-release.apk` (~55 MB) | distributed build artifact; device install + run verification pending |
 | PostgreSQL | **DEPLOYED** — Supabase, **all EF migrations applied** (verified 2026-10-05, incl. `AddAgentWorkflows` + full live workflow smoke test) | `aws-0-ap-southeast-2.pooler.supabase.com` (database `postgres`) |
-| Agentic AI service | [TO BE DEPLOYED] | internal-only FastAPI service (`agentic-service/`, `python main.py`, port `PORT`/8000) — must be reachable by the API but not publicly exposed |
+| Agentic AI service | **DEPLOYED** — Render web service `petcare-agentic` (Docker, `agentic-service/Dockerfile`, region oregon) | https://petcare-agentic.onrender.com — internal-only (`X-Internal-Key` required; 401 without it) |
+
+### Render static site configuration (`petcare-web`)
+
+| Setting | Value |
+|---|---|
+| Source | GitHub repo, branch `main` |
+| Root directory | `frontend/web` |
+| Build command | `npm ci && npm run build` |
+| Publish directory | `dist` |
+| Rewrite rule | `/* → /index.html` (type: rewrite) — required for React Router deep links (`/login`, `/manager`, …) |
+| Build env vars | `VITE_API_BASE_URL=https://petcare-api-9hsw.onrender.com/api`, `VITE_GOOGLE_MAPS_API_KEY` (browser key) |
+
+Free-tier note: Render free web services sleep after ~15 min idle — the first request after idle takes ~30–60 s (cold start). Warm `https://petcare-api-9hsw.onrender.com/health` and `https://petcare-agentic.onrender.com/health` before demos. Static sites do not sleep.
 
 ## Architecture
 
@@ -35,7 +48,7 @@ Single shared database for web + mobile (assignment requirement). All clients au
 | `ConnectionStrings:PetCareDb` / env `PETCARE_DB_CONNECTION` | Supabase pooled connection string — secret, never committed |
 | `Jwt:Key` / env `PETCARE_JWT_KEY` | signing key — secret; generate a long random value per environment |
 | `Jwt:Issuer` / `Jwt:Audience` | `PetCareApi` / `PetCareClient` (appsettings defaults) |
-| `Cors:AllowedOrigins` | must include the deployed web origin (dev: `http://localhost:5173`) |
+| `Cors:AllowedOrigins` | deployed API allows `https://petcare-web-cfgv.onrender.com` only (dev: `http://localhost:5173`) |
 | `ASPNETCORE_ENVIRONMENT` | `Production` disables Swagger unless `Swagger:Enabled=true` is set (e.g. for a demo/evaluation deployment) |
 | `Swagger:Enabled` | optional opt-in to expose `/swagger` outside Development |
 | `VITE_API_BASE_URL` | web build-time env → deployed API URL |
