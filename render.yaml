@@ -19,7 +19,7 @@ services:
       - key: AGENTIC_INTERNAL_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.5-flash
+        value: gemini-3.5-flash-lite
       - key: BACKEND_TIMEOUT_SECONDS
         value: "30"
       - key: API_BASE_URL
