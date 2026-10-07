@@ -1,3 +1,4 @@
+using FluentValidation;
 using PetCare.Application.DTOs.Inventory;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
@@ -15,6 +16,8 @@ public class InventoryService : IInventoryService
     private readonly ISupplierRepository _suppliers;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITenantContext _tenant;
+    private readonly IValidator<CreateMedicineRequest> _createMedicineValidator;
+    private readonly IValidator<ReceiveStockRequest> _receiveStockValidator;
 
     public InventoryService(
         IMedicineRepository medicines,
@@ -23,7 +26,9 @@ public class InventoryService : IInventoryService
         IInventoryTransactionRepository transactions,
         ISupplierRepository suppliers,
         IUnitOfWork unitOfWork,
-        ITenantContext tenant)
+        ITenantContext tenant,
+        IValidator<CreateMedicineRequest> createMedicineValidator,
+        IValidator<ReceiveStockRequest> receiveStockValidator)
     {
         _medicines = medicines;
         _batches = batches;
@@ -32,6 +37,8 @@ public class InventoryService : IInventoryService
         _suppliers = suppliers;
         _unitOfWork = unitOfWork;
         _tenant = tenant;
+        _createMedicineValidator = createMedicineValidator;
+        _receiveStockValidator = receiveStockValidator;
     }
 
     public async Task<ReservationResponse> ReserveMedicineAsync(
@@ -153,6 +160,8 @@ public class InventoryService : IInventoryService
     public async Task<MedicineBatchResponse> ReceiveStockAsync(
         Guid medicineId, ReceiveStockRequest request, Guid performedByUserId, CancellationToken ct = default)
     {
+        await _receiveStockValidator.ValidateAndThrowAsync(request, ct);
+
         var medicine = await _medicines.GetByIdAsync(medicineId, ct)
             ?? throw new NotFoundException($"Medicine '{medicineId}' does not exist.");
 
@@ -269,6 +278,8 @@ public class InventoryService : IInventoryService
 
 public async Task<MedicineResponse> CreateMedicineAsync(CreateMedicineRequest request, CancellationToken ct = default)
 {
+    await _createMedicineValidator.ValidateAndThrowAsync(request, ct);
+
     var medicine = new Medicine
     {
         Name = request.Name,

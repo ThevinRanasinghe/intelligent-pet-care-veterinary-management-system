@@ -3,6 +3,7 @@ using PetCare.Application.DTOs.Inventory;
 using PetCare.Application.Exceptions;
 using PetCare.Application.Interfaces;
 using PetCare.Application.Services;
+using PetCare.Application.Validators;
 using PetCare.Domain.Entities;
 using PetCare.Domain.Enums;
 using Xunit;
@@ -51,7 +52,9 @@ public class InventoryServiceTests
             _transactionRepository.Object,
             _supplierRepository.Object,
             _unitOfWork.Object,
-            _tenant.Object);
+            _tenant.Object,
+            new CreateMedicineRequestValidator(),
+            new ReceiveStockRequestValidator());
     }
 
     #region Reservation Tests
