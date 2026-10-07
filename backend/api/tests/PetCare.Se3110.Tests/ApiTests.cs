@@ -542,7 +542,7 @@ public class ApiTests : IClassFixture<Se3110Fixture>
         Assert.DoesNotContain("at System.", body);
         Assert.DoesNotContain("StackTrace", body);
         // Actual status recorded in the run evidence file.
-        Console.WriteLine($"TC-AI-018 actual status: {(int)res.StatusCode} body: {body[..Math.Min(300, body.Length)]}");
+        Console.WriteLine($"TC-AI-018 actual status: {(int)res.StatusCode} body: {body[..Math.Min(4000, body.Length)]}");
     }
 
     // ---------- TC-E2E-004 ----------
