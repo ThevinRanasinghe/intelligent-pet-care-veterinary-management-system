@@ -501,7 +501,13 @@ public class InventoryServiceTests
         _medicineRepository.Setup(r => r.GetByIdAsync(MedicineId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Medicine?)null);
 
-        var request = new ReceiveStockRequest { SupplierId = SupplierId, Quantity = 10 };
+        var request = new ReceiveStockRequest
+        {
+            SupplierId = SupplierId,
+            BatchNumber = "BN-TEST-1",
+            Quantity = 10,
+            ExpiryDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1)),
+        };
         var service = CreateService();
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.ReceiveStockAsync(MedicineId, request, UserId));
@@ -516,7 +522,13 @@ public class InventoryServiceTests
         _supplierRepository.Setup(s => s.GetByIdAsync(SupplierId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Supplier?)null);
 
-        var request = new ReceiveStockRequest { SupplierId = SupplierId, Quantity = 10 };
+        var request = new ReceiveStockRequest
+        {
+            SupplierId = SupplierId,
+            BatchNumber = "BN-TEST-1",
+            Quantity = 10,
+            ExpiryDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1)),
+        };
         var service = CreateService();
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.ReceiveStockAsync(MedicineId, request, UserId));
@@ -533,7 +545,13 @@ public class InventoryServiceTests
         _supplierRepository.Setup(s => s.GetByIdAsync(SupplierId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(supplier);
 
-        var request = new ReceiveStockRequest { SupplierId = SupplierId, Quantity = 10 };
+        var request = new ReceiveStockRequest
+        {
+            SupplierId = SupplierId,
+            BatchNumber = "BN-TEST-1",
+            Quantity = 10,
+            ExpiryDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1)),
+        };
         var service = CreateService();
 
         await Assert.ThrowsAsync<InventoryConflictException>(() => service.ReceiveStockAsync(MedicineId, request, UserId));

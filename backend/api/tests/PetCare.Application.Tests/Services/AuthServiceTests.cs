@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using FluentValidation.Results;
 using Moq;
 using PetCare.Application.DTOs.Auth;
@@ -327,7 +327,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RegisterPetOwnerAsync_WithDuplicateEmail_ThrowsInvalidOperationException()
+    public async Task RegisterPetOwnerAsync_WithDuplicateEmail_ThrowsDuplicateAccountException()
     {
         _userRepository.Setup(r => r.EmailExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
@@ -341,7 +341,7 @@ public class AuthServiceTests
             ConfirmPassword = Password,
         };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<DuplicateAccountException>(
             () => service.RegisterPetOwnerAsync(request));
     }
 
@@ -381,7 +381,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RegisterOrganizationAsync_WithDuplicateManagerEmail_ThrowsInvalidOperationException()
+    public async Task RegisterOrganizationAsync_WithDuplicateManagerEmail_ThrowsDuplicateAccountException()
     {
         _userRepository.Setup(r => r.EmailExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
@@ -401,12 +401,12 @@ public class AuthServiceTests
             ConfirmPassword = Password,
         };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<DuplicateAccountException>(
             () => service.RegisterOrganizationAsync(request));
     }
 
     [Fact]
-    public async Task RegisterOrganizationAsync_WithDuplicateOrgName_ThrowsInvalidOperationException()
+    public async Task RegisterOrganizationAsync_WithDuplicateOrgName_ThrowsDuplicateAccountException()
     {
         _userRepository.Setup(r => r.EmailExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
         _organizationRepository.Setup(r => r.NameOrEmailExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
@@ -427,7 +427,7 @@ public class AuthServiceTests
             ConfirmPassword = Password,
         };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<DuplicateAccountException>(
             () => service.RegisterOrganizationAsync(request));
     }
 }
