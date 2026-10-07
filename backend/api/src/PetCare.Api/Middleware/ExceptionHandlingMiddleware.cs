@@ -63,6 +63,11 @@ public class ExceptionHandlingMiddleware
                 "The request conflicts with an existing approval business rule.",
                 null),
 
+            DuplicateAccountException duplicateAccount => (
+                HttpStatusCode.Conflict,
+                "The request conflicts with an existing account or organization.",
+                null),
+
             InvalidCredentialsException invalidCredentials => (
                 HttpStatusCode.Unauthorized,
                 "Invalid email or password.",

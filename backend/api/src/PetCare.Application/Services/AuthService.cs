@@ -99,7 +99,7 @@ public class AuthService : IAuthService
         var email = request.Email.Trim();
         if (await _userRepository.EmailExistsAsync(email, cancellationToken))
         {
-            throw new InvalidOperationException("An account with this email already exists.");
+            throw new DuplicateAccountException("An account with this email already exists.");
         }
 
         var firstName = request.FirstName.Trim();
@@ -161,14 +161,14 @@ public class AuthService : IAuthService
         var managerEmail = request.ManagerEmail.Trim();
         if (await _userRepository.EmailExistsAsync(managerEmail, cancellationToken))
         {
-            throw new InvalidOperationException("An account with this manager email already exists.");
+            throw new DuplicateAccountException("An account with this manager email already exists.");
         }
 
         var orgName = request.OrganizationName.Trim();
         var orgEmail = request.OrganizationEmail.Trim();
         if (await _organizationRepository.NameOrEmailExistsAsync(orgName, orgEmail, cancellationToken))
         {
-            throw new InvalidOperationException("An organization with this name or email already exists.");
+            throw new DuplicateAccountException("An organization with this name or email already exists.");
         }
 
         var organization = new Organization
