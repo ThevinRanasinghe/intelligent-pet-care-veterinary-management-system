@@ -33,6 +33,10 @@ public static class DevelopmentSeeder
 
         var seedDate = new DateOnly(2025, 6, 2);
 
+        // Appointments FK to the canonical Pets table, so the dev fixture
+        // pets (and their owner) must exist first.
+        await SeedDevPetsAsync(context, cancellationToken);
+
         var confirmedSlot = await context.AppointmentSlots.SingleAsync(s => s.Id == SeedIds.SlotAnikaPerera1, cancellationToken);
         confirmedSlot.Status = AppointmentSlotStatus.Confirmed;
 
@@ -113,6 +117,51 @@ public static class DevelopmentSeeder
         await context.Quotations.AddAsync(quotation, cancellationToken);
         await context.QuotationItems.AddRangeAsync(quotationItems, cancellationToken);
         await context.Approvals.AddAsync(pendingApproval, cancellationToken);
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Seeds a dev PetOwner plus the two fixture pets referenced by the dev
+    /// appointments (the Appointments -> Pets FK requires real Pet rows).
+    /// </summary>
+    private static async Task SeedDevPetsAsync(PetCareDbContext context, CancellationToken cancellationToken)
+    {
+        if (await context.Pets.AnyAsync(p => p.Id == SeedIds.DevPetBuddy, cancellationToken))
+        {
+            return;
+        }
+
+        if (!await context.PetOwners.AnyAsync(o => o.Id == SeedIds.DevPetOwner, cancellationToken))
+        {
+            await context.PetOwners.AddAsync(new PetOwner
+            {
+                Id = SeedIds.DevPetOwner,
+                FullName = "Dev Fixture Owner",
+                Email = "dev-owner@petcare.lk",
+                PhoneNumber = "0000000000"
+            }, cancellationToken);
+        }
+
+        await context.Pets.AddRangeAsync(new[]
+        {
+            new Pet
+            {
+                Id = SeedIds.DevPetBuddy,
+                OwnerId = SeedIds.DevPetOwner,
+                Name = "Buddy",
+                Species = "Dog",
+                Breed = "Mixed"
+            },
+            new Pet
+            {
+                Id = SeedIds.DevPetMisty,
+                OwnerId = SeedIds.DevPetOwner,
+                Name = "Misty",
+                Species = "Cat",
+                Breed = "Domestic Shorthair"
+            }
+        }, cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);
     }

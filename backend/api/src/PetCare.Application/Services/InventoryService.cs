@@ -14,6 +14,7 @@ public class InventoryService : IInventoryService
     private readonly IInventoryTransactionRepository _transactions;
     private readonly ISupplierRepository _suppliers;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITenantContext _tenant;
 
     public InventoryService(
         IMedicineRepository medicines,
@@ -21,7 +22,8 @@ public class InventoryService : IInventoryService
         IMedicineReservationRepository reservations,
         IInventoryTransactionRepository transactions,
         ISupplierRepository suppliers,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ITenantContext tenant)
     {
         _medicines = medicines;
         _batches = batches;
@@ -29,6 +31,7 @@ public class InventoryService : IInventoryService
         _transactions = transactions;
         _suppliers = suppliers;
         _unitOfWork = unitOfWork;
+        _tenant = tenant;
     }
 
     public async Task<ReservationResponse> ReserveMedicineAsync(
@@ -85,9 +88,31 @@ public class InventoryService : IInventoryService
         {
             Id = reservation.Id,
             MedicineId = medicine.Id,
+            MedicineName = medicine.Name,
             Quantity = reservation.Quantity,
-            Status = reservation.Status.ToString()
+            Status = reservation.Status.ToString(),
+            ReferenceType = reservation.ReferenceType,
+            ReferenceId = reservation.ReferenceId,
+            RequestedByUserId = reservation.RequestedByUserId,
+            CreatedAt = reservation.CreatedAt
         };
+    }
+
+    public async Task<IReadOnlyList<ReservationResponse>> GetReservationsAsync(CancellationToken ct = default)
+    {
+        var reservations = await _reservations.GetAllAsync(ct);
+        return reservations.Select(r => new ReservationResponse
+        {
+            Id = r.Id,
+            MedicineId = r.MedicineId,
+            MedicineName = r.Medicine?.Name,
+            Quantity = r.Quantity,
+            Status = r.Status.ToString(),
+            ReferenceType = r.ReferenceType,
+            ReferenceId = r.ReferenceId,
+            RequestedByUserId = r.RequestedByUserId,
+            CreatedAt = r.CreatedAt
+        }).ToList();
     }
 
     public async Task CancelReservationAsync(Guid reservationId, Guid cancelledByUserId, CancellationToken ct = default)
@@ -95,7 +120,12 @@ public class InventoryService : IInventoryService
         var reservation = await _reservations.GetByIdAsync(reservationId, ct)
             ?? throw new NotFoundException($"Reservation '{reservationId}' does not exist.");
 
-        if (reservation.Status != ReservationStatus.Reserved)
+        // Atomic status transition — a single conditional UPDATE. If another
+        // request already cancelled/dispensed this reservation the WHERE
+        // matches 0 rows and we reject, so stock can never be released twice.
+        var transitioned = await _reservations.TryTransitionAsync(
+            reservationId, ReservationStatus.Reserved, ReservationStatus.Cancelled, ct);
+        if (transitioned == 0)
         {
             throw new InventoryConflictException("Only an active reservation can be cancelled.");
         }
@@ -180,7 +210,11 @@ public class InventoryService : IInventoryService
     var reservation = await _reservations.GetByIdAsync(reservationId, ct)
         ?? throw new NotFoundException($"Reservation '{reservationId}' does not exist.");
 
-    if (reservation.Status != ReservationStatus.Reserved)
+    // Atomic status transition — prevents two concurrent dispense calls
+    // (or a dispense racing a cancel) from both decrementing batch stock.
+    var transitioned = await _reservations.TryTransitionAsync(
+        reservationId, ReservationStatus.Reserved, ReservationStatus.Dispensed, ct);
+    if (transitioned == 0)
     {
         throw new InventoryConflictException("Only an active reservation can be dispensed.");
     }
@@ -219,6 +253,12 @@ public class InventoryService : IInventoryService
     }
 
     var medicine = await _medicines.GetByIdAsync(reservation.MedicineId, ct)!;
+
+    // If the reservation was created in the same unit of work/scope, the
+    // tracked entity still holds pre-reserve counters (TryReserveAsync uses an
+    // atomic UPDATE that bypasses the change tracker). Re-read so the
+    // decrement lands on the real values and can't go negative.
+    await _medicines.RefreshCurrentValuesAsync(medicine!, ct);
     medicine!.TotalQuantity -= reservation.Quantity;
     medicine.ReservedQuantity -= reservation.Quantity;
 
@@ -239,7 +279,10 @@ public async Task<MedicineResponse> CreateMedicineAsync(CreateMedicineRequest re
         UnitPrice = request.UnitPrice,
         Manufacturer = request.Manufacturer,
         ReorderLevel = request.ReorderLevel,
-        Status = MedicineStatus.Active
+        Status = MedicineStatus.Active,
+        // New inventory belongs to the caller's organization (null for
+        // platform-admin/system-created catalog rows).
+        OrganizationId = await _tenant.GetOrganizationIdAsync(ct)
     };
 
     await _medicines.AddAsync(medicine, ct);
@@ -316,7 +359,8 @@ public async Task<SupplierResponse> CreateSupplierAsync(CreateSupplierRequest re
         Phone = request.Phone,
         Email = request.Email,
         Address = request.Address,
-        Status = SupplierStatus.Active
+        Status = SupplierStatus.Active,
+        OrganizationId = await _tenant.GetOrganizationIdAsync(ct)
     };
 
     await _suppliers.AddAsync(supplier, ct);
@@ -352,7 +396,9 @@ private static MedicineResponse ToResponse(Medicine m) => new()
     TotalQuantity = m.TotalQuantity,
     ReservedQuantity = m.ReservedQuantity,
     AvailableQuantity = m.AvailableQuantity,
-    IsLowStock = m.IsLowStock
+    IsLowStock = m.IsLowStock,
+    CreatedAt = m.CreatedAt,
+    UpdatedAt = m.UpdatedAt
 };
 
 private static MedicineBatchResponse ToResponse(MedicineBatch b) => new()
@@ -364,7 +410,8 @@ private static MedicineBatchResponse ToResponse(MedicineBatch b) => new()
     Quantity = b.Quantity,
     ExpiryDate = b.ExpiryDate,
     ReceivedDate = b.ReceivedDate,
-    Status = b.Status.ToString()
+    Status = b.Status.ToString(),
+    IsExpired = b.ExpiryDate <= DateOnly.FromDateTime(DateTime.UtcNow)
 };
 
 private static SupplierResponse ToResponse(Supplier s) => new()
