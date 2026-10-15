@@ -1,90 +1,92 @@
-using Microsoft.EntityFrameworkCore;
-using PetCare.Infrastructure.Persistence;
-using PetCare.Application.Interfaces;
-using PetCare.Infrastructure.Services;
+using PetCare.Api.Extensions;
 using PetCare.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "PetCare AI API",
+        Version = "v1",
+        Description = "Scheduling, Billing & Approval Management endpoints."
+    });
+});
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Reuses the existing PetCare.Application / PetCare.Infrastructure implementations.
+builder.Services.AddPetCareInfrastructure(builder.Configuration);
+builder.Services.AddPetCareApplication();
+builder.Services.AddPetCareAuthentication(builder.Configuration);
 
-builder.Services.AddScoped<IExaminationService, ExaminationService>();
-builder.Services.AddScoped<IDiagnosisService, DiagnosisService>();
-builder.Services.AddScoped<ITreatmentRecordService, TreatmentRecordService>();
-builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
+const string CorsPolicyName = "PetCareFrontend";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactApp", policy =>
+    options.AddPolicy(CorsPolicyName, policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
     });
 });
 
 var app = builder.Build();
 
-// Seed initial database records
-using (var scope = app.Services.CreateScope())
+// Liveness/readiness probe: anonymous, verifies the PostgreSQL connection.
+app.MapGet("/health", async (IConfiguration config, CancellationToken ct) =>
 {
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var connectionString = config.GetConnectionString("PetCareDb");
+    if (string.IsNullOrEmpty(connectionString))
+        return Results.Problem(statusCode: 503, title: "Unhealthy",
+            detail: "Database connection string is not configured.");
     try
     {
-        await DataSeeder.SeedAsync(context);
+        await using var conn = new Npgsql.NpgsqlConnection(connectionString);
+        await conn.OpenAsync(ct);
+        return Results.Ok(new { status = "Healthy", database = "reachable" });
     }
-    catch (Exception ex)
+    catch
     {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding database records.");
+        return Results.Problem(statusCode: 503, title: "Unhealthy",
+            detail: "Database unreachable.");
     }
-}
-
-app.UseMiddleware<ExceptionHandlingMiddleware>();
+});
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Swagger is on in Development; a deployed demo can opt in with Swagger:Enabled=true.
+var swaggerEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Swagger:Enabled");
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowReactApp");
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseCors(CorsPolicyName);
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
-
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+// Exposes the top-level Program for WebApplicationFactory<Program> in
+// integration tests (PetCare.Api.Tests).
+public partial class Program { }
