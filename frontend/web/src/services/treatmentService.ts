@@ -1,200 +1,92 @@
-import { apiRequest } from './api';
-import type {
-    Examination,
-    Diagnosis,
-    TreatmentRecord,
-    Prescription,
-    DiagnosisSeverity,
-    TreatmentStatus,
-} from '../types/domain';
+using PetCare.Api.Extensions;
+using PetCare.Api.Middleware;
 
+var builder = WebApplication.CreateBuilder(args);
 
-// ---- Request DTOs (shapes sent to the backend) ----
+// Add services to the container.
 
-export interface CreateExaminationInput {
-    petId: string;
-    veterinarianId: string;
-    consultationRequestId?: string | null;
-    symptoms: string;
-    notes: string;
-    examinationDate: string;
-}
-
-export interface UpdateExaminationInput {
-    symptoms: string;
-    notes: string;
-    examinationDate: string;
-}
-
-export interface CreateDiagnosisInput {
-    examinationId: string;
-    conditionName: string;
-    description: string;
-    severity: DiagnosisSeverity;
-}
-
-export interface CreateTreatmentRecordInput {
-    diagnosisId: string;
-    procedureName: string;
-    notes: string;
-}
-
-export interface CreatePrescriptionInput {
-    treatmentRecordId: string;
-    medicineId: string;
-    dosage: string;
-    durationDays: number;
-}
-
-export interface UpdateDiagnosisInput {
-    conditionName: string;
-    description: string;
-    severity: DiagnosisSeverity;
-}
-
-export interface UpdateTreatmentRecordInput {
-    procedureName: string;
-    notes: string;
-}
-// ---- Examinations ----
-
-export function getExaminations() {
-    return apiRequest<Examination[]>('/examinations');
-}
-
-export function getExaminationById(id: string) {
-    return apiRequest<Examination>(`/examinations/${id}`);
-}
-
-export function getExaminationsByPet(petId: string) {
-    return apiRequest<Examination[]>(`/examinations/pet/${petId}`);
-}
-
-export function createExamination(input: CreateExaminationInput) {
-    return apiRequest<Examination>('/examinations', {
-        method: 'POST',
-        body: JSON.stringify(input),
+builder.Services.AddControllers();
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "PetCare AI API",
+        Version = "v1",
+        Description = "Scheduling, Billing & Approval Management endpoints."
     });
-}
+});
 
-export function updateExamination(id: string, input: UpdateExaminationInput) {
-    return apiRequest<void>(`/examinations/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(input),
+// Reuses the existing PetCare.Application / PetCare.Infrastructure implementations.
+builder.Services.AddPetCareInfrastructure(builder.Configuration);
+builder.Services.AddPetCareApplication();
+builder.Services.AddPetCareAuthentication(builder.Configuration);
+
+const string CorsPolicyName = "PetCareFrontend";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(CorsPolicyName, policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
     });
+});
+
+var app = builder.Build();
+
+// Liveness/readiness probe: anonymous, verifies the PostgreSQL connection.
+app.MapGet("/health", async (IConfiguration config, CancellationToken ct) =>
+{
+    var connectionString = config.GetConnectionString("PetCareDb");
+    if (string.IsNullOrEmpty(connectionString))
+        return Results.Problem(statusCode: 503, title: "Unhealthy",
+            detail: "Database connection string is not configured.");
+    try
+    {
+        await using var conn = new Npgsql.NpgsqlConnection(connectionString);
+        await conn.OpenAsync(ct);
+        return Results.Ok(new { status = "Healthy", database = "reachable" });
+    }
+    catch
+    {
+        return Results.Problem(statusCode: 503, title: "Unhealthy",
+            detail: "Database unreachable.");
+    }
+});
+
+// Configure the HTTP request pipeline.
+// Swagger is on in Development; a deployed demo can opt in with Swagger:Enabled=true.
+var swaggerEnabled = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Swagger:Enabled");
+if (swaggerEnabled)
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-export function deleteExamination(id: string) {
-    return apiRequest<void>(`/examinations/${id}`, { method: 'DELETE' });
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
 }
 
-// ---- Diagnoses ----
+app.UseCors(CorsPolicyName);
 
-export function getDiagnosisByExamination(examinationId: string) {
-    return apiRequest<Diagnosis>(`/diagnoses/examination/${examinationId}`);
-}
+app.UseAuthentication();
+app.UseAuthorization();
 
-export function createDiagnosis(input: CreateDiagnosisInput) {
-    return apiRequest<Diagnosis>('/diagnoses', {
-        method: 'POST',
-        body: JSON.stringify(input),
-    });
-}
+app.MapControllers();
 
-// ---- Treatment Records ----
+app.Run();
 
-export function getTreatmentRecordsByDiagnosis(diagnosisId: string) {
-    return apiRequest<TreatmentRecord[]>(`/treatmentrecords/diagnosis/${diagnosisId}`);
-}
-
-export function createTreatmentRecord(input: CreateTreatmentRecordInput) {
-    return apiRequest<TreatmentRecord>('/treatmentrecords', {
-        method: 'POST',
-        body: JSON.stringify(input),
-    });
-}
-
-export function updateTreatmentStatus(id: string, status: TreatmentStatus) {
-    return apiRequest<TreatmentRecord>(`/treatmentrecords/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-    });
-}
-
-// ---- Prescriptions ----
-
-export function getPrescriptionsByTreatment(treatmentRecordId: string) {
-    return apiRequest<Prescription[]>(`/prescriptions/treatment/${treatmentRecordId}`);
-}
-
-export function createPrescription(input: CreatePrescriptionInput) {
-    return apiRequest<Prescription>('/prescriptions', {
-        method: 'POST',
-        body: JSON.stringify(input),
-    });
-}
-
-export function updateDiagnosis(id: string, input: UpdateDiagnosisInput) {
-    return apiRequest<void>(`/diagnoses/${id}`, { method: 'PUT', body: JSON.stringify(input) });
-}
-
-export function deleteDiagnosis(id: string) {
-    return apiRequest<void>(`/diagnoses/${id}`, { method: 'DELETE' });
-}
-
-export function updateTreatmentRecord(id: string, input: UpdateTreatmentRecordInput) {
-    return apiRequest<void>(`/treatmentrecords/${id}`, { method: 'PUT', body: JSON.stringify(input) });
-}
-
-export function deleteTreatmentRecord(id: string) {
-    return apiRequest<void>(`/treatmentrecords/${id}`, { method: 'DELETE' });
-}
-
-export function deletePrescription(id: string) {
-    return apiRequest<void>(`/prescriptions/${id}`, { method: 'DELETE' });
-}
-
-// ---- Intelligent Treatment Recommendations (Business-Specific Operation) ----
-
-export interface RecommendedMedicine {
-    medicineId: string;
-    medicineName: string;
-    suggestedDosage: string;
-    suggestedDurationDays: number;
-}
-
-export interface TreatmentRecommendation {
-    suspectedCondition: string;
-    recommendedSeverity: DiagnosisSeverity;
-    rationale: string;
-    recommendedProcedures: string[];
-    suggestedMedicines: RecommendedMedicine[];
-    precautionaryNotes: string[];
-}
-
-export function getTreatmentRecommendations(examinationId: string) {
-    return apiRequest<TreatmentRecommendation>(`/examinations/${examinationId}/recommendations`);
-}
-
-// ---- Lookups (Pets & Medicines for Dropdowns) ----
-
-export interface PetLookup {
-    id: string;
-    name: string;
-    species: string;
-    breed: string;
-}
-
-export interface MedicineLookup {
-    id: string;
-    name: string;
-}
-
-export function getPetsLookup() {
-    return apiRequest<PetLookup[]>('/lookups/pets');
-}
-
-export function getMedicinesLookup() {
-    return apiRequest<MedicineLookup[]>('/lookups/medicines');
-}
-
+// Exposes the top-level Program for WebApplicationFactory<Program> in
+// integration tests (PetCare.Api.Tests).
+public partial class Program { }

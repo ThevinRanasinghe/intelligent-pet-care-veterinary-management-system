@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { treatmentApi, Examination } from '../api/treatmentApi';
+import { useEffect, useState } from 'react';
+import { getExaminations, createExamination } from '../../../services/treatmentService';
+import type { Examination } from '../../../types/domain';
 
-export const ExaminationsPage: React.FC = () => {
+export const ExaminationsPage = () => {
     const [examinations, setExaminations] = useState<Examination[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
-    const [formData, setFormData] = useState<Examination>({
+    const [formData, setFormData] = useState({
         petId: '',
-        vetId: '',
-        examinationDate: new Date().toISOString().split('T')[0],
+        veterinarianId: '',
+        consultationRequestId: '',
         symptoms: '',
         notes: '',
+        examinationDate: new Date().toISOString().split('T')[0],
     });
 
     useEffect(() => {
@@ -18,8 +20,8 @@ export const ExaminationsPage: React.FC = () => {
 
     const loadExaminations = async () => {
         try {
-            const response = await treatmentApi.getExaminations();
-            setExaminations(response.data);
+            const data = await getExaminations();
+            setExaminations(data);
         } catch (err) {
             console.error('Failed to load examinations', err);
         } finally {
@@ -30,67 +32,78 @@ export const ExaminationsPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await treatmentApi.createExamination(formData);
-            loadExaminations(); // Refresh list after creation
-            setFormData({ petId: '', vetId: '', examinationDate: '', symptoms: '', notes: '' });
+            await createExamination({
+                petId: formData.petId,
+                veterinarianId: formData.veterinarianId,
+                consultationRequestId: formData.consultationRequestId || null,
+                symptoms: formData.symptoms,
+                notes: formData.notes,
+                examinationDate: formData.examinationDate,
+            });
+            loadExaminations();
+            setFormData({ petId: '', veterinarianId: '', consultationRequestId: '', symptoms: '', notes: '', examinationDate: new Date().toISOString().split('T')[0] });
         } catch (err) {
             console.error('Failed to submit examination', err);
         }
     };
 
-    if (loading) return <div>Loading examinations...</div>;
+    if (loading) return <p className="muted">Loading examinations...</p>;
 
     return (
-        <div style={{ padding: '20px' }}>
-            <h2>Veterinary Examinations</h2>
+        <div className="page-wrap">
+            <div className="page-heading">
+                <h2>Examinations</h2>
+                <p className="eyebrow">Create and view clinical examinations</p>
+            </div>
 
-            {/* Examination Entry Form */}
-            <form onSubmit={handleSubmit} style={{ marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '400px' }}>
-                <h3>New Examination</h3>
-                <input
-                    type="text"
-                    placeholder="Pet ID"
-                    value={formData.petId}
-                    onChange={(e) => setFormData({ ...formData, petId: e.target.value })}
-                    required
-                />
-                <input
-                    type="text"
-                    placeholder="Vet ID"
-                    value={formData.vetId}
-                    onChange={(e) => setFormData({ ...formData, vetId: e.target.value })}
-                    required
-                />
-                <textarea
-                    placeholder="Observed Symptoms"
-                    value={formData.symptoms}
-                    onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })}
-                    required
-                />
-                <button type="submit">Save Examination</button>
+            <form onSubmit={handleSubmit} className="form-grid">
+                <label>
+                    Pet ID
+                    <input value={formData.petId} onChange={(e) => setFormData({ ...formData, petId: e.target.value })} required />
+                </label>
+                <label>
+                    Veterinarian ID
+                    <input value={formData.veterinarianId} onChange={(e) => setFormData({ ...formData, veterinarianId: e.target.value })} required />
+                </label>
+                <label>
+                    Symptoms
+                    <input value={formData.symptoms} onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })} required />
+                </label>
+                <label>
+                    Notes
+                    <input value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
+                </label>
+                <label>
+                    Examination Date
+                    <input type="date" value={formData.examinationDate} onChange={(e) => setFormData({ ...formData, examinationDate: e.target.value })} required />
+                </label>
+                <button type="submit" className="btn">Create Examination</button>
             </form>
 
-            {/* Examination Data Table */}
-            <table border={1} cellPadding={8} style={{ borderCollapse: 'collapse', width: '100%' }}>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Pet ID</th>
-                        <th>Vet ID</th>
-                        <th>Symptoms</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {examinations.map((exam) => (
-                        <tr key={exam.id}>
-                            <td>{exam.examinationDate}</td>
-                            <td>{exam.petId}</td>
-                            <td>{exam.vetId}</td>
-                            <td>{exam.symptoms}</td>
+            <div className="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Pet ID</th>
+                            <th>Vet ID</th>
+                            <th>Symptoms</th>
+                            <th>Date</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {examinations.map((exam) => (
+                            <tr key={exam.id}>
+                                <td>{exam.id}</td>
+                                <td>{exam.petId}</td>
+                                <td>{exam.veterinarianId}</td>
+                                <td>{exam.symptoms}</td>
+                                <td>{exam.examinationDate}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };
