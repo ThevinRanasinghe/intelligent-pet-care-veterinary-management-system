@@ -431,4 +431,60 @@ public class SchedulingServiceTests
         Assert.Equal(2, result.Count);
         _appointmentRepository.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
+
+// TC-BE-011: Reject a slot belonging to a different veterinarian
+[Fact]
+public async Task CreateAppointmentAsync_SlotBelongsToOtherVeterinarian_ThrowsConflict()
+{
+    // ARRANGE
+    // Vet A owns the slot, but the request is for Vet B.
+    var slot = Slot(
+        VeterinarianId,
+        new TimeOnly(10, 0),
+        new TimeOnly(11, 0));
+
+    var request = Request(
+        OtherVeterinarianId,
+        slot.Id,
+        new TimeOnly(10, 0),
+        new TimeOnly(11, 0));
+
+    _veterinarianRepository
+        .Setup(r => r.GetByIdAsync(
+            OtherVeterinarianId,
+            It.IsAny<CancellationToken>()))
+        .ReturnsAsync(ActiveVeterinarian(OtherVeterinarianId));
+
+    _appointmentSlotRepository
+        .Setup(r => r.GetByIdAsync(
+            slot.Id,
+            It.IsAny<CancellationToken>()))
+        .ReturnsAsync(slot);
+
+    var service = CreateService();
+
+    // ACT + ASSERT
+    var exception =
+        await Assert.ThrowsAsync<SchedulingConflictException>(
+            () => service.CreateAppointmentAsync(request));
+
+    Assert.Equal(
+        "The appointment slot does not belong to the specified veterinarian.",
+        exception.Message);
+
+    // Verify that no appointment was created.
+    _appointmentRepository.Verify(
+        r => r.AddAsync(
+            It.IsAny<Appointment>(),
+            It.IsAny<CancellationToken>()),
+        Times.Never);
+
+    // Verify that nothing was saved.
+    _unitOfWork.Verify(
+        u => u.SaveChangesAsync(
+            It.IsAny<CancellationToken>()),
+        Times.Never);
+
+    Assert.Equal(AppointmentSlotStatus.Available, slot.Status);
+}
 }
