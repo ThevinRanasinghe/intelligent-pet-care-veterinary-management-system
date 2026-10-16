@@ -487,4 +487,50 @@ public async Task CreateAppointmentAsync_SlotBelongsToOtherVeterinarian_ThrowsCo
 
     Assert.Equal(AppointmentSlotStatus.Available, slot.Status);
 }
+
+// TC-BE-013: Archived pet cannot be booked
+[Fact]
+public async Task CreateAppointmentAsync_ArchivedPet_ThrowsConflict()
+{
+    // ARRANGE
+    var request = Request(
+        VeterinarianId,
+        SlotId,
+        new TimeOnly(10, 0),
+        new TimeOnly(11, 0));
+
+    _petService
+        .Setup(p => p.GetByIdAsync(PetId))
+        .ReturnsAsync(new PetDto
+        {
+            Id = PetId,
+            OwnerId = "OWN-TEST001",
+            Name = "Archived Pet",
+            Species = "Dog",
+            IsArchived = true
+        });
+
+    var service = CreateService();
+
+    // ACT + ASSERT
+    var exception =
+        await Assert.ThrowsAsync<SchedulingConflictException>(
+            () => service.CreateAppointmentAsync(request));
+
+    Assert.Contains("archived", exception.Message);
+
+    // Verify no appointment was created
+    _appointmentRepository.Verify(
+        r => r.AddAsync(
+            It.IsAny<Appointment>(),
+            It.IsAny<CancellationToken>()),
+        Times.Never);
+
+    // Verify no changes were saved
+    _unitOfWork.Verify(
+        u => u.SaveChangesAsync(
+            It.IsAny<CancellationToken>()),
+        Times.Never);
+}
+
 }
