@@ -38,6 +38,16 @@ public class CreateAppointmentRequestValidator : AbstractValidator<CreateAppoint
                 await appointmentSlotRepository.GetByIdAsync(id, cancellationToken) is not null)
             .WithMessage("Appointment slot does not exist.");
 
+        // Every appointment is driven by a consultation request (Initial or
+        // vet-requested FollowUp) — the app has no standalone-appointment use
+        // case, and link-less creates previously produced orphaned Reserved
+        // rows that bypassed the consultation workflow.
+        RuleFor(r => r.ConsultationRequestId)
+            .NotEmpty()
+            .WithMessage(
+                "ConsultationRequestId is required — appointments are created through the consultation workflow.")
+            .MaximumLength(30);
+
         RuleFor(r => r.ScheduledStart)
             .LessThan(r => r.ScheduledEnd)
             .WithMessage("ScheduledStart must be before ScheduledEnd.");

@@ -147,6 +147,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IManagerService, ManagerService>();
         services.AddScoped<ICurrentVeterinarianResolver, CurrentVeterinarianResolver>();
         services.AddScoped<IConsultationWorkflowService, ConsultationWorkflowService>();
+        services.AddScoped<IWalkInBookingService, WalkInBookingService>();
         services.AddScoped<IMedicineRequestService, MedicineRequestService>();
         services.AddScoped<IBookingAvailabilityService, BookingAvailabilityService>();
         services.AddScoped<IClinicLocatorService, ClinicLocatorService>();
@@ -171,6 +172,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IValidator<ManagerCreateStaffRequest>, ManagerCreateStaffRequestValidator>();
         services.AddScoped<IValidator<AssignVeterinarianRequest>, AssignVeterinarianRequestValidator>();
         services.AddScoped<IValidator<CreateFollowUpRequest>, CreateFollowUpRequestValidator>();
+        services.AddScoped<IValidator<CreateWalkInBookingRequest>, CreateWalkInBookingRequestValidator>();
         services.AddScoped<IValidator<MarkPrescriptionUnavailableRequest>, MarkPrescriptionUnavailableValidator>();
         services.AddScoped<IValidator<CreateConsultationRequestDto>, CreateConsultationRequestValidator>();
         services.AddScoped<IValidator<UpdateConsultationRequestDto>, UpdateConsultationRequestValidator>();

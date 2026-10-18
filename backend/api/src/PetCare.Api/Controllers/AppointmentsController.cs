@@ -95,8 +95,17 @@ public class AppointmentsController : ControllerBase
     }
 
     /// <summary>
-    /// Creates a new appointment. Enforces veterinarian existence/active
-    /// status, slot existence/ownership/bounds, and the overlap conflict rule.
+    /// Creates an appointment for an existing consultation request.
+    /// ConsultationRequestId is required — every appointment is driven by a
+    /// consultation (owner-filed Initial or vet-requested FollowUp), so
+    /// orphaned appointments cannot be created here. The request must be
+    /// Submitted/Processing, belong to the same pet, and be filed with the
+    /// veterinarian's organization; on success the consultation is confirmed
+    /// exactly as the assign path does. Enforces veterinarian existence/
+    /// active status, slot existence/ownership/bounds, and the overlap
+    /// conflict rule. New bookings use POST /api/consultations/walk-in or
+    /// POST /api/consultations/{id}/assign — this endpoint covers the
+    /// explicit-slot + multi-hour variant of the same operation.
     /// </summary>
     [HttpPost]
     [Authorize(Roles = ManageRoles)]

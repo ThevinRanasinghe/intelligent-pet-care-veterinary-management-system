@@ -43,6 +43,7 @@ public class ConsultationRequestsController : ControllerBase
 
     private readonly IConsultationRequestService _consultationRequestService;
     private readonly IConsultationWorkflowService _consultationWorkflow;
+    private readonly IWalkInBookingService _walkInBooking;
     private readonly IBookingAvailabilityService _bookingAvailability;
     private readonly IOwnerAccessService _ownerAccess;
     private readonly IClinicLocatorService _clinicLocator;
@@ -52,6 +53,7 @@ public class ConsultationRequestsController : ControllerBase
     public ConsultationRequestsController(
         IConsultationRequestService consultationRequestService,
         IConsultationWorkflowService consultationWorkflow,
+        IWalkInBookingService walkInBooking,
         IBookingAvailabilityService bookingAvailability,
         IOwnerAccessService ownerAccess,
         IClinicLocatorService clinicLocator,
@@ -60,6 +62,7 @@ public class ConsultationRequestsController : ControllerBase
     {
         _consultationRequestService = consultationRequestService;
         _consultationWorkflow = consultationWorkflow;
+        _walkInBooking = walkInBooking;
         _bookingAvailability = bookingAvailability;
         _ownerAccess = ownerAccess;
         _clinicLocator = clinicLocator;
@@ -110,6 +113,43 @@ public class ConsultationRequestsController : ControllerBase
             });
         }
         catch (InvalidOperationException ex)
+        {
+            return BadRequest(new
+            {
+                message = ex.Message
+            });
+        }
+    }
+
+    // ============================================================
+    // WALK-IN BOOKING (front-desk intake)
+    // POST: api/consultations/walk-in
+    // ============================================================
+    /// <summary>
+    /// Manager intake for a walk-in visit: resolves or registers the owner
+    /// and pet, then creates + submits + assigns the consultation in one
+    /// operation — identical records to an online booking, Source="WalkIn".
+    /// </summary>
+    [HttpPost("walk-in")]
+    [Authorize(Roles = AssignRoles)]
+    [ProducesResponseType(typeof(WalkInBookingResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<WalkInBookingResponse>> CreateWalkIn(
+        [FromBody] CreateWalkInBookingRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _walkInBooking.CreateAsync(request, cancellationToken);
+
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = result.Consultation.Id },
+                result);
+        }
+        catch (ArgumentException ex)
         {
             return BadRequest(new
             {

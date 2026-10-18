@@ -28,8 +28,14 @@ public class AppointmentSlotRepository : IAppointmentSlotRepository
         DateOnly? date,
         CancellationToken cancellationToken = default)
     {
+        // Only bookable days surface: a past date can never be reserved
+        // (BookingRules.IsInFuture rejects it at booking time), so listing
+        // stale days only clutters the schedule. Matches BookingRules'
+        // server-local "today".
+        var today = DateOnly.FromDateTime(DateTime.Now);
         var query = _context.AppointmentSlots
-            .Where(s => s.Status == AppointmentSlotStatus.Available);
+            .Where(s => s.Status == AppointmentSlotStatus.Available
+                        && s.Date >= today);
 
         query = await query.ScopeToOrganizationAsync(_tenant, s => s.Veterinarian.OrganizationId, cancellationToken);
 

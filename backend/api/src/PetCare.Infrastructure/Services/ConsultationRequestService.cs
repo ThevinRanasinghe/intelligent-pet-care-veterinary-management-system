@@ -1062,6 +1062,9 @@ public class ConsultationRequestService : IConsultationRequestService
             RequestType =
                 consultation.RequestType,
 
+            Source =
+                consultation.Source,
+
             RequestedByVeterinarianId =
                 consultation.RequestedByVeterinarianId,
 

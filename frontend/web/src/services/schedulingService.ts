@@ -46,12 +46,18 @@ export interface CreateAppointmentRequest {
   scheduledStart: string;
   scheduledEnd: string;
   notes?: string;
+  /** Required — every appointment is driven by a consultation request. */
+  consultationRequestId: string;
 }
 
 export interface UpdateAppointmentRequest {
   scheduledStart: string;
   scheduledEnd: string;
   notes?: string;
+  /** Reassign to another veterinarian — old slot is released, the new one reserved. */
+  veterinarianId?: string;
+  /** Move onto a specific published slot (must match vet/date/start and be Available). */
+  appointmentSlotId?: string;
 }
 
 export interface ConflictCheckRequest {
@@ -74,8 +80,17 @@ function toLocalSlot(slot: AppointmentSlotResponse): AppointmentSlot {
   };
 }
 
-export async function getAppointmentSlots(): Promise<AppointmentSlot[]> {
-  const data = await apiRequest<AppointmentSlotResponse[]>('/appointments/available-slots');
+export async function getAppointmentSlots(
+  veterinarianId?: string,
+  date?: string,
+): Promise<AppointmentSlot[]> {
+  const query = new URLSearchParams();
+  if (veterinarianId) query.append('veterinarianId', veterinarianId);
+  if (date) query.append('date', date);
+  const queryString = query.toString();
+  const data = await apiRequest<AppointmentSlotResponse[]>(
+    `/appointments/available-slots${queryString ? `?${queryString}` : ''}`,
+  );
   return data.map(toLocalSlot);
 }
 

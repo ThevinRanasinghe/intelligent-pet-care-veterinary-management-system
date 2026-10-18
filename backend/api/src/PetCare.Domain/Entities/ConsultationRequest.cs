@@ -30,6 +30,11 @@ public class ConsultationRequest
     /// veterinarian-requested follow-up consultations.</summary>
     public string RequestType { get; set; } = "Initial";
 
+    /// <summary>Intake channel: "Online" (pet owner filed the request
+    /// through the app) or "WalkIn" (clinic staff filed it at the desk).
+    /// The downstream workflow is identical either way.</summary>
+    public string Source { get; set; } = "Online";
+
     /// <summary>The veterinarian who requested a follow-up consultation
     /// (null for owner-filed requests).</summary>
     public Guid? RequestedByVeterinarianId { get; set; }

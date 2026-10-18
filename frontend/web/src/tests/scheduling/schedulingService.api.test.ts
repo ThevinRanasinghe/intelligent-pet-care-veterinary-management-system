@@ -53,12 +53,15 @@ describe('schedulingService API integration', () => {
     const result = await createAppointment({
       petId: 'pet-1', veterinarianId: 'vet-1', appointmentSlotId: 's1',
       scheduledStart: '2026-01-10T09:00:00', scheduledEnd: '2026-01-10T09:30:00',
+      consultationRequestId: 'CON-1',
     });
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toContain('/appointments');
     expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body as string)).toMatchObject({ petId: 'pet-1', veterinarianId: 'vet-1' });
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      petId: 'pet-1', veterinarianId: 'vet-1', consultationRequestId: 'CON-1',
+    });
     expect(result).toEqual(created);
   });
 
@@ -68,6 +71,7 @@ describe('schedulingService API integration', () => {
     await expect(createAppointment({
       petId: 'pet-1', veterinarianId: 'vet-1', appointmentSlotId: 's1',
       scheduledStart: '2026-01-10T09:00:00', scheduledEnd: '2026-01-10T09:30:00',
+      consultationRequestId: 'CON-1',
     })).rejects.toBeInstanceOf(ApiError);
   });
 

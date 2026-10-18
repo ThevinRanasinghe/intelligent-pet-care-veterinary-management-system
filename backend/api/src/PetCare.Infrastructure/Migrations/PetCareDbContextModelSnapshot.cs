@@ -567,6 +567,13 @@ namespace PetCare.Infrastructure.Migrations
                     b.Property<Guid?>("RequestedByVeterinarianId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Online");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -599,6 +606,8 @@ namespace PetCare.Infrastructure.Migrations
                     b.ToTable("ConsultationRequests", null, t =>
                         {
                             t.HasCheckConstraint("CK_ConsultationRequest_RequestType_Allowed", "\"RequestType\" IN ('Initial', 'FollowUp')");
+
+                            t.HasCheckConstraint("CK_ConsultationRequest_Source_Allowed", "\"Source\" IN ('Online', 'WalkIn')");
                         });
                 });
 

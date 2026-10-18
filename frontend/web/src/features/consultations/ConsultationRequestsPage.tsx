@@ -70,6 +70,8 @@ type ConsultationRequest = {
   agentWorkflowStatus?: string | null;
   /** "Initial" | "FollowUp" — veterinarian-requested re-checks show a badge. */
   requestType: string;
+  /** "Online" | "WalkIn" — walk-ins filed at the front desk show a badge. */
+  source: string;
 };
 
 /* ========================================================================== */
@@ -397,6 +399,8 @@ export function ConsultationRequestsPage() {
           agentWorkflowStatus: item.agentWorkflowStatus ?? null,
 
           requestType: item.requestType || "Initial",
+
+          source: item.source || "Online",
         };
       });
 
@@ -1124,6 +1128,10 @@ export function ConsultationRequestsPage() {
                           <span className="badge badge-info">Follow-up</span>
                         )}
 
+                        {request.source === "WalkIn" && (
+                          <span className="badge badge-warning">Walk-in</span>
+                        )}
+
                         <span className={getUrgencyClass(request.urgency)}>
                           {request.urgency}
                         </span>
@@ -1527,6 +1535,23 @@ export function ConsultationRequestsPage() {
                             ? ` — ${selectedConsultation.requestedByVeterinarianName}`
                             : ""}
                         </span>
+                      </div>
+                    )}
+
+                    {selectedConsultation.source === "WalkIn" && (
+                      <div>
+                        <div
+                          style={{
+                            marginBottom: "5px",
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            color: "#777777",
+                          }}
+                        >
+                          BOOKING SOURCE
+                        </div>
+
+                        <span className="badge badge-warning">Walk-in</span>
                       </div>
                     )}
                   </div>

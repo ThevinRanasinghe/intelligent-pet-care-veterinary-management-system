@@ -4,8 +4,11 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
-import { cancelAppointment, createAppointment, getAppointmentSlots, getAppointments, updateAppointment } from '../../services/schedulingService';
+import { cancelAppointment, getAppointmentSlots, getAppointments, updateAppointment } from '../../services/schedulingService';
 import type { AppointmentSlot, AppointmentStatus } from '../../types/domain';
+import { getVeterinarians, type ManagerVeterinarian } from '../../services/managerService';
+import { consultationService, type ConsultationRequestApi } from '../../services/api';
+import { WalkInBookingModal, type WalkInPrefill } from './WalkInBookingModal';
 import { messageFrom } from '../../utils/errors';
 import { formatDate } from '../../utils/format';
 
@@ -21,6 +24,13 @@ interface SchedulingRow {
   endTime: string;
   branch: string;
   petId?: string;
+  petName?: string | null;
+  ownerName?: string | null;
+  veterinarianName?: string | null;
+  consultationRequestId?: string | null;
+  appointmentType?: string | null;
+  symptoms?: string | null;
+  notes?: string | null;
   status: AppointmentStatus;
 }
 
@@ -39,12 +49,15 @@ export function SchedulingPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const [bookingSlot, setBookingSlot] = useState<SchedulingRow | null>(null);
+  const [walkInOpen, setWalkInOpen] = useState(false);
+  const [walkInPrefill, setWalkInPrefill] = useState<WalkInPrefill | null>(null);
   const [viewing, setViewing] = useState<SchedulingRow | null>(null);
+  const [viewConsultation, setViewConsultation] = useState<ConsultationRequestApi | null>(null);
   const [editing, setEditing] = useState<SchedulingRow | null>(null);
   const [cancelling, setCancelling] = useState<SchedulingRow | null>(null);
 
-  const [petId, setPetId] = useState('');
+  const [vets, setVets] = useState<ManagerVeterinarian[]>([]);
+  const [editVetId, setEditVetId] = useState('');
   const [notes, setNotes] = useState('');
   const [editDate, setEditDate] = useState('');
   const [editStart, setEditStart] = useState('');
@@ -58,6 +71,11 @@ export function SchedulingPage() {
     setError('');
     try {
       const [slots, appointments] = await Promise.all([getAppointmentSlots(), getAppointments()]);
+      // Vet names for slot rows — best effort: the endpoint is manager-scoped
+      // and appointment rows already carry denormalised names.
+      getVeterinarians()
+        .then((list) => setVets(list.filter((v) => v.active)))
+        .catch(() => {});
       const slotRows: SchedulingRow[] = slots.map((slot: AppointmentSlot) => ({
         id: `slot-${slot.id}`,
         slotId: slot.id,
@@ -78,6 +96,13 @@ export function SchedulingPage() {
         endTime: extractTime(appt.scheduledEnd),
         branch: '—',
         petId: appt.petId,
+        petName: appt.petName,
+        ownerName: appt.ownerName,
+        veterinarianName: appt.veterinarianName,
+        consultationRequestId: appt.consultationRequestId,
+        appointmentType: appt.type,
+        symptoms: appt.symptoms,
+        notes: appt.notes,
         status: appt.status as AppointmentStatus,
       }));
       const all = [...slotRows, ...apptRows];
@@ -99,55 +124,51 @@ export function SchedulingPage() {
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     return rows.filter((row) => {
-      const haystack = `${row.veterinarianId} ${row.petId ?? ''} ${row.branch}`.toLowerCase();
+      const haystack = `${row.veterinarianId} ${row.veterinarianName ?? ''} ${row.petId ?? ''} ${row.petName ?? ''} ${row.ownerName ?? ''} ${row.branch}`.toLowerCase();
       const matchesQuery = !q || haystack.includes(q);
       const matchesStatus = status === 'All' || row.status === status;
       return matchesQuery && matchesStatus;
     });
   }, [rows, query, status]);
 
+  const vetNameFor = (row: SchedulingRow) =>
+    row.veterinarianName
+    ?? vets.find((v) => v.id === row.veterinarianId)?.name
+    ?? row.veterinarianId;
+
+  // Fetch the linked consultation while the detail modal is open so the
+  // manager can see the workflow record behind the appointment.
+  useEffect(() => {
+    setViewConsultation(null);
+    const id = viewing?.consultationRequestId;
+    if (!viewing || !id) return;
+    let cancelled = false;
+    consultationService.getConsultationById(id)
+      .then((c) => { if (!cancelled) setViewConsultation(c); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [viewing]);
+
   const openBook = (row: SchedulingRow) => {
-    setBookingSlot(row);
-    setPetId('');
-    setNotes('');
+    // Direct booking goes through the walk-in workflow now — the slot's
+    // vet/date/time pre-fill the intake form.
+    setWalkInPrefill({
+      veterinarianId: row.veterinarianId,
+      date: row.date,
+      startTime: row.startTime.slice(0, 5),
+    });
+    setWalkInOpen(true);
     setFormError('');
   };
 
   const openEdit = (row: SchedulingRow) => {
     setEditing(row);
+    setEditVetId(row.veterinarianId);
     setEditDate(row.date);
     setEditStart(row.startTime.slice(0, 5));
     setEditEnd(row.endTime.slice(0, 5));
-    setNotes('');
+    setNotes(row.notes ?? '');
     setFormError('');
-  };
-
-  const handleBook = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bookingSlot) return;
-    if (!petId.trim()) { setFormError('Pet ID is required'); return; }
-    if (!bookingSlot.veterinarianId || !bookingSlot.slotId) {
-      setFormError('This slot is missing veterinarian or slot information and cannot be booked');
-      return;
-    }
-    try {
-      setFormError('');
-      await createAppointment({
-        petId: petId.trim(),
-        veterinarianId: bookingSlot.veterinarianId,
-        appointmentSlotId: bookingSlot.slotId!,
-        scheduledStart: `${bookingSlot.date}T${bookingSlot.startTime}`,
-        scheduledEnd: `${bookingSlot.date}T${bookingSlot.endTime}`,
-        notes: notes.trim() || undefined,
-      });
-      setBookingSlot(null);
-      setPetId('');
-      setNotes('');
-      setSuccess('Appointment booked');
-      await load();
-    } catch (err) {
-      setFormError(messageFrom(err));
-    }
   };
 
   const handleEdit = async (e: React.FormEvent) => {
@@ -159,7 +180,9 @@ export function SchedulingPage() {
       await updateAppointment(editing.appointmentId!, {
         scheduledStart: `${editDate}T${editStart}:00`,
         scheduledEnd: `${editDate}T${editEnd}:00`,
-        notes: notes.trim() || undefined,
+        // Notes contract: send the field so an emptied box clears the note.
+        notes: notes.trim(),
+        veterinarianId: editVetId !== editing.veterinarianId ? editVetId : undefined,
       });
       setEditing(null);
       setNotes('');
@@ -190,8 +213,14 @@ export function SchedulingPage() {
       <div>
         <div className='eyebrow'>Component · Scheduling</div>
         <h2>Veterinarian scheduling</h2>
-        <p>Manage conflict-free appointment slots across clinic branches.</p>
+        <p>Manage appointment slots, walk-in bookings and the consultation workflow.</p>
       </div>
+      <Button
+        onClick={() => { setWalkInPrefill(null); setWalkInOpen(true); }}
+        icon={<CalendarPlus size={16} />}
+      >
+        Create walk-in booking
+      </Button>
     </div>
     <div className='filter-bar'>
       <div className='search-input' style={{ minWidth: 'min(280px, 100%)' }}>
@@ -246,15 +275,17 @@ export function SchedulingPage() {
                 <td>
                   <span className='person-cell'>
                     <span className='person-avatar'><UserRound size={14} /></span>
-                    <span style={{ maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.veterinarianId}</span>
+                    <span style={{ maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{vetNameFor(row)}</span>
                   </span>
                 </td>
                 <td>{row.branch}</td>
                 <td>
                   {row.petId ? (
                     <>
-                      <strong style={{ display: 'block', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>Pet: {row.petId}</strong>
-                      <span className='muted-line'>Owner: —</span>
+                      <strong style={{ display: 'block', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {row.petName ?? `Pet: ${row.petId}`}
+                      </strong>
+                      <span className='muted-line'>{row.ownerName ?? 'Owner: —'}</span>
                     </>
                   ) : (
                     <span className='muted'>Open slot</span>
@@ -279,30 +310,18 @@ export function SchedulingPage() {
       </div>
     </Card>
 
-    {bookingSlot && (
-      <Modal title='Book appointment' onClose={() => setBookingSlot(null)}>
-        <form onSubmit={handleBook} className='form-grid' style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div className='detail-block' style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px' }}>
-            <div><span>Date</span><strong>{formatDate(bookingSlot.date)}</strong></div>
-            <div><span>Time</span><strong>{bookingSlot.startTime.slice(0, 5)}–{bookingSlot.endTime.slice(0, 5)}</strong></div>
-            <div><span>Branch</span><strong>{bookingSlot.branch}</strong></div>
-            <div><span>Vet</span><strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{bookingSlot.veterinarianId}</strong></div>
-          </div>
-          <label>
-            Pet ID
-            <input type='text' value={petId} onChange={(e) => setPetId(e.target.value)} placeholder='Enter the pet GUID' />
-          </label>
-          <label>
-            Notes
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder='Optional notes' />
-          </label>
-          {formError && <div className='form-error'>{formError}</div>}
-          <div className='modal-actions'>
-            <Button type='button' variant='secondary' onClick={() => setBookingSlot(null)}>Cancel</Button>
-            <Button type='submit' icon={<Check size={16} />}>Book appointment</Button>
-          </div>
-        </form>
-      </Modal>
+    {walkInOpen && (
+      <WalkInBookingModal
+        prefill={walkInPrefill}
+        onClose={() => setWalkInOpen(false)}
+        onCreated={async (result) => {
+          setWalkInOpen(false);
+          setSuccess(
+            `Walk-in booked — consultation ${result.consultation.id} confirmed, appointment on ${formatDate(result.appointment.scheduledStart.slice(0, 10))}.`,
+          );
+          await load();
+        }}
+      />
     )}
 
     {viewing && (
@@ -320,17 +339,56 @@ export function SchedulingPage() {
           <div className='detail-block'><span>Time</span><strong>{viewing.startTime.slice(0, 5)}–{viewing.endTime.slice(0, 5)}</strong></div>
           <div className='detail-block'>
             <span>Veterinarian</span>
-            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{viewing.veterinarianId}</strong>
+            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{vetNameFor(viewing)}</strong>
           </div>
           <div className='detail-block'><span>Branch</span><strong>{viewing.branch}</strong></div>
           <div className='detail-block'>
-            <span>Pet ID</span>
-            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{viewing.petId ?? '—'}</strong>
+            <span>Pet</span>
+            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>
+              {viewing.petName ?? viewing.petId ?? '—'}
+            </strong>
+          </div>
+          <div className='detail-block'>
+            <span>Owner</span>
+            <strong>{viewing.ownerName ?? '—'}</strong>
           </div>
           <div className='detail-block'>
             <span>Status</span>
             <strong><Badge tone={toneForStatus[viewing.status]}>{viewing.status}</Badge></strong>
           </div>
+          <div className='detail-block'>
+            <span>Booking type</span>
+            <strong>
+              {viewing.appointmentType ?? (viewing.appointmentId ? 'Initial' : '—')}
+              {viewConsultation?.source === 'WalkIn' && (
+                <> <Badge tone='warning'>Walk-In</Badge></>
+              )}
+            </strong>
+          </div>
+          <div className='detail-block'>
+            <span>Consultation</span>
+            <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>
+              {viewing.consultationRequestId ?? '—'}
+            </strong>
+          </div>
+          {viewing.symptoms && (
+            <div className='detail-block'>
+              <span>Symptoms</span>
+              <strong style={{ fontWeight: 400 }}>{viewing.symptoms}</strong>
+            </div>
+          )}
+          {viewConsultation && (
+            <div className='detail-block'>
+              <span>Consultation status</span>
+              <strong>{viewConsultation.status}</strong>
+            </div>
+          )}
+          {viewing.notes && (
+            <div className='detail-block'>
+              <span>Notes</span>
+              <strong style={{ fontWeight: 400 }}>{viewing.notes}</strong>
+            </div>
+          )}
         </div>
         <div className='modal-actions'>
           <Button variant='secondary' onClick={() => setViewing(null)}>Close</Button>
@@ -343,14 +401,25 @@ export function SchedulingPage() {
         <form onSubmit={handleEdit} className='form-grid' style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div className='detail-block' style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '10px', marginBottom: '6px' }}>
             <div>
-              <span>Pet ID</span>
-              <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{editing.petId}</strong>
+              <span>Pet</span>
+              <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{editing.petName ?? editing.petId}</strong>
             </div>
             <div>
-              <span>Veterinarian</span>
-              <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{editing.veterinarianId}</strong>
+              <span>Linked consultation</span>
+              <strong style={{ fontSize: '11px', wordBreak: 'break-all' }}>{editing.consultationRequestId ?? '—'}</strong>
             </div>
           </div>
+          <label>
+            Veterinarian
+            <select value={editVetId} onChange={(e) => setEditVetId(e.target.value)}>
+              {!vets.some((v) => v.id === editing.veterinarianId) && (
+                <option value={editing.veterinarianId}>{vetNameFor(editing)}</option>
+              )}
+              {vets.map((v) => (
+                <option key={v.id} value={v.id}>{v.name} — {v.specialisation}</option>
+              ))}
+            </select>
+          </label>
           <label>
             Date
             <input type='date' value={editDate} onChange={(e) => setEditDate(e.target.value)} />

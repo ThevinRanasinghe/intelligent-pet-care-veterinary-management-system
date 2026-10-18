@@ -365,6 +365,7 @@ public class ConsultationWorkflowService : IConsultationWorkflowService
             AdditionalNotes = consultation.StatusNotes,
             Status = consultation.Status,
             RequestType = consultation.RequestType,
+            Source = consultation.Source,
             RequestedByVeterinarianId = consultation.RequestedByVeterinarianId,
             RequestedByVeterinarianName = veterinarian?.Name,
             CreatedAt = consultation.CreatedAt,

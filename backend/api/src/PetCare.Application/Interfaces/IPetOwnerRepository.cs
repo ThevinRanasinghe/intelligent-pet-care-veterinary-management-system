@@ -18,6 +18,13 @@ public interface IPetOwnerRepository
     /// </summary>
     Task<PetOwner?> GetUnlinkedByEmailAsync(string email, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Any owner profile (linked or unlinked) with this email — used by the
+    /// walk-in intake to reuse an existing record instead of registering a
+    /// duplicate. Email matching only; names are not a reliable key.
+    /// </summary>
+    Task<PetOwner?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
+
     Task AddAsync(PetOwner owner, CancellationToken cancellationToken = default);
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

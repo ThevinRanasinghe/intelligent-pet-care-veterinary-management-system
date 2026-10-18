@@ -13,6 +13,9 @@ public class ConsultationRequestConfiguration : IEntityTypeConfiguration<Consult
             t.HasCheckConstraint(
                 "CK_ConsultationRequest_RequestType_Allowed",
                 "\"RequestType\" IN ('Initial', 'FollowUp')");
+            t.HasCheckConstraint(
+                "CK_ConsultationRequest_Source_Allowed",
+                "\"Source\" IN ('Online', 'WalkIn')");
         });
 
         builder.HasKey(x => x.Id);
@@ -61,6 +64,11 @@ public class ConsultationRequestConfiguration : IEntityTypeConfiguration<Consult
             .HasMaxLength(20)
             .IsRequired()
             .HasDefaultValue("Initial");
+
+        builder.Property(x => x.Source)
+            .HasMaxLength(20)
+            .IsRequired()
+            .HasDefaultValue("Online");
 
         builder.Property(x => x.CreatedAt);
 

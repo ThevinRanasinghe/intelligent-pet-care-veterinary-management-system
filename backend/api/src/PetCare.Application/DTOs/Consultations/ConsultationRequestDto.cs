@@ -38,6 +38,9 @@ public class ConsultationRequestDto
     /// <summary>"Initial" (owner-filed) | "FollowUp" (vet-requested).</summary>
     public string RequestType { get; set; } = "Initial";
 
+    /// <summary>"Online" (owner-filed) | "WalkIn" (clinic staff filed).</summary>
+    public string Source { get; set; } = "Online";
+
     public Guid? RequestedByVeterinarianId { get; set; }
 
     public string? RequestedByVeterinarianName { get; set; }

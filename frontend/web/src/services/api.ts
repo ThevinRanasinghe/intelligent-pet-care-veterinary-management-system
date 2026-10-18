@@ -136,6 +136,8 @@ export type ConsultationRequestApi = {
   agentWorkflowStatus?: string | null;
   /** "Initial" (owner-filed) | "FollowUp" (veterinarian-requested). */
   requestType?: string;
+  /** "Online" (owner-filed) | "WalkIn" (clinic staff filed). */
+  source?: string;
   requestedByVeterinarianId?: string | null;
   requestedByVeterinarianName?: string | null;
   createdAt: string;
@@ -224,6 +226,38 @@ export type CreateFollowUpPayload = {
   preferredTime: string;
   reason: string;
   notes?: string;
+};
+
+/**
+ * Manager walk-in intake: resolve or register the owner and pet (exactly one
+ * of ownerId/newOwner and one of petId/newPet), then the server files +
+ * submits + assigns the consultation in one operation — identical records
+ * to an online booking, marked Source="WalkIn".
+ */
+export type CreateWalkInBookingPayload = {
+  ownerId?: string | null;
+  newOwner?: CreatePetOwnerPayload | null;
+  petId?: string | null;
+  /** newPet.ownerId is ignored — the server links the resolved owner. */
+  newPet?: Omit<CreatePetPayload, "ownerId"> | null;
+  symptoms: string;
+  urgency?: string;
+  budget?: number | null;
+  additionalNotes?: string | null;
+  /** Optional for org-scoped staff — their clinic applies by default. */
+  organizationId?: string | null;
+  veterinarianId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Hour-aligned one-hour slot start "HH:mm". */
+  startTime: string;
+};
+
+export type WalkInBookingResponse = {
+  consultation: ConsultationRequestApi;
+  appointment: AppointmentResponse;
+  owner: PetOwner;
+  pet: Pet;
 };
 
 /* ========================================================================== */
@@ -502,6 +536,17 @@ export const consultationService = {
    */
   createFollowUp: (payload: CreateFollowUpPayload) =>
     apiRequest<ConsultationRequestApi>("/consultations/follow-up", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  /**
+   * Front-desk walk-in intake: owner/pet resolution or registration +
+   * consultation create + submit + veterinarian assignment in one call.
+   * POST /api/consultations/walk-in (ClinicManager/Admin)
+   */
+  createWalkInBooking: (payload: CreateWalkInBookingPayload) =>
+    apiRequest<WalkInBookingResponse>("/consultations/walk-in", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
